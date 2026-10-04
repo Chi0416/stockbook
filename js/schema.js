@@ -8,6 +8,8 @@
 //   keep:        連續新增時保留該欄的值，方便輸入同一天／同一份快照
 //   default:     新增時預先填入的值
 //   hint:        顯示在表單欄位下方的說明
+//   note:        依表單目前填的內容，顯示在欄位下方的提醒：note(values) 回傳文字，不用提醒時回傳空字串
+//                values 是各欄位填的內容（日期轉成 2025-06-05，看不懂時是空字串）
 //   caps:        手機鍵盤預設大寫（代號可能有英文字母，例如 00679B）
 //   suggest:     表單下方的快選按鈕（預設值 + 最近輸入過的值），只是提示，不限制
 //   pair:        成對的快選按鈕：按下後同時填入本欄與 pair 指定的欄位（代號＋證券）
@@ -17,6 +19,8 @@
 //   card:        列表卡片上的代號、標題、標籤、右上角主要數字，其餘欄位顯示在卡片下方
 //   status:      沒有標籤欄位時，卡片左上角的狀態標籤：回傳 { label, cls, pending } 或 null
 //                cls 是標籤樣式（pending 為虛線）；pending 為 true 時金額變淡、合計另外列出
+//   intro:       列表最上面的一段說明（有資料時才顯示）
+//   empty:       還沒有資料時列表顯示的文字
 //   annotate:    列表的補充說明：annotate(rows) 回傳 { groups: { 分組值: { text, warn, lines } }, cards: { 記錄 id: { text, warn } } }
 //                groups 顯示在分組標題下方，cards 顯示在卡片最下方
 //   migrate:     讀取舊格式資料時的轉換
@@ -45,7 +49,12 @@ const SCHEMAS = {
     card: { code: 'code', title: 'name', badge: 'type', primary: 'amount' },
     fields: [
       { key: 'member', label: '成員',     type: 'member', keep: true, full: true },
-      { key: 'date',   label: '成交日期', type: 'date', keep: true },
+      { key: 'date',   label: '成交日期', type: 'date', keep: true,
+        // 成交日期在總覽用的快照當天或之前：當作已經算在快照裡（見 holdings.js）
+        note(v) {
+          const snap = v.member && v.date ? Holdings.snapDate(v.member, U.today()) : null;
+          return snap && v.date <= snap ? `已算在 ${U.fmtDate(snap)} 的庫存快照裡，總覽不會再加一次` : '';
+        } },
       { key: 'type',   label: '交易別',   type: 'text', suggest: ['普買', '普賣'] },
       { key: 'code',   label: '代號',     type: 'text', caps: true, pair: 'name', suggestFrom: ['snapshots'],
         hint: '要和庫存快照一致' },
@@ -63,6 +72,8 @@ const SCHEMAS = {
     title: '庫存快照',
     period: { key: 'date', unit: 'day', label: '快照日期' },
     defaultLatest: true,
+    intro: '這裡是照券商抄的庫存，不會跟著交易明細改變。加上之後的買賣算出來的目前持股，請看「總覽」。',
+    empty: '還沒有庫存快照<br>點右上角「＋ 新增」，照券商 App 的庫存一檔填一筆<br>不填也可以，總覽會直接加總交易明細',
     card: { code: 'code', title: 'name', badge: 'type', primary: 'totalCost' },
     fields: [
       { key: 'member',      label: '成員',         type: 'member', keep: true, full: true },

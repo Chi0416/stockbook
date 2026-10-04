@@ -12,6 +12,7 @@ const Form = (() => {
   let ctx = null;     // { tableKey, schema, id, count, fields }
   let inputs = [];
   let chipBoxes = []; // 各欄位的快選按鈕容器（沒有快選的欄位為 null）
+  let noteEls = [];   // 各欄位的提醒（schema 的 note；沒有的欄位為 null）
   let initial = [];   // 開啟或連續新增後的欄位值，用來判斷是否有未儲存的內容
   let hooks = { toast() {}, onChanged() {} };
 
@@ -59,6 +60,7 @@ const Form = (() => {
     const fields = ctx.fields;
     fieldsEl.innerHTML = '';
     chipBoxes = fields.map(() => null);
+    noteEls = fields.map(() => null);
     const wraps = [];
     inputs = fields.map((f, i) => {
       const wrap = document.createElement('div');
@@ -92,6 +94,11 @@ const Form = (() => {
         hint.textContent = f.hint;
         wrap.appendChild(hint);
       }
+      if (f.note) {
+        noteEls[i] = document.createElement('div');
+        noteEls[i].className = 'note';
+        wrap.appendChild(noteEls[i]);
+      }
       const err = document.createElement('div');
       err.className = 'err';
       wrap.appendChild(err);
@@ -107,7 +114,18 @@ const Form = (() => {
       wraps[Math.max(i, fieldIndex(f.pair))].after(chipBoxes[i]);
     });
     renderAllChips();
+    renderNotes();
     initial = inputs.map(inp => inp.value);
+  }
+
+  // 欄位下方的提醒，依目前填的內容重新產生（例如成交日期已經算在庫存快照裡）
+  function renderNotes() {
+    if (!noteEls.some(Boolean)) return;
+    const values = Object.fromEntries(ctx.fields.map((f, i) => {
+      const raw = inputs[i].value.trim();
+      return [f.key, f.type === 'date' ? U.parseDate(raw) || '' : raw];
+    }));
+    noteEls.forEach((el, i) => { if (el) el.textContent = ctx.fields[i].note(values) || ''; });
   }
 
   // 成員下拉選單；全家檢視時預設空白，要選了才能儲存
@@ -258,6 +276,7 @@ const Form = (() => {
       if (!f.keep) inp.value = defaultValue(f);
     });
     renderAllChips();
+    renderNotes();
     initial = inputs.map(inp => inp.value);
     closeBtn.textContent = '完成';
     statusEl.textContent = `已新增：${summary(saved)}（本次共 ${ctx.count} 筆）`;
@@ -315,7 +334,10 @@ const Form = (() => {
     setError(i, '');
     autofillPair(i);
     renderAllChips();
+    renderNotes();
   });
+  // 日期、下拉選單有些瀏覽器只送 change
+  fieldsEl.addEventListener('change', renderNotes);
 
   // Enter（手機鍵盤的「下一項」）跳下一格，最後一格直接儲存
   fieldsEl.addEventListener('keydown', e => {

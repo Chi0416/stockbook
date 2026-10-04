@@ -212,6 +212,8 @@ body:has(dialog[open]) { overflow: hidden; }
   font-weight: 500;
   color: var(--muted);
 }
+/* 列表最上面的說明（例如庫存快照頁：這裡的數字不會跟著交易改變） */
+.list-intro { margin: 2px 4px 12px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 /* 分組標題下方的補充說明（例如庫存快照的核對結果）；lines 每項一行 */
 .group-note { margin: -4px 4px 10px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .group-note.warn { color: var(--danger); }
@@ -689,6 +691,9 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 .field.invalid input,
 .field.invalid select { border-color: var(--danger); background-color: var(--invalid-bg); }
 .field .hint { margin: 5px 2px 0; font-size: 12px; color: var(--muted); }
+/* 依填的內容出現的提醒（例如成交日期已經算在庫存快照裡） */
+.field .note { margin: 5px 2px 0; font-size: 12px; line-height: 1.5; color: var(--accent-text); }
+.field .note:empty { display: none; }
 .err { margin: 4px 2px 0; font-size: 12px; color: var(--danger); }
 .err:empty { display: none; }
 

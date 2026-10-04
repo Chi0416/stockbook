@@ -39,6 +39,7 @@ function createList(tableKey, schema, { openForm }) {
     ? `<p class="group-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}${(n.lines || []).map(l => `<span>${U.esc(l)}</span>`).join('')}</p>`
     : '');
   const cardNoteHTML = n => (n ? `<span class="card-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}</span>` : '');
+  const introHTML = schema.intro ? `<p class="list-intro">${U.esc(schema.intro)}</p>` : '';
   // 統計用的欄位：金額是合計的欄位、日期是分組的欄位，代號和名稱同卡片
   const stats = schema.stats && { ...schema.stats, amount: schema.total.key, date: periodKey, code, name: title };
   const modeHTML = () => `
@@ -171,9 +172,9 @@ function createList(tableKey, schema, { openForm }) {
     countEl.textContent = rows.length === all.length ? `${all.length} 筆` : `${rows.length}／${all.length} 筆`;
 
     if (!rows.length) {
-      listEl.innerHTML = `<p class="empty">${
-        all.length ? '沒有符合條件的資料' : (schema.empty || '還沒有資料<br>點右上角「＋ 新增」開始記錄')
-      }</p>`;
+      listEl.innerHTML = all.length
+        ? `${introHTML}<p class="empty">沒有符合條件的資料</p>`
+        : `<p class="empty">${schema.empty || '還沒有資料<br>點右上角「＋ 新增」開始記錄'}</p>`;
     } else {
       // 分組標題的說明；日期在今天之後時改用 futureSuffix（例如「發放」→「預計發放」）
       const { groupSuffix, futureSuffix } = schema.period;
@@ -182,7 +183,7 @@ function createList(tableKey, schema, { openForm }) {
         const s = futureSuffix && g > today ? futureSuffix : groupSuffix;
         return s ? ` · ${s}` : '';
       };
-      let html = schema.total ? summaryHTML(rows) : '';
+      let html = introHTML + (schema.total ? summaryHTML(rows) : '');
       const withMember = showMember();
       if (stats) html += modeHTML();
       if (stats && state.mode === 'stats') {

@@ -1,4 +1,5 @@
 // 持股推算：以最近一期庫存快照為起點，加上快照之後的交易與配股
+//   還沒有快照時從 0 開始，加總全部的交易與配股（假設交易紀錄完整）
 //   股數：買進加、賣出減（交易別含「買」或「賣」）
 //         配股在發放日入帳，依除權息日前的持股計算：股票股利每股 X 元 = 每股配 X/10 股，不足一股不計
 //   成本：移動平均，和券商算法一致
@@ -27,16 +28,8 @@ const Holdings = (() => {
   // 配股入帳的股數：除權息有手動填基準日股數就用它，否則用除權息日之前的持股推算
   function bonusShares(member, code, d) {
     const manual = d.baseShares?.[member];
-    const held = typeof manual === 'number' ? manual : holdingsBefore(member, code, d.exDate);
+    const held = typeof manual === 'number' ? manual : position(member, code, d.exDate).shares;
     return Math.floor(held * num(d.stock) / 10);
-  }
-
-  // 成員某代號在 date 之前的股數：之前有快照就從快照往後推；沒有就從第一筆交易開始累加（假設交易紀錄完整）
-  function holdingsBefore(member, code, date) {
-    const pos = position(member, code, date, false);
-    if (pos) return pos.shares;
-    return eventsFor(member, code, d => d < date)
-      .reduce((s, e) => s + (e.trade ? signed(e.trade) : bonusShares(member, code, e.stock)), 0);
   }
 
   // 成員在 date 之前（inclusive 時含當天）最近一期快照的日期
@@ -47,13 +40,13 @@ const Holdings = (() => {
     }, null);
   }
 
-  // 成員某代號在 date 之前（inclusive 時含當天）的持股；沒有可用的快照時回傳 null
+  // 成員某代號在 date 之前（inclusive 時含當天）的持股
+  //   之前有快照就從最近一期快照往後推；沒有就從 0 開始累加（snapDate 為 null）
   function position(member, code, date, inclusive = false) {
     const snapDate = snapDateBefore(member, date, inclusive);
-    if (!snapDate) return null;
-    const inRange = d => d > snapDate && (inclusive ? d <= date : d < date);
+    const inRange = d => (!snapDate || d > snapDate) && (inclusive ? d <= date : d < date);
 
-    const rows = Store.list('snapshots', member).filter(s => s.date === snapDate && codeOf(s) === code);
+    const rows = snapDate ? Store.list('snapshots', member).filter(s => s.date === snapDate && codeOf(s) === code) : [];
     const base = rows.reduce((t, s) => t + num(s.shares), 0);
     let shares = base;
     let cost = rows.reduce((t, s) => t + num(s.totalCost), 0);
@@ -86,7 +79,7 @@ const Holdings = (() => {
     });
 
     const changed = bought > 0 || sold > 0 || bonus > 0;
-    const formula = `${U.fmtDate(snapDate)} 快照 ${U.fmtNum(base)}` +
+    const formula = (snapDate ? `${U.fmtDate(snapDate)} 快照 ${U.fmtNum(base)}` : '從 0 開始') +
       (bought ? ` + 買進 ${U.fmtNum(bought)}` : '') +
       (sold ? ` − 賣出 ${U.fmtNum(sold)}` : '') +
       (bonus ? ` + 配股 ${U.fmtNum(bonus)}` : '');
@@ -125,49 +118,49 @@ const Holdings = (() => {
   //   1. 手動填寫（manual 是數字時）
   //   2. 除權息日之前最近一期快照往後推（position）
   //   3. 之前沒有快照時，用除權息日之後最近一期快照往回推（positionBack）
-  // 回傳 { member, found, shares, basis, error }；found 為 false 表示這位成員當時沒有持有，
-  // noSnapshot 表示除權息日前後都找不到快照
+  //   4. 前後都沒有快照時，從 0 開始累加交易（position 的 snapDate 為 null）
+  // 回傳 { member, found, shares, basis, error, snapDate }；found 為 false 表示這位成員當時沒有持有
   function entitled(member, code, exDate, manual) {
     if (typeof manual === 'number') return { member, found: true, shares: manual, basis: '基準日股數為手動輸入' };
 
     const negative = p => ({ member, found: true, shares: p.shares, error: `股數算出來是負的（${p.formula}），請檢查資料` });
     const fwd = position(member, code, exDate, false);
-    if (fwd) {
-      if (!fwd.found) return { member, found: false, snapDate: fwd.snapDate };
-      if (fwd.shares < 0) return negative(fwd);
+    const back = fwd.snapDate ? null : positionBack(member, code, exDate);
+    if (back) {
+      if (!back.found) return { member, found: false, snapDate: back.snapDate };
+      if (back.bonus) {
+        return {
+          member, found: true, shares: null,
+          error: `除權息日到 ${U.fmtDate(back.snapDate)} 快照之間有配股，無法往回推算，請在除權息手動填基準日股數`,
+        };
+      }
+      if (back.shares < 0) return negative(back);
       return {
-        member, found: true, shares: fwd.shares,
-        basis: fwd.changed ? `股數 = ${fwd.formula}` : `股數依 ${U.fmtDate(fwd.snapDate)} 庫存快照`,
+        member, found: true, shares: back.shares,
+        basis: back.changed
+          ? `股數 = ${back.formula}（往回推算）`
+          : `股數依 ${U.fmtDate(back.snapDate)} 快照往回推算（期間沒有買賣紀錄）`,
       };
     }
 
-    const back = positionBack(member, code, exDate);
-    if (!back) return { member, found: false, noSnapshot: true };
-    if (!back.found) return { member, found: false, snapDate: back.snapDate };
-    if (back.bonus) {
-      return {
-        member, found: true, shares: null,
-        error: `除權息日到 ${U.fmtDate(back.snapDate)} 快照之間有配股，無法往回推算，請在除權息手動填基準日股數`,
-      };
-    }
-    if (back.shares < 0) return negative(back);
+    if (!fwd.found) return { member, found: false, snapDate: fwd.snapDate };
+    if (fwd.shares < 0) return negative(fwd);
     return {
-      member, found: true, shares: back.shares,
-      basis: back.changed
-        ? `股數 = ${back.formula}（往回推算）`
-        : `股數依 ${U.fmtDate(back.snapDate)} 快照往回推算（期間沒有買賣紀錄）`,
+      member, found: true, shares: fwd.shares,
+      basis: fwd.changed ? `股數 = ${fwd.formula}` : `股數依 ${U.fmtDate(fwd.snapDate)} 庫存快照`,
     };
   }
 
-  // 成員在 date（含當天）時的全部持股，已經賣光的不列出
+  // 成員在 date（含當天）時的全部持股，已經賣光的不列出；沒有快照也沒有交易時回傳 null
+  // snapDate：推算的起點；沒有快照、從 0 開始加總交易時為 null
   // missingCode：最新一期快照與之後的交易裡，沒填代號而無法計入的筆數
   function memberAll(member, date) {
     const snapDate = snapDateBefore(member, date, true);
-    if (!snapDate) return null;
     const recs = [
-      ...Store.list('snapshots', member).filter(s => s.date === snapDate),
-      ...Store.list('trades', member).filter(t => t.date > snapDate && t.date <= date),
+      ...(snapDate ? Store.list('snapshots', member).filter(s => s.date === snapDate) : []),
+      ...Store.list('trades', member).filter(t => (!snapDate || t.date > snapDate) && t.date <= date),
     ];
+    if (!snapDate && !recs.length) return null;
     const codes = new Set(recs.map(codeOf));
     const missingCode = codes.has('') ? recs.filter(r => !codeOf(r)).length : 0;
     codes.delete('');
@@ -179,7 +172,8 @@ const Holdings = (() => {
   }
 
   // 目前檢視範圍的全部持股；全家時各成員分別推算後依代號合計，parts 為各成員的明細
-  // snapDate：全家的快照日期不一致時為 null
+  // snapDate：推算的起點（全家的起點不一樣，或是從 0 開始加總交易時為 null）
+  // mixed：全家各成員的起點不一樣（快照日期不同，或有人沒有快照）
   function all(date) {
     if (Store.scope !== 'all') return memberAll(Store.scope, date);
     const each = Store.members().map(m => memberAll(m.id, date)).filter(Boolean);
@@ -197,6 +191,7 @@ const Holdings = (() => {
     const dates = new Set(each.map(h => h.snapDate));
     return {
       snapDate: dates.size === 1 ? each[0].snapDate : null,
+      mixed: dates.size > 1,
       missingCode: each.reduce((n, h) => n + h.missingCode, 0),
       positions: [...merged.values()].filter(p => p.shares !== 0 || p.parts.some(x => x.shares < 0)),
     };
@@ -250,5 +245,8 @@ const Holdings = (() => {
     return ids.flatMap(checkMember);
   }
 
-  return { codeOf, position, entitled, all, check };
+  // 成員在 date（含當天）時用來推算持股的快照日期；沒有快照時為 null
+  const snapDate = (member, date) => snapDateBefore(member, date, true);
+
+  return { codeOf, position, entitled, all, check, snapDate };
 })();

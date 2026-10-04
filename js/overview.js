@@ -1,5 +1,5 @@
 // 持股總覽：上方 KPI、下方目前每檔持股；全部由其他資料表推算，不另外儲存
-//   總投資成本：目前持股的成本加總（持股與成本的算法見 holdings.js）
+//   總投資成本：目前持股的成本加總（持股與成本的算法見 holdings.js：最近一期快照＋之後的交易，沒有快照時加總全部交易）
 //   今年現金股利：今年已發放（發放日 ≤ 今天）的股息淨值加總；點了打開累積現金股利的統計（篩選今年）
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
@@ -58,12 +58,14 @@ function createOverview({ openStats } = {}) {
     const upcoming = divs.filter(r => r.payDate > today).sort(byPayDate);
     const next = upcoming.filter(r => r.payDate === upcoming[0]?.payDate);
 
+    // 推算的起點：同一期快照、全部從 0 加總交易，或全家各成員的起點不一樣
+    const basis = h => (h.snapDate ? `依 ${U.fmtDate(h.snapDate)} 庫存快照推算到今天`
+      : h.mixed ? '依各成員的庫存快照和交易明細推算到今天'
+      : '依交易明細加總到今天');
     const cost = holdings
       ? `<b>${money(holdings.positions.reduce((s, p) => s + p.cost, 0))}</b>
-         <span class="kpi-sub">${holdings.snapDate
-           ? `依 ${U.fmtDate(holdings.snapDate)} 庫存快照推算到今天`
-           : '依各成員最近一期庫存快照推算到今天'}</span>`
-      : `<b>—</b><span class="kpi-sub">還沒有庫存快照</span>`;
+         <span class="kpi-sub">${basis(holdings)}</span>`
+      : `<b>—</b><span class="kpi-sub">還沒有交易明細或庫存快照</span>`;
 
     let nextTile;
     if (next.length) {
@@ -155,7 +157,7 @@ function createOverview({ openStats } = {}) {
   function renderList(holdings = Holdings.all(U.today())) {
     if (!holdings) {
       countEl.textContent = '';
-      listEl.innerHTML = '<p class="empty">還沒有庫存快照<br>先到「庫存快照」頁輸入一期，這裡就會算出目前持股</p>';
+      listEl.innerHTML = '<p class="empty">還沒有持股資料<br>到「交易明細」記一筆買進，或到「庫存快照」照券商的庫存填一期，這裡就會算出目前持股</p>';
       return;
     }
     const kw = state.keyword.trim().toLowerCase();

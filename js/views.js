@@ -32,7 +32,7 @@ const VIEWS = {
     ],
 
     // 基準日股數 = 除權息日「之前」的持股；除權息日當天以後的交易拿不到這次股利
-    //              依序採用：除權息資料手動填的 → 之前的快照往後推 → 之後的快照往回推（見 holdings.js）
+    //              依序採用：除權息資料手動填的 → 之前的快照往後推 → 之後的快照往回推 → 沒有快照時加總交易（見 holdings.js）
     // 股息淨值   = 現金股利 × 基準日股數，元以下四捨五入（和券商的累積現金股利一致）
     // 除權息全家共用：每位有持股的成員各算一列（member 為成員 id）；只是別的成員的持股時不列出
     rows() {
@@ -49,21 +49,18 @@ const VIEWS = {
           if (!code) return [{ ...row, basis: '除權息資料缺少代號' }];
           if (typeof d.cash !== 'number') return [{ ...row, basis: '除權息資料缺少現金股利' }];
 
-          // 每位成員的基準日股數（手動填寫 → 之前的快照往後推 → 之後的快照往回推）
+          // 每位成員的基準日股數（手動填寫 → 之前的快照往後推 → 之後的快照往回推 → 沒有快照時加總交易）
           const all = members.map(m => Holdings.entitled(m.id, code, d.exDate, d.baseShares?.[m.id]));
           const held = all.filter(e => e.found);
           const mine = held.filter(e => scope === 'all' || e.member === scope);
           if (!mine.length) {
             if (held.length) return [];
-            if (all.every(e => e.noSnapshot)) {
-              return [{ ...row, basis: `找不到 ${U.fmtDate(d.exDate)} 前後的庫存快照，可以在除權息手動填基準日股數` }];
-            }
             const snap = all.find(e => e.snapDate);
             return [{
               ...row,
-              basis: members.length > 1
-                ? '各成員的快照和交易明細裡都沒有這檔'
-                : `${U.fmtDate(snap.snapDate)} 快照和交易明細裡都沒有這檔`,
+              basis: members.length > 1 ? '各成員的快照和交易明細裡都沒有這檔'
+                : snap ? `${U.fmtDate(snap.snapDate)} 快照和交易明細裡都沒有這檔`
+                : `${U.fmtDate(d.exDate)} 之前的交易明細裡沒有這檔`,
             }];
           }
 
