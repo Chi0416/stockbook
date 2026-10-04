@@ -797,11 +797,80 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 .cloud-intro { margin-top: 0; }
 .cloud-info b { font-weight: 500; overflow-wrap: anywhere; }
 .cloud-info b.warn, .warn-text { color: var(--danger); }
-.problem-list { margin: 6px 0 0; padding-left: 20px; font-size: 13px; color: var(--danger); }
 a.wide-btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .wide-btn:disabled { opacity: .55; cursor: default; }
 .link-btn { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; }
 .cloud-unlink { display: block; margin: 12px auto 0; }
+
+/* ---------- 訊息匣 ---------- */
+.inbox-btn { position: relative; margin-right: 0; }
+.icon-btn svg.line { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.count-badge {
+  position: absolute;
+  top: 3px;
+  right: 1px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+.inbox-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: .5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.inbox-list:empty { display: none; }
+.inbox-list li + li { border-top: .5px solid var(--border); }
+.msg {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 12px 36px 12px 28px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+button.msg { cursor: pointer; }
+button.msg:active { background: var(--hover); }
+.msg.unread::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 19px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.msg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.msg-head b { font-weight: 600; }
+.msg-head time { flex-shrink: 0; font-size: 12px; color: var(--muted); }
+.msg-body { display: block; margin-top: 2px; font-size: 14px; color: var(--text-2); white-space: pre-line; overflow-wrap: anywhere; }
+.msg-tag { display: inline-block; margin-top: 6px; padding: 0 8px; border-radius: 6px; background: var(--chip-bg); color: var(--muted); font-size: 12px; }
+.msg.resolved b, .msg.resolved .msg-body { color: var(--muted); }
+.msg-go { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 22px; color: var(--muted); }
+.inbox-empty { padding: 56px 0 40px; text-align: center; color: var(--muted); }
+.inbox-empty svg { width: 64px; height: 64px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
+.inbox-empty p { margin: 12px 0 0; }
+/* 寬螢幕：像下拉選單一樣出現在鈴鐺下方（位置由 inbox.js 依鈴鐺算出） */
+@media (min-width: 700px) {
+  dialog.sheet.inbox { margin-left: auto; margin-bottom: auto; width: 420px; max-height: min(75vh, 680px); }
+  dialog.sheet.inbox::backdrop { background: transparent; }
+}
 
 /* ---------- 提示訊息 ---------- */
 #toast {

@@ -35,9 +35,9 @@ const VIEWS = {
     //              依序採用：除權息資料手動填的 → 之前的快照往後推 → 之後的快照往回推 → 沒有快照時加總交易（見 holdings.js）
     // 股息淨值   = 現金股利 × 基準日股數，元以下四捨五入（和券商的累積現金股利一致）
     // 除權息全家共用：每位有持股的成員各算一列（member 為成員 id）；只是別的成員的持股時不列出
-    rows() {
+    // scope 預設是目前的檢視範圍；訊息匣用 'all' 檢查全家
+    rows(scope = Store.scope) {
       const members = Store.members();
-      const scope = Store.scope;
       return Store.list('dividends')
         .filter(d => d.cash !== 0)
         .flatMap(d => {

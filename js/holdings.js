@@ -240,8 +240,9 @@ const Holdings = (() => {
   }
 
   // 目前檢視範圍（單一成員或全家）的核對結果
-  function check() {
-    const ids = Store.scope === 'all' ? Store.members().map(m => m.id) : [Store.scope];
+  // scope 預設是目前的檢視範圍；訊息匣用 'all' 檢查全家
+  function check(scope = Store.scope) {
+    const ids = scope === 'all' ? Store.members().map(m => m.id) : [scope];
     return ids.flatMap(checkMember);
   }
 

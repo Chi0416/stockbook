@@ -1,4 +1,4 @@
-// 進入點：分頁、列表、表單、Google 雲端硬碟同步、家庭成員、資料備份
+// 進入點：分頁、列表、表單、Google 雲端硬碟同步、訊息匣、家庭成員、資料備份
 (() => {
   const TAB_KEY = 'stockbook.tab';
   const $ = id => document.getElementById(id);
@@ -300,8 +300,6 @@
         ${redirectNote}`;
       return;
     }
-    const shown = st.problems.slice(0, 20).map(p => `<li>${U.esc(Sheet.problemText(p))}</li>`).join('');
-    const more = st.problems.length > 20 ? `<p class="note muted">…還有 ${st.problems.length - 20} 個</p>` : '';
     cloudEl.innerHTML = `
       <ul class="member-list cloud-info">
         <li><span class="member-info"><small>帳號</small><b>${U.esc(st.email)}</b></span></li>
@@ -309,8 +307,8 @@
         <li><span class="member-info"><small>狀態</small><b class="${st.error ? 'warn' : ''}">${U.esc(syncStatusText(st))}</b></span></li>
       </ul>
       ${st.problems.length ? `
-        <p id="cloud-problems" class="note warn-text">試算表裡有 ${st.problems.length} 個地方看不懂，這幾筆可能會算錯，請到試算表修正：</p>
-        <ul class="problem-list">${shown}</ul>${more}` : ''}
+        <p class="note warn-text">試算表裡有 ${st.problems.length} 個地方看不懂，這幾筆可能會算錯。
+          哪一列、哪一格請看<button type="button" class="link-btn" data-act="inbox">訊息</button>。</p>` : ''}
       <button type="button" class="wide-btn primary" data-act="sync" ${st.running ? 'disabled' : ''}>${st.running ? '同步中…' : '同步'}</button>
       ${st.url ? `<a class="wide-btn" href="${U.esc(st.url)}" target="_blank" rel="noopener">開啟試算表</a>` : ''}
       ${redirectNote}
@@ -324,6 +322,10 @@
     else if (act === 'sync') Sync.syncNow();
     else if (act === 'redirect') Sync.loginByRedirect();
     else if (act === 'unlink') Sync.unlink();
+    else if (act === 'inbox') {
+      menu.close();
+      Inbox.open();
+    }
   });
 
   // 畫面上方的提示列：只在需要使用者處理時出現；自動同步進行中不出現，免得一直閃
@@ -346,13 +348,6 @@
       text = `有 ${st.pending} 筆還沒同步`;
       btn = '同步';
       syncAction = Sync.syncNow;
-    } else if (st.problems.length) {
-      text = `試算表裡有 ${st.problems.length} 個地方看不懂`;
-      btn = '查看';
-      syncAction = () => {
-        openMenu();
-        ($('cloud-problems') || cloudEl).scrollIntoView({ block: 'start' });
-      };
     } else if (st.needLogin && (!st.lastSyncAt || Date.now() - Date.parse(st.lastSyncAt) > STALE)) {
       // 登入過期就不會自動同步：試算表或其他裝置改過的資料，要按「同步」才看得到
       text = st.lastSyncAt ? `上次同步是 ${ago(st.lastSyncAt)}` : '還沒有同步過';
@@ -390,12 +385,41 @@
   try { savedTab = localStorage.getItem(TAB_KEY) || 'overview'; } catch (_) {}
   showTab(savedTab);
 
+  // ---------- 訊息匣（見 inbox.js） ----------
+  // 點訊息：打開那一筆資料、打開試算表、切到相關頁面或同步
+  Inbox.init({
+    onAction(a) {
+      if (a.type === 'record') {
+        if (!Store.get(a.table, a.id)) {
+          toast('這筆資料已經不在了');
+          return;
+        }
+        showTab(a.table);
+        Form.open(a.table, a.id);
+      } else if (a.type === 'tab') {
+        showTab(a.tab);
+        window.scrollTo(0, 0);
+      } else if (a.type === 'sheet') {
+        const url = Sync.state().url;
+        if (url) window.open(url, '_blank', 'noopener');
+        else toast('還沒有連結 Google 試算表');
+      } else if (a.type === 'sync') {
+        Sync.syncNow();
+      }
+    },
+  });
+  // 資料有變動就重新核對（庫存快照對不上、股利算不出來、沒填代號）
+  Inbox.checkData();
+  Store.onChange(() => Inbox.checkData());
+
   // 試算表的資料讀回來之後，全部重畫
   Sync.init({
     toast,
+    notify: Inbox.add,
     onData() {
       renderMemberSwitch();
       refreshAll();
+      Inbox.checkData();
       if (menu.open) {
         renderMembers();
         renderBackupInfo();
@@ -404,6 +428,7 @@
     onStatus(st) {
       renderSyncBar(st);
       renderCloud(st);
+      Inbox.syncStatus(st);
     },
   });
 })();

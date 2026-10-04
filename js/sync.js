@@ -35,10 +35,13 @@ const Sync = (() => {
   let error = '';
   let offline = false; // 上次同步時沒有網路（連上後自動再同步）
   let problems = [];
+  let problemsAt = 0; // 這次打開 App 後，最近一次檢查試算表內容的時間（訊息匣用來判斷問題解決了沒）
+  let okAt = 0;       // 這次打開 App 後，最近一次同步成功的時間
   let lastRunAt = 0;
   let timer = null;
   let autoLoginTried = false;
-  let hooks = { onData() {}, onStatus() {}, toast() {} };
+  // notify：重要的事留在訊息匣（{ title, body }）
+  let hooks = { onData() {}, onStatus() {}, toast() {}, notify() {} };
 
   function state() {
     return {
@@ -50,6 +53,8 @@ const Sync = (() => {
       error,
       offline,
       problems,
+      problemsAt,
+      okAt,
       needLogin: !!cloud && !Google.hasToken(),
       pending: Store.pendingCount(),
     };
@@ -168,6 +173,10 @@ const Sync = (() => {
       .filter(([, n]) => n).map(([t, n]) => `${SCHEMAS[t].title} ${n} 筆`).join('、');
     const del = confirm(`試算表裡少了 ${gone.length} 筆資料（${lines}），可能是在試算表或其他裝置上刪除了。\n\n`
       + '按「確定」：這台裝置也跟著刪除。\n按「取消」：保留這些資料，並寫回試算表。');
+    hooks.notify({
+      title: `試算表裡少了 ${gone.length} 筆資料`,
+      body: `${lines}。你選擇：${del ? '這台裝置也跟著刪除' : '保留，並寫回試算表'}。`,
+    });
     if (del) return;
     Store.markPending(gone);
     const items = new Map(Store.pendingSnapshot().items.map(i => [`${i.table}:${i.id}`, i]));
@@ -179,6 +188,7 @@ const Sync = (() => {
     const byTitle = await pull(meta);
     const parsed = Sheet.fromValues(byTitle, Store.members());
     problems = parsed.problems;
+    problemsAt = Date.now();
 
     // 整個分頁是空的（剛補建或被清空）：用這台裝置的資料整張寫回去；缺欄位的表先不動
     const empty = ['members', ...TABLES].filter(t => !byTitle[titleOf(t)].length);
@@ -275,23 +285,28 @@ const Sync = (() => {
         if (!rebuild) {
           disconnect();
           hooks.toast('已取消連結');
+          hooks.notify({ title: '已取消連結', body: '雲端的試算表不見了，你選擇取消連結。這台裝置的資料還在，之後可以再連結。' });
           return;
         }
         meta = await createSpreadsheet(Store.exportPayload());
         Store.clearPending(snap);
         problems = [];
+        problemsAt = Date.now();
         cloud.spreadsheetId = meta.id;
         cloud.url = meta.url;
         hooks.toast('已用這台裝置的資料重新建立試算表');
+        hooks.notify({ title: '已重新建立試算表', body: '雲端的試算表不見了，已用這台裝置的資料重新建立一份。' });
       } else if (snap.full) {
         await writeAll(meta.id, Store.exportPayload());
         Store.clearPending(snap);
         problems = [];
+        problemsAt = Date.now();
       } else {
         Store.clearPending(snap, await exchange(meta, snap));
       }
       cloud.lastSyncAt = new Date().toISOString();
       saveCloud();
+      okAt = Date.now();
       if (manual) hooks.toast('已同步');
     } catch (e) {
       if (e.code === 'network') offline = true;
@@ -343,6 +358,7 @@ const Sync = (() => {
               + `按「確定」改用雲端的資料，這台裝置目前的 ${localCount} 筆資料會被取代（建議先匯出 data.json 備份）。\n`
               + '按「取消」先不連結。');
             if (!ok) return;
+            hooks.notify({ title: '已改用雲端的資料', body: `連結時雲端已經有資料（${lines}），這台裝置原本的 ${localCount} 筆資料被取代了。` });
           }
           Store.loadRemote(parsed.data);
           hooks.onData();
@@ -406,6 +422,7 @@ const Sync = (() => {
     disconnect();
     emit();
     hooks.toast('已取消連結');
+    hooks.notify({ title: '已取消連結', body: '這台裝置的資料還在，但不再和 Google 試算表同步。' });
   }
 
   // 資料改了：登入有效就等幾秒後一起送出；過期了，趁這次點擊（儲存、刪除）跳出 Google 視窗

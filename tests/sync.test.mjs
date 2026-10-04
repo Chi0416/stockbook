@@ -149,6 +149,7 @@ const FILES = ['util', 'schema', 'storage', 'config', 'google', 'sheet', 'sync']
 function device(fake, { storage = {}, token = true, confirmAnswer = true } = {}) {
   const ls = { ...storage };
   const toasts = [];
+  const notes = []; // 送進訊息匣的標題
   const asked = { answer: confirmAnswer, messages: [] };
   const ctx = vm.createContext({
     localStorage: {
@@ -181,8 +182,8 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
   if (token) ls['stockbook.google.token'] = JSON.stringify({ accessToken: 'fake', expiresAt: Date.now() + 3600e3 });
   for (const f of FILES) vm.runInContext(readFileSync(new URL(`js/${f}.js`, ROOT), 'utf8'), ctx, { filename: `${f}.js` });
   const app = vm.runInContext('({ Store, Sync, Sheet })', ctx);
-  app.Sync.init({ toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg) });
-  return { ...app, ls, toasts, asked };
+  app.Sync.init({ toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg), notify: m => notes.push(m.title) });
+  return { ...app, ls, toasts, asked, notes };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -283,6 +284,7 @@ test('試算表一次少了 5 筆以上：先詢問，選「取消」就保留�
   assert.equal(d.Store.list('trades', 'all').length, 5);
   assert.equal(fake.values(id, '交易明細').length, 6);
   assert.equal(d.Sync.state().pending, 0);
+  assert.ok(d.notes.includes('試算表裡少了 5 筆資料'));
   // 再同步一次不會重複寫入，也不會再問
   await d.Sync.syncNow();
   assert.equal(fake.values(id, '交易明細').length, 6);
@@ -382,6 +384,7 @@ test('試算表被丟到垃圾桶：詢問後選「確定」，用這台裝置�
   assert.notEqual(newId, id);
   assert.equal(fake.values(newId, '庫存快照').length, 2);
   assert.ok(d.toasts.some(t => t.includes('重新建立')));
+  assert.ok(d.notes.includes('已重新建立試算表'));
 });
 
 test('試算表被丟到垃圾桶：選「取消」就取消連結，資料保留、不重建', async () => {
