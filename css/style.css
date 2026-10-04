@@ -495,8 +495,10 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 .text-btn.strong { min-height: 36px; padding: 6px 16px; background: var(--text); color: var(--bg); font-weight: 600; }
 .text-btn.strong:active { background: var(--text); opacity: .85; }
 
+/* 高度依內容，超過 sheet 的最大高度時縮小並捲動
+   不能寫 flex: 1：iPhone（所有瀏覽器都是 Safari 核心）會把內容區算成 0 高，只剩標題列 */
 .sheet-body {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
