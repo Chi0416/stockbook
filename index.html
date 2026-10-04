@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#262624" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="記錄簿">
+  <title>股票記錄簿</title>
+  <!-- 標題用的襯線字（思源宋體）；不擋住畫面載入，連不到網路時改用系統字型 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="appbar">
+      <div class="appbar-title">
+        <h1 id="page-title">交易明細</h1>
+        <!-- 標題後面的小字（持股總覽：今天的日期）；放不下時換到下一行 -->
+        <span id="page-sub" class="page-sub" hidden></span>
+      </div>
+      <div class="appbar-actions">
+        <!-- 新增：只在資料表頁面出現；寫出會新增到哪一頁（手機上只顯示「新增」） -->
+        <button id="btn-add" class="add-btn" type="button" aria-label="新增記錄">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>新增<span class="add-what">記錄</span></span>
+        </button>
+        <!-- 檢視哪位家人（只有一位成員時不顯示） -->
+        <select id="member-switch" class="member-switch" aria-label="檢視成員" hidden></select>
+        <button id="btn-menu" class="icon-btn" type="button" aria-label="家庭成員與資料備份">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+        </button>
+      </div>
+    </header>
+    <div id="banner" class="banner" hidden></div>
+    <main id="panels"></main>
+  </div>
+
+  <nav class="tabbar">
+    <div class="side-brand">股票記錄簿</div>
+    <div class="tabbar-inner" role="tablist">
+      <button type="button" role="tab" data-tab="overview">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></svg>
+        <span>總覽</span>
+      </button>
+      <button type="button" role="tab" data-tab="trades">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>
+        <span>交易明細</span>
+      </button>
+      <button type="button" role="tab" data-tab="snapshots">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 12.5 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+        <span>庫存快照</span>
+      </button>
+      <button type="button" role="tab" data-tab="dividends">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.4-1.3-2.6-1.3-1.5 0-2.6.8-2.6 1.9 0 2.6 5.2 1.4 5.2 4.1 0 1.1-1.1 2-2.6 2-1.2 0-2.2-.5-2.7-1.3M12 6.5V8M12 16v1.5"/></svg>
+        <span>除權息</span>
+      </button>
+      <button type="button" role="tab" data-tab="cashDividends">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M15.5 15h2.5"/></svg>
+        <span>累積現金股利</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 新增／編輯表單 -->
+  <dialog id="form-sheet" class="sheet">
+    <div class="sheet-head">
+      <button type="button" class="text-btn" data-act="close">取消</button>
+      <h2 class="sheet-title"></h2>
+      <button type="button" class="text-btn strong" data-act="save">儲存</button>
+    </div>
+    <div class="sheet-body">
+      <p class="sheet-status" hidden></p>
+      <div class="fields"></div>
+      <button type="button" class="wide-btn danger" data-act="delete" hidden>刪除這筆</button>
+    </div>
+  </dialog>
+
+  <!-- 家庭成員與資料備份 -->
+  <dialog id="menu-sheet" class="sheet">
+    <div class="sheet-head">
+      <span></span>
+      <h2 class="sheet-title">成員與備份</h2>
+      <button type="button" class="text-btn" data-act="close">關閉</button>
+    </div>
+    <div class="sheet-body">
+      <h3 class="section-head">家庭成員</h3>
+      <ul id="member-list" class="member-list"></ul>
+      <button id="btn-add-member" type="button" class="wide-btn">新增成員</button>
+      <p class="note muted">交易明細和庫存快照分開記在每位成員名下；除權息全家共用一份，股利依各人持股計算。</p>
+
+      <h3 class="section-head">資料備份</h3>
+      <dl id="stats" class="stats"></dl>
+      <p id="last-export" class="muted"></p>
+      <button id="btn-export" type="button" class="wide-btn primary">匯出 data.json</button>
+      <button id="btn-import" type="button" class="wide-btn">匯入 data.json</button>
+      <p class="note muted">備份檔包含全家的資料；匯入會以檔案內容取代目前所有資料。</p>
+      <input id="file-import" type="file" accept=".json,application/json" hidden>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/schema.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/holdings.js"></script>
+  <script src="js/views.js"></script>
+  <script src="js/list.js"></script>
+  <script src="js/overview.js"></script>
+  <script src="js/form.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
