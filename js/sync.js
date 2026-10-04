@@ -8,6 +8,7 @@
 const Sync = (() => {
   const CLOUD_KEY = 'stockbook.cloud';
   const MARK = 'stockbook'; // 試算表上的標記（雲端硬碟的 appProperties），用來找回這份試算表
+  const MASS_DELETE = 5; // 試算表裡一次少了這麼多筆時，先問使用者再跟著刪除
   const TABLES = Object.keys(SCHEMAS);
   const api = Google.api;
   const enc = encodeURIComponent;
@@ -32,6 +33,7 @@ const Sync = (() => {
   let running = false;
   let again = false;
   let error = '';
+  let offline = false; // 上次同步時沒有網路（連上後自動再同步）
   let problems = [];
   let lastRunAt = 0;
   let timer = null;
@@ -46,6 +48,7 @@ const Sync = (() => {
       lastSyncAt: cloud?.lastSyncAt || null,
       running,
       error,
+      offline,
       problems,
       needLogin: !!cloud && !Google.hasToken(),
       pending: Store.pendingCount(),
@@ -150,6 +153,27 @@ const Sync = (() => {
   }
 
   // ---------- 讀回、合併、寫回 ----------
+  // 試算表裡一次少了很多筆（可能是不小心選取一大片刪掉）：先問要跟著刪除，還是保留並寫回試算表
+  //   選保留時，這幾筆標成待同步並加進這次的快照，接下來和其他修改一起寫回去
+  function keepOrDelete(parsed, skip, snap) {
+    const pending = new Set(snap.items.map(i => `${i.table}:${i.id}`));
+    const gone = TABLES.filter(t => !skip.includes(t)).flatMap(t => {
+      const remote = new Set(parsed.data[t].map(r => r.id));
+      return Store.list(t, 'all')
+        .filter(r => !remote.has(r.id) && !pending.has(`${t}:${r.id}`))
+        .map(r => ({ table: t, id: r.id }));
+    });
+    if (gone.length < MASS_DELETE) return;
+    const lines = TABLES.map(t => [t, gone.filter(g => g.table === t).length])
+      .filter(([, n]) => n).map(([t, n]) => `${SCHEMAS[t].title} ${n} 筆`).join('、');
+    const del = confirm(`試算表裡少了 ${gone.length} 筆資料（${lines}），可能是在試算表或其他裝置上刪除了。\n\n`
+      + '按「確定」：這台裝置也跟著刪除。\n按「取消」：保留這些資料，並寫回試算表。');
+    if (del) return;
+    Store.markPending(gone);
+    const items = new Map(Store.pendingSnapshot().items.map(i => [`${i.table}:${i.id}`, i]));
+    gone.forEach(g => snap.items.push(items.get(`${g.table}:${g.id}`)));
+  }
+
   // 回傳這次處理到的表；缺欄位的表不處理，修改留在待同步清單
   async function exchange(meta, snap) {
     const byTitle = await pull(meta);
@@ -159,6 +183,7 @@ const Sync = (() => {
     // 整個分頁是空的（剛補建或被清空）：用這台裝置的資料整張寫回去；缺欄位的表先不動
     const empty = ['members', ...TABLES].filter(t => !byTitle[titleOf(t)].length);
     const skip = [...new Set([...parsed.broken, ...empty])];
+    keepOrDelete(parsed, skip, snap);
     Store.mergeRemote(parsed.data, skip);
     hooks.onData();
 
@@ -237,18 +262,27 @@ const Sync = (() => {
     if (!Google.hasToken()) { emit(); return; }
     running = true;
     error = '';
+    offline = false;
     lastRunAt = Date.now();
     emit();
     const snap = Store.pendingSnapshot();
     try {
       let meta = await locate();
       if (!meta) {
+        // 試算表被刪掉或丟進垃圾桶：不小心的話重建；想重新開始的話取消連結
+        const rebuild = confirm('雲端的「股票記錄簿」試算表找不到了，可能被刪除或丟進垃圾桶。\n\n'
+          + '按「確定」：用這台裝置的資料重新建立一份。\n按「取消」：取消連結，這台裝置的資料會保留。');
+        if (!rebuild) {
+          disconnect();
+          hooks.toast('已取消連結');
+          return;
+        }
         meta = await createSpreadsheet(Store.exportPayload());
         Store.clearPending(snap);
         problems = [];
         cloud.spreadsheetId = meta.id;
         cloud.url = meta.url;
-        hooks.toast('雲端的試算表找不到了，已用這台裝置的資料重新建立一份');
+        hooks.toast('已用這台裝置的資料重新建立試算表');
       } else if (snap.full) {
         await writeAll(meta.id, Store.exportPayload());
         Store.clearPending(snap);
@@ -260,8 +294,10 @@ const Sync = (() => {
       saveCloud();
       if (manual) hooks.toast('已同步');
     } catch (e) {
-      if (e.code !== 'need_login') error = e.message || String(e);
-      if (manual && e.code !== 'need_login') hooks.toast(`同步失敗：${error}`, 'error');
+      if (e.code === 'network') offline = true;
+      else if (e.code !== 'need_login') error = e.message || String(e);
+      if (manual && offline) hooks.toast('目前沒有網路，連上後會自動同步');
+      else if (manual && error) hooks.toast(`同步失敗：${error}`, 'error');
     } finally {
       running = false;
       emit();
@@ -355,14 +391,19 @@ const Sync = (() => {
     Google.redirectLogin({ hint: cloud?.email || '', after: cloud ? 'sync' : 'link' });
   }
 
-  function unlink() {
-    if (!confirm('取消連結後，這台裝置上的資料會保留，但不再和 Google 試算表同步。\n'
-      + '雲端的試算表不會被刪除，之後可以再連結。\n\n確定取消連結？')) return;
+  function disconnect() {
     cloud = null;
     error = '';
+    offline = false;
     problems = [];
     saveCloud();
     Google.signOut();
+  }
+
+  function unlink() {
+    if (!confirm('取消連結後，這台裝置上的資料會保留，但不再和 Google 試算表同步。\n'
+      + '雲端的試算表不會被刪除，之後可以再連結。\n\n確定取消連結？')) return;
+    disconnect();
     emit();
     hooks.toast('已取消連結');
   }
@@ -391,12 +432,14 @@ const Sync = (() => {
     else if (back?.after === 'link') link();
     else if (cloud) run({ manual: back?.after === 'sync' });
 
-    // 從背景切回來、網路恢復時，抓一次最新資料（長輩可能在試算表裡改過）
-    const refresh = () => {
-      if (!document.hidden && cloud && Google.hasToken() && Date.now() - lastRunAt > 30000) run();
-    };
-    document.addEventListener('visibilitychange', refresh);
-    window.addEventListener('online', refresh);
+    // 從背景切回來時抓一次最新資料（長輩可能在試算表裡改過），也更新「上次同步是幾小時前」的提示
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      emit();
+      if (cloud && Google.hasToken() && Date.now() - lastRunAt > 30000) run();
+    });
+    // 網路恢復時馬上同步
+    window.addEventListener('online', () => { if (cloud && Google.hasToken()) run(); });
     emit();
   }
 

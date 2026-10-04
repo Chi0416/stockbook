@@ -276,6 +276,12 @@ const Store = (() => {
       persist();
     },
 
+    // 標成要寫回試算表（試算表裡被刪掉、但使用者選擇保留的資料）
+    markPending(items) {
+      items.forEach(({ table, id }) => mark(table, id));
+      persist();
+    },
+
     clearAllPending() {
       sync = { pending: {}, v: sync.v, full: false };
       persist();

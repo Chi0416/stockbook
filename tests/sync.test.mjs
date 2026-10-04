@@ -62,6 +62,7 @@ class FakeGoogle {
   }
 
   fetch = async (url, opts = {}) => {
+    if (this.offline) throw new TypeError('Failed to fetch');
     const u = new URL(url);
     const method = opts.method || 'GET';
     const body = opts.body ? JSON.parse(opts.body) : null;
@@ -148,6 +149,7 @@ const FILES = ['util', 'schema', 'storage', 'config', 'google', 'sheet', 'sync']
 function device(fake, { storage = {}, token = true, confirmAnswer = true } = {}) {
   const ls = { ...storage };
   const toasts = [];
+  const asked = { answer: confirmAnswer, messages: [] };
   const ctx = vm.createContext({
     localStorage: {
       getItem: k => (k in ls ? ls[k] : null),
@@ -155,7 +157,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
       removeItem: k => { delete ls[k]; },
     },
     alert: () => {},
-    confirm: () => confirmAnswer,
+    confirm: msg => { asked.messages.push(msg); return asked.answer; },
     setTimeout: () => 0, // 自動同步的計時器不執行，測試裡直接呼叫同步
     clearTimeout: () => {},
     fetch: fake.fetch,
@@ -180,7 +182,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
   for (const f of FILES) vm.runInContext(readFileSync(new URL(`js/${f}.js`, ROOT), 'utf8'), ctx, { filename: `${f}.js` });
   const app = vm.runInContext('({ Store, Sync, Sheet })', ctx);
   app.Sync.init({ toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg) });
-  return { ...app, ls, toasts };
+  return { ...app, ls, toasts, asked };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -254,11 +256,63 @@ test('長輩在試算表裡修改、新增（沒有 id、新的成員名字）�
   assert.equal(fake.values(id, '成員').length, 3);
 });
 
-test('長輩在試算表刪掉一列，App 也跟著刪除', async () => {
+test('長輩在試算表刪掉一列，App 也跟著刪除（少量刪除不詢問）', async () => {
   const { fake, d, id } = await linked();
   fake.sheet(id, '庫存快照').grid.splice(1, 1);
   await d.Sync.syncNow();
   assert.equal(d.Store.list('snapshots', 'all').length, 0);
+  assert.deepEqual(d.asked.messages, []);
+});
+
+// 連結後再加 5 筆交易並同步，回傳試算表 id
+async function withTrades(n = 5) {
+  const ctx = await linked();
+  for (let i = 0; i < n; i++) ctx.d.Store.add('trades', { ...TRADE, shares: 1000 + i });
+  await ctx.d.Sync.syncNow();
+  ctx.d.asked.messages.length = 0;
+  return ctx;
+}
+
+test('試算表一次少了 5 筆以上：先詢問，選「取消」就保留並寫回試算表', async () => {
+  const { fake, d, id } = await withTrades();
+  fake.sheet(id, '交易明細').grid.splice(1, 5); // 長輩選取一大片刪掉
+  d.asked.answer = false;
+  await d.Sync.syncNow();
+  assert.equal(d.asked.messages.length, 1);
+  assert.match(d.asked.messages[0], /少了 5 筆資料（交易明細 5 筆）/);
+  assert.equal(d.Store.list('trades', 'all').length, 5);
+  assert.equal(fake.values(id, '交易明細').length, 6);
+  assert.equal(d.Sync.state().pending, 0);
+  // 再同步一次不會重複寫入，也不會再問
+  await d.Sync.syncNow();
+  assert.equal(fake.values(id, '交易明細').length, 6);
+  assert.equal(d.asked.messages.length, 1);
+});
+
+test('試算表一次少了 5 筆以上：選「確定」就跟著刪除', async () => {
+  const { fake, d, id } = await withTrades();
+  fake.sheet(id, '交易明細').grid.splice(1, 5);
+  d.asked.answer = true;
+  await d.Sync.syncNow();
+  assert.equal(d.asked.messages.length, 1);
+  assert.equal(d.Store.list('trades', 'all').length, 0);
+});
+
+test('沒有網路：顯示會自動同步，不算失敗；網路恢復後正常同步', async () => {
+  const { fake, d } = await linked();
+  d.Store.add('trades', TRADE);
+  fake.offline = true;
+  await d.Sync.syncNow();
+  let st = d.Sync.state();
+  assert.equal(st.offline, true);
+  assert.equal(st.error, '');
+  assert.equal(st.pending, 1);
+  assert.ok(d.toasts.includes('目前沒有網路，連上後會自動同步'));
+  fake.offline = false;
+  await d.Sync.syncNow();
+  st = d.Sync.state();
+  assert.equal(st.offline, false);
+  assert.equal(st.pending, 0);
 });
 
 test('成員改名：「成員」分頁和資料裡的名字一起改', async () => {
@@ -318,14 +372,28 @@ test('標題被改壞：App 的資料保留、修改留著，顯示要改回哪�
   assert.deepEqual(plain(d.Sync.state().problems), []);
 });
 
-test('試算表被丟到垃圾桶：用這台裝置的資料重新建立一份', async () => {
+test('試算表被丟到垃圾桶：詢問後選「確定」，用這台裝置的資料重新建立一份', async () => {
   const { fake, d, id } = await linked();
   fake.files[id].trashed = true;
   await d.Sync.syncNow();
+  assert.equal(d.asked.messages.length, 1);
+  assert.match(d.asked.messages[0], /試算表找不到了/);
   const newId = d.Sync.state().url.split('/').pop();
   assert.notEqual(newId, id);
   assert.equal(fake.values(newId, '庫存快照').length, 2);
   assert.ok(d.toasts.some(t => t.includes('重新建立')));
+});
+
+test('試算表被丟到垃圾桶：選「取消」就取消連結，資料保留、不重建', async () => {
+  const { fake, d, id } = await linked();
+  fake.files[id].trashed = true;
+  const files = Object.keys(fake.files).length;
+  d.asked.answer = false;
+  await d.Sync.syncNow();
+  assert.equal(d.Sync.state().linked, false);
+  assert.equal(Object.keys(fake.files).length, files);
+  assert.equal(d.Store.list('snapshots', 'all').length, 1);
+  assert.ok(d.toasts.includes('已取消連結'));
 });
 
 test('第二台裝置（沒有資料）連結：直接用雲端的資料', async () => {

@@ -259,8 +259,22 @@
   const syncBtn = syncBar.querySelector('.sync-btn');
   let syncAction = null;
 
+  // 「3 小時前」；超過這麼久沒同步、登入又過期時，上方提示列提醒按「同步」
+  const STALE = 60 * 60000;
+  function ago(iso) {
+    const min = Math.max(1, Math.floor((Date.now() - Date.parse(iso)) / 60000));
+    if (min < 60) return `${min} 分鐘前`;
+    const h = Math.floor(min / 60);
+    return h < 24 ? `${h} 小時前` : `${Math.floor(h / 24)} 天前`;
+  }
+
+  const offlineText = st => (st.pending
+    ? `目前沒有網路，${st.pending} 筆資料會在連上網路後自動同步`
+    : '目前沒有網路，連上後會自動同步');
+
   function syncStatusText(st) {
     if (st.running) return '同步中…';
+    if (st.offline) return offlineText(st);
     if (st.error) return `同步失敗：${st.error}`;
     if (st.pending && st.needLogin) return `有 ${st.pending} 筆還沒同步，請按「同步」`;
     if (st.needLogin) return '登入已過期，按「同步」可以抓試算表的最新資料';
@@ -315,6 +329,8 @@
     } else if (st.running) {
       if (syncBar.hidden) return;
       text = '同步中…';
+    } else if (st.offline) {
+      text = offlineText(st);
     } else if (st.error) {
       text = `同步失敗：${st.error}`;
       btn = '重試';
@@ -330,6 +346,11 @@
         openMenu();
         ($('cloud-problems') || cloudEl).scrollIntoView({ block: 'start' });
       };
+    } else if (st.needLogin && (!st.lastSyncAt || Date.now() - Date.parse(st.lastSyncAt) > STALE)) {
+      // 登入過期就不會自動同步：試算表或其他裝置改過的資料，要按「同步」才看得到
+      text = st.lastSyncAt ? `上次同步是 ${ago(st.lastSyncAt)}` : '還沒有同步過';
+      btn = '同步';
+      syncAction = Sync.syncNow;
     }
     syncBar.hidden = !text;
     syncText.textContent = text;
