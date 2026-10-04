@@ -1,5 +1,6 @@
 // 列表：依日期分組的卡片；點卡片開啟編輯表單
 // schema.rows 存在時為推算頁面（資料由其他資料表算出）
+// schema.stats 存在時，合計卡片下方有「明細｜統計」切換（統計畫面見 stats.js）；每次打開 App 都先顯示明細
 function createList(tableKey, schema, { openForm }) {
   const fields = schema.fields;
   const byKey = Object.fromEntries(fields.map(f => [f.key, f]));
@@ -8,7 +9,8 @@ function createList(tableKey, schema, { openForm }) {
   // 成員不放在卡片下方，全家檢視時改成卡片左上角的標籤
   const gridFields = fields.filter(f => f.type !== 'member' && ![periodKey, code, title, badge, primary].includes(f.key));
   const getRows = schema.rows || (() => Store.list(tableKey));
-  const state = { period: null, keyword: '', flashId: null };
+  // mode：'list' 明細、'stats' 統計；statsAll：排行已經點開「其他 N 檔」；statsOpen：排行裡展開了每一次配息的代號
+  const state = { period: null, keyword: '', flashId: null, mode: 'list', statsAll: false, statsOpen: new Set() };
 
   const periodOf = r => {
     const d = String(r[periodKey] ?? '');
@@ -37,6 +39,13 @@ function createList(tableKey, schema, { openForm }) {
     ? `<p class="group-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}${(n.lines || []).map(l => `<span>${U.esc(l)}</span>`).join('')}</p>`
     : '');
   const cardNoteHTML = n => (n ? `<span class="card-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}</span>` : '');
+  // 統計用的欄位：金額是合計的欄位、日期是分組的欄位，代號和名稱同卡片
+  const stats = schema.stats && { ...schema.stats, amount: schema.total.key, date: periodKey, code, name: title };
+  const modeHTML = () => `
+    <div class="seg" role="group" aria-label="檢視方式">
+      ${[['list', '明細'], ['stats', '統計']].map(([m, label]) =>
+        `<button type="button" data-act="mode" data-value="${m}" aria-pressed="${state.mode === m}">${label}</button>`).join('')}
+    </div>`;
 
   // ---------- DOM ----------
   const el = document.createElement('section');
@@ -59,8 +68,30 @@ function createList(tableKey, schema, { openForm }) {
   keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; renderList(); });
   listEl.addEventListener('click', e => {
     const card = e.target.closest('.card');
-    if (card) openForm(card.dataset.id);
+    if (card) {
+      openForm(card.dataset.id);
+      return;
+    }
+    const btn = e.target.closest('[data-act]');
+    if (btn) act(btn.dataset.act, btn.dataset.value);
   });
+
+  // 明細｜統計切換，以及統計畫面上的點擊（都留在統計）
+  //   點某個月（或某一年）：整頁改看那個月；再點一次選中的那個月，回到那一整年
+  //   點排行的某一檔：在下面展開每一次配息，再點一次收起來
+  function act(name, value) {
+    if (name === 'period') {
+      state.period = state.period === value ? value.slice(0, 4) : value;
+      refresh(); // 上方的年月選單也跟著變
+      return;
+    }
+    if (name === 'mode') state.mode = value;
+    else if (name === 'more') state.statsAll = true;
+    else if (name === 'code') {
+      if (!state.statsOpen.delete(value)) state.statsOpen.add(value);
+    } else return;
+    renderList();
+  }
 
   // ---------- 畫面 ----------
   function renderPeriods() {
@@ -153,17 +184,27 @@ function createList(tableKey, schema, { openForm }) {
       };
       let html = schema.total ? summaryHTML(rows) : '';
       const withMember = showMember();
-      const notes = schema.annotate ? schema.annotate(rows) : null;
-      let group = null;
-      rows.forEach(r => {
-        const g = String(r[periodKey] ?? '');
-        if (g !== group) {
-          group = g;
-          html += `<h3 class="group-head">${U.esc(U.fmtDate(g))} ${U.weekday(g)}${suffixOf(g)}</h3>`;
-          html += groupNoteHTML(notes?.groups?.[g]);
-        }
-        html += cardHTML(r, withMember, notes?.cards?.[r.id]);
-      });
+      if (stats) html += modeHTML();
+      if (stats && state.mode === 'stats') {
+        // 每月圖列出整年，所以另外給只套用搜尋（成員已經在 getRows 套用）的列
+        html += Stats.html(stats, {
+          rows, context: kw ? all.filter(matchKeyword) : all, period: state.period || '', isPending, status: statusOf,
+          periodLabel: state.period ? periodLabel(state.period) : '',
+          expanded: state.statsAll, open: state.statsOpen, members: Store.members(), showMembers: withMember,
+        });
+      } else {
+        const notes = schema.annotate ? schema.annotate(rows) : null;
+        let group = null;
+        rows.forEach(r => {
+          const g = String(r[periodKey] ?? '');
+          if (g !== group) {
+            group = g;
+            html += `<h3 class="group-head">${U.esc(U.fmtDate(g))} ${U.weekday(g)}${suffixOf(g)}</h3>`;
+            html += groupNoteHTML(notes?.groups?.[g]);
+          }
+          html += cardHTML(r, withMember, notes?.cards?.[r.id]);
+        });
+      }
       listEl.innerHTML = html;
     }
     state.flashId = null;
@@ -188,10 +229,17 @@ function createList(tableKey, schema, { openForm }) {
   }
 
   function reset() {
-    Object.assign(state, { period: null, keyword: '', flashId: null });
+    Object.assign(state, { period: null, keyword: '', flashId: null, mode: 'list', statsAll: false, statsOpen: new Set() });
     keywordInput.value = '';
     refresh();
   }
 
-  return { el, refresh, changed, reset };
+  // 從其他頁面直接打開統計（總覽的「今年現金股利」）：period 是年份；沒有那一年的資料時改看全部
+  function showStats(period) {
+    Object.assign(state, { period, keyword: '', flashId: null, mode: 'stats', statsAll: false, statsOpen: new Set() });
+    keywordInput.value = '';
+    refresh();
+  }
+
+  return { el, refresh, changed, reset, showStats };
 }

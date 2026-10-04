@@ -23,6 +23,9 @@
   --danger: #b53333;
   --invalid-bg: #f8e5e3;
   --flash: #f3e3c7;
+  /* 統計長條：已入帳、待入帳（淡一階，對白底還有 2:1 的對比） */
+  --bar: #c96442;
+  --bar-pend: #df9c83;
   --shadow: 0 1px 2px rgba(20, 20, 19, .04);
   --shadow-lg: 0 4px 20px rgba(20, 20, 19, .07);
   --icon-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2373726c' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E");
@@ -57,6 +60,8 @@
     --danger: #e26d62;
     --invalid-bg: #432624;
     --flash: #4d3d27;
+    --bar: #d97757;
+    --bar-pend: #8f5a47;
     --shadow: 0 1px 2px rgba(0, 0, 0, .2);
     --shadow-lg: 0 4px 20px rgba(0, 0, 0, .28);
     --icon-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239c9a92' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E");
@@ -310,6 +315,141 @@ body:has(dialog[open]) { overflow: hidden; }
 
 .empty { padding: 64px 16px; text-align: center; color: var(--muted); line-height: 1.8; }
 
+/* ---------- 明細｜統計切換與統計圖（累積現金股利，見 stats.js） ---------- */
+/* 切換：左右各一半，選中的那一邊是白底 */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 10px 0 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--chip-bg);
+}
+.seg button {
+  height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(20, 20, 19, .1), 0 0 0 .5px var(--border);
+}
+
+.stats-sec {
+  margin: 8px 0;
+  padding: 14px 16px 10px;
+  border: .5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.stats-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.stats-note { margin: -4px 0 6px; font-size: 13px; color: var(--muted); }
+/* 圖例：色塊在前、文字用一般的灰字 */
+.legend { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.legend i { width: 10px; height: 10px; border-radius: 3px; }
+.legend i + i { margin-left: 8px; }
+.legend .done { background: var(--bar); }
+.legend .pend { background: var(--bar-pend); }
+
+/* 每一行都可以點（月份：改看那個月；排行：展開每一次配息），點的範圍比長條大；左右多出來的空間讓點下去的底色不會貼著字 */
+.stats-rows { margin: 0 -8px; }
+.bar-row,
+.rank-row {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.bar-row, .rank-row { cursor: pointer; }
+button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
+
+/* 每月：月份｜長條｜金額，金額靠右對齊 */
+.bar-row {
+  display: grid;
+  grid-template-columns: 2.6em 1fr minmax(4.6em, auto);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 2px 8px;
+}
+.bar-row.on { background: var(--accent-soft); }
+.bar-label { font-size: 13px; color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bar-value { font-size: 14px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bar-row.empty .bar-value { color: var(--muted); }
+/* 長條從左邊長出來、右端圓角；已入帳和待入帳之間留 2px 空隙 */
+.bar-track { display: flex; min-width: 0; }
+.bar { display: flex; flex: none; gap: 2px; min-width: 3px; height: 14px; border-radius: 0 4px 4px 0; overflow: hidden; }
+.bar span { flex-basis: 0; min-width: 1px; }
+.bar .done { background: var(--bar); }
+.bar .pend { background: var(--bar-pend); }
+
+/* 排行：名次、名稱、佔比一行，下面是長條和金額 */
+.rank-row { display: block; padding: 9px 8px; border-radius: 0; }
+.rank-row + .rank-row { border-top: .5px solid var(--border); }
+.rank-top { display: flex; align-items: baseline; gap: 8px; }
+.rank-no { flex: none; width: 1.5em; font-size: 13px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.rank-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.rank-name small { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.rank-pct { flex: none; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 右上角的「⌄」：點開後轉成朝上；下面幾行右邊空出同樣的寬度（20px），金額才會和佔比對齊 */
+.rank-chev {
+  flex: none;
+  align-self: center;
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .15s;
+}
+.rank-row[aria-expanded="true"] .rank-chev { transform: rotate(180deg); }
+.rank-bar {
+  display: grid;
+  grid-template-columns: 1fr minmax(4.6em, auto);
+  align-items: center;
+  gap: 10px;
+  margin: 6px 20px 0 calc(1.5em + 8px);
+}
+.rank-bar .bar { height: 10px; }
+.rank-note { display: block; margin: 4px 20px 0 calc(1.5em + 8px); font-size: 12px; color: var(--muted); }
+/* 點開的那一檔：每一次配息一行（日期｜狀態標籤｜金額），還沒入帳的金額變淡 */
+.rank-items { display: block; margin: 8px 20px 0 calc(1.5em + 8px); padding-top: 4px; border-top: .5px solid var(--border); }
+.rank-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 30px; font-size: 13px; }
+.ri-date { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ri-amount { font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.rank-item.pending .ri-amount { color: var(--muted); }
+.rank-item .badge { display: inline-block; }
+
+@media (hover: hover) {
+  .seg button[aria-pressed="false"]:hover { color: var(--text); }
+  button.bar-row:not(.on):hover, .rank-row:hover { background: var(--hover); }
+}
+
 /* ---------- 持股總覽：KPI 卡片（總投資成本佔滿一列當主角，其餘兩兩並排） ---------- */
 .kpis {
   display: grid;
@@ -345,6 +485,11 @@ body:has(dialog[open]) { overflow: hidden; }
 .kpi-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 .kpi-sub.warn { color: var(--danger); }
 .kpi-note { grid-column: 1 / -1; margin: 0 4px; font-size: 12px; color: var(--danger); }
+/* 可以點的 KPI（今年現金股利 → 累積現金股利的統計）：標題右邊有「›」 */
+.kpi.go { width: 100%; cursor: pointer; }
+.kpi.go small { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.go-icon { flex: none; width: 18px; height: 18px; margin: -2px -6px -2px 0; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.kpi.go:active { background: var(--chip-bg); }
 
 /* 不能點的卡片（持股總覽的每檔持股） */
 .card.static { cursor: default; }
@@ -352,6 +497,7 @@ body:has(dialog[open]) { overflow: hidden; }
 
 @media (hover: hover) {
   .card.static:hover { border-color: var(--border); box-shadow: var(--shadow); }
+  .kpi.go:hover { border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
 }
 /* 寬螢幕：主角一列，其餘三格並排 */
 @media (min-width: 960px) {

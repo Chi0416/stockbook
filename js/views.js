@@ -17,6 +17,9 @@ const VIEWS = {
       return null;
     },
     total: { key: 'net', label: '股息淨值' },
+    // 合計卡片下方的「明細｜統計」切換（見 stats.js）：金額、日期、代號、名稱沿用 total、period、card 的欄位
+    //   label：每月圖的標題（「2026 年每月股息」）；ranking：排行的標題
+    stats: { label: '股息', ranking: '股息來源排行' },
     empty: '還沒有現金股利<br>在「除權息」頁新增後會自動算在這裡',
     fields: [
       { key: 'code',    label: '代號',       type: 'text' },

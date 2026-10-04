@@ -1,6 +1,6 @@
 // 持股總覽：上方 KPI、下方目前每檔持股；全部由其他資料表推算，不另外儲存
 //   總投資成本：目前持股的成本加總（持股與成本的算法見 holdings.js）
-//   今年現金股利：今年已發放（發放日 ≤ 今天）的股息淨值加總
+//   今年現金股利：今年已發放（發放日 ≤ 今天）的股息淨值加總；點了打開累積現金股利的統計（篩選今年）
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
@@ -13,7 +13,8 @@ const OVERVIEW = {
   },
 };
 
-function createOverview() {
+// openStats(年份)：點「今年現金股利」時呼叫（見 app.js）
+function createOverview({ openStats } = {}) {
   const state = { keyword: '' };
 
   const el = document.createElement('section');
@@ -33,6 +34,9 @@ function createOverview() {
   const listEl = el.querySelector('.list');
 
   keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; renderList(); });
+  kpisEl.addEventListener('click', e => {
+    if (openStats && e.target.closest('[data-act="stats"]')) openStats(U.today().slice(0, 4));
+  });
 
   const money = n => U.fmtNum(Math.round(n));
   const byPayDate = (a, b) => (a.payDate < b.payDate ? -1 : a.payDate > b.payDate ? 1 : 0);
@@ -88,12 +92,12 @@ function createOverview() {
 
     kpisEl.innerHTML = `
       <div class="kpi wide hero"><small>總投資成本</small>${cost}</div>
-      <div class="kpi">
-        <small>今年現金股利</small>
+      <button type="button" class="kpi go" data-act="stats">
+        <small>今年現金股利<svg class="go-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></small>
         <b>${money(sumNet(thisYear))}</b>
         <span class="kpi-sub">${year} 年已發放</span>
         ${missingNote(thisYear)}
-      </div>
+      </button>
       <div class="kpi">
         <small>月平均股息</small>
         <b>${money(sumNet(last12) / 12)}</b>

@@ -20,7 +20,14 @@
   const lists = {};
   let current = 'overview';
 
-  lists.overview = createOverview();
+  lists.overview = createOverview({
+    // 總覽的「今年現金股利」：打開累積現金股利的統計，篩選今年
+    openStats(year) {
+      lists.cashDividends.showStats(year);
+      showTab('cashDividends');
+      window.scrollTo(0, 0);
+    },
+  });
   $('panels').appendChild(lists.overview.el);
   Object.entries({ ...SCHEMAS, ...VIEWS }).forEach(([key, page]) => {
     const formKey = page.source || key;
