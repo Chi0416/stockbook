@@ -6,9 +6,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
-test('每個 css、js 都帶著和畫面上一樣的版本號', () => {
+test('每個 css、js、manifest 都帶著和畫面上一樣的版本號', () => {
   const shown = html.match(/版本 ([\d.]+)/)[1];
-  const local = [...html.matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)].map(m => m[1]);
+  const local = [...html.matchAll(/(?:src|href)="((?:js\/|css\/|manifest\.json)[^"]*)"/g)].map(m => m[1]);
   assert.ok(local.length > 0);
   for (const url of local) assert.equal(url.split('?v=')[1], shown, url);
 });

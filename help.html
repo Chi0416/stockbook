@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#262624" media="(prefers-color-scheme: dark)">
+  <title>使用說明</title>
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <!-- 給家人看的步驟；字比較大，也可以直接列印 -->
+  <style>
+    :root {
+      --bg: #faf9f5; --surface: #fff; --text: #141413; --muted: #73726c;
+      --border: rgba(31, 30, 29, .15); --accent: #c96442; --accent-text: #ae5630; --accent-soft: #f4e7df;
+      --warn-bg: #f8e5e3; --warn: #b53333;
+      --serif: ui-serif, "Noto Serif TC", "Songti TC", Georgia, serif;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #262624; --surface: #30302e; --text: #faf9f5; --muted: #9c9a92;
+        --border: rgba(222, 220, 209, .14); --accent: #d97757; --accent-text: #e3896a; --accent-soft: #4b3a32;
+        --warn-bg: #432624; --warn: #e26d62;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 18px/1.7 -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+    main {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    }
+    .back { display: inline-block; margin: 4px 0 12px; color: var(--accent-text); font-size: 17px; text-decoration: none; }
+    h1 { margin: 0 0 6px; font-family: var(--serif); font-size: 30px; font-weight: 600; }
+    .lead { margin: 0 0 20px; color: var(--muted); }
+    section {
+      margin: 16px 0;
+      padding: 18px 18px 8px;
+      border: .5px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      break-inside: avoid;
+    }
+    h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-family: var(--serif); font-size: 22px; font-weight: 600; }
+    h2 .no {
+      display: inline-grid; place-items: center; flex-shrink: 0;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--accent); color: #fff; font: 600 17px/1 -apple-system, sans-serif;
+    }
+    ol, ul { margin: 0 0 12px; padding-left: 1.4em; }
+    li { margin: 6px 0; }
+    b.btn {
+      display: inline-block; padding: 0 8px; border: .5px solid var(--border); border-radius: 8px;
+      background: var(--accent-soft); color: var(--accent-text); font-weight: 600; white-space: nowrap;
+    }
+    .url { word-break: break-all; font-weight: 600; color: var(--accent-text); }
+    .note { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-size: 16px; }
+    .muted { color: var(--muted); font-size: 16px; }
+    @media print {
+      :root { --bg: #fff; --surface: #fff; }
+      .back { display: none; }
+      body { font-size: 15px; }
+      section { border-color: #ccc; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">‹ 回到記錄簿</a>
+  <h1>股票記錄簿 使用說明</h1>
+  <p class="lead">記錄股票的買賣、庫存和股利。資料存在你自己的 Google 雲端硬碟，手機和電腦都能看到同一份。</p>
+
+  <section>
+    <h2><span class="no">1</span>第一次設定</h2>
+    <p class="muted">只要做一次，可以請家人幫忙。</p>
+    <ol>
+      <li>用 iPhone 的 Safari 打開這個網址：<br><span class="url">https://chi0416.github.io/stockbook/</span></li>
+      <li>點 Safari 的 <b class="btn">分享</b> 按鈕（方框加向上的箭頭；找不到的話，先點網址列旁邊的 <b class="btn">⋯</b>）→ 往下找 <b class="btn">加入主畫面</b> → 點 <b class="btn">新增</b></li>
+      <li>回到 iPhone 主畫面，點橘色的「記」圖示打開</li>
+      <li>點右上角的 <b class="btn">⋯</b> → <b class="btn">連結 Google 帳號</b></li>
+      <li>選你自己的 Google 帳號 → 點 <b class="btn">允許</b></li>
+      <li>畫面出現「已連結 Google 帳號」就完成了</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="no">2</span>記一筆資料</h2>
+    <ol>
+      <li>點畫面下方的 <b class="btn">交易明細</b>（或 <b class="btn">庫存快照</b>、<b class="btn">除權息</b>）</li>
+      <li>點右上角的 <b class="btn">新增</b></li>
+      <li>填好後點 <b class="btn">儲存</b>。可以接著填下一筆，全部填完點 <b class="btn">完成</b></li>
+    </ol>
+    <ul>
+      <li>填錯了：點那一筆，改好後點 <b class="btn">儲存</b></li>
+      <li>要刪除：點那一筆，再點最下面的 <b class="btn">刪除這筆</b></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">3</span>同步</h2>
+    <ul>
+      <li>平常會<b>自動同步</b>，不用做任何事</li>
+      <li>畫面上方出現「<b>有 3 筆還沒同步</b>」時，點旁邊的 <b class="btn">同步</b></li>
+      <li>如果跳出 Google 的視窗，選自己的帳號就好</li>
+      <li>想確認有沒有同步：點 <b class="btn">⋯</b>，看「上次同步」的時間</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="no">4</span>用 Google 試算表看資料</h2>
+    <ul>
+      <li>點 <b class="btn">⋯</b> → <b class="btn">開啟試算表</b>，或在 Google 試算表 App 裡找「股票記錄簿」</li>
+      <li>可以直接在試算表裡新增或修改，下次打開記錄簿就會同步過來</li>
+      <li>「成員」和「交易別」有下拉選單可以選</li>
+    </ul>
+    <p class="note">請不要修改：<b>第一列的標題</b>，以及<b>最右邊灰色的 id 欄</b>。記錄簿要靠它們找到每一筆資料。</p>
+  </section>
+
+  <section>
+    <h2><span class="no">5</span>遇到問題</h2>
+    <ul>
+      <li><b>畫面上方出現「試算表裡有幾個地方看不懂」</b>：點 <b class="btn">查看</b>，會寫出是哪一頁的第幾列，到試算表把那一格改正確</li>
+      <li><b>換了新手機</b>：照「1. 第一次設定」做一次，連結同一個 Google 帳號，資料就回來了</li>
+      <li><b>資料不小心改壞了</b>：用電腦打開試算表，點「檔案」→「版本記錄」→「查看版本記錄」，可以回到之前的樣子</li>
+      <li><b>不小心刪掉試算表</b>：到 Google 雲端硬碟的「垃圾桶」，30 天內都能救回來</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
