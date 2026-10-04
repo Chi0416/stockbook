@@ -17,3 +17,13 @@ test('js 資料夾裡的每個檔案都有載入', () => {
   const loaded = new Set([...html.matchAll(/src="js\/([^"?]+)/g)].map(m => m[1]));
   for (const f of readdirSync(new URL('../js/', import.meta.url))) assert.ok(loaded.has(f), `index.html 沒有載入 js/${f}`);
 });
+
+test('其他頁面（使用說明、隱私權政策）的 css 也帶著同一個版本號', () => {
+  const shown = html.match(/版本 ([\d.]+)/)[1];
+  const pages = readdirSync(new URL('../', import.meta.url)).filter(f => f.endsWith('.html') && f !== 'index.html');
+  assert.ok(pages.length > 0);
+  for (const f of pages) {
+    const page = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+    for (const m of page.matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)) assert.equal(m[1].split('?v=')[1], shown, `${f}: ${m[1]}`);
+  }
+});

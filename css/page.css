@@ -1,0 +1,66 @@
+/* 說明頁、隱私權政策等文字頁面：字比較大，也可以直接列印（App 本身的樣式在 style.css） */
+:root {
+  --bg: #faf9f5; --surface: #fff; --text: #141413; --muted: #73726c;
+  --border: rgba(31, 30, 29, .15); --accent: #c96442; --accent-text: #ae5630; --accent-soft: #f4e7df;
+  --warn-bg: #f8e5e3; --warn: #b53333;
+  --serif: ui-serif, "Noto Serif TC", "Songti TC", Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #262624; --surface: #30302e; --text: #faf9f5; --muted: #9c9a92;
+    --border: rgba(222, 220, 209, .14); --accent: #d97757; --accent-text: #e3896a; --accent-soft: #4b3a32;
+    --warn-bg: #432624; --warn: #e26d62;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 18px/1.7 -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: calc(16px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.back { display: inline-block; margin: 4px 0 12px; color: var(--accent-text); font-size: 17px; text-decoration: none; }
+h1 { margin: 0 0 6px; font-family: var(--serif); font-size: 30px; font-weight: 600; }
+.lead { margin: 0 0 20px; color: var(--muted); }
+section {
+  margin: 16px 0;
+  padding: 18px 18px 8px;
+  border: .5px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  break-inside: avoid;
+}
+h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-family: var(--serif); font-size: 22px; font-weight: 600; }
+h2 .no {
+  display: inline-grid; place-items: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: #fff; font: 600 17px/1 -apple-system, sans-serif;
+}
+ol, ul { margin: 0 0 12px; padding-left: 1.4em; }
+li { margin: 6px 0; }
+b.btn {
+  display: inline-block; padding: 0 8px; border: .5px solid var(--border); border-radius: 8px;
+  background: var(--accent-soft); color: var(--accent-text); font-weight: 600; white-space: nowrap;
+}
+.url { word-break: break-all; font-weight: 600; color: var(--accent-text); }
+.note { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-size: 16px; }
+.muted { color: var(--muted); font-size: 16px; }
+@media print {
+  :root { --bg: #fff; --surface: #fff; }
+  .back { display: none; }
+  body { font-size: 15px; }
+  section { border-color: #ccc; }
+}
+.footer { margin-top: 24px; text-align: center; }
+.footer a, section a { color: var(--accent-text); }
+h3 { margin: 18px 0 6px; font-size: 18px; }
+section p { margin: 0 0 12px; }
+code { padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); font-size: .9em; }
