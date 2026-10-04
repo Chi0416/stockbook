@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=2026.10.04.2">
 </head>
 <body>
   <div class="app">
@@ -31,12 +31,17 @@
         </button>
         <!-- 檢視哪位家人（只有一位成員時不顯示） -->
         <select id="member-switch" class="member-switch" aria-label="檢視成員" hidden></select>
-        <button id="btn-menu" class="icon-btn" type="button" aria-label="家庭成員與資料備份">
+        <button id="btn-menu" class="icon-btn" type="button" aria-label="設定：雲端同步、家庭成員、資料備份">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
         </button>
       </div>
     </header>
     <div id="banner" class="banner" hidden></div>
+    <!-- 同步提示：有資料還沒同步、同步失敗、試算表裡有看不懂的資料時才出現 -->
+    <div id="sync-bar" class="sync-bar" role="status" hidden>
+      <span class="sync-text"></span>
+      <button type="button" class="sync-btn"></button>
+    </div>
     <main id="panels"></main>
   </div>
 
@@ -84,10 +89,13 @@
   <dialog id="menu-sheet" class="sheet">
     <div class="sheet-head">
       <span></span>
-      <h2 class="sheet-title">成員與備份</h2>
+      <h2 class="sheet-title">設定</h2>
       <button type="button" class="text-btn" data-act="close">關閉</button>
     </div>
     <div class="sheet-body">
+      <h3 class="section-head">Google 雲端硬碟</h3>
+      <div id="cloud"></div>
+
       <h3 class="section-head">家庭成員</h3>
       <ul id="member-list" class="member-list"></ul>
       <button id="btn-add-member" type="button" class="wide-btn">新增成員</button>
@@ -101,21 +109,28 @@
       <p class="note muted">備份檔包含全家的資料；匯入會以檔案內容取代目前所有資料。</p>
       <input id="file-import" type="file" accept=".json,application/json" hidden>
 
-      <!-- 每次更新網站時改這裡，用來確認手機上開的是不是新版 -->
-      <p class="note muted">版本 2026.10.04</p>
+      <!-- 每次更新網站時改這裡，用來確認手機上開的是不是新版
+           css、js 網址後面的 ?v= 也要一起改成同一個版本號，瀏覽器才會重新下載（tests/version.test.mjs 會檢查） -->
+      <p class="note muted">版本 2026.10.04.2</p>
     </div>
   </dialog>
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/util.js"></script>
-  <script src="js/schema.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/holdings.js"></script>
-  <script src="js/views.js"></script>
-  <script src="js/list.js"></script>
-  <script src="js/overview.js"></script>
-  <script src="js/form.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/util.js?v=2026.10.04.2"></script>
+  <script src="js/schema.js?v=2026.10.04.2"></script>
+  <script src="js/storage.js?v=2026.10.04.2"></script>
+  <script src="js/holdings.js?v=2026.10.04.2"></script>
+  <script src="js/views.js?v=2026.10.04.2"></script>
+  <script src="js/list.js?v=2026.10.04.2"></script>
+  <script src="js/overview.js?v=2026.10.04.2"></script>
+  <script src="js/form.js?v=2026.10.04.2"></script>
+  <script src="js/config.js?v=2026.10.04.2"></script>
+  <script src="js/google.js?v=2026.10.04.2"></script>
+  <script src="js/sheet.js?v=2026.10.04.2"></script>
+  <script src="js/sync.js?v=2026.10.04.2"></script>
+  <script src="js/app.js?v=2026.10.04.2"></script>
+  <!-- Google 登入元件（連結 Google 帳號時才用到，不擋住畫面載入） -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
 </body>
 </html>

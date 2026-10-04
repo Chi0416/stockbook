@@ -1,4 +1,4 @@
-// 進入點：分頁、列表、表單、家庭成員、資料備份
+// 進入點：分頁、列表、表單、Google 雲端硬碟同步、家庭成員、資料備份
 (() => {
   const TAB_KEY = 'stockbook.tab';
   const $ = id => document.getElementById(id);
@@ -176,11 +176,13 @@
     $('last-export').textContent = t ? `上次匯出：${U.fmtDateTime(t)}` : '尚未匯出過備份';
   }
 
-  $('btn-menu').addEventListener('click', () => {
+  function openMenu() {
     renderMembers();
     renderBackupInfo();
-    menu.showModal();
-  });
+    if (!menu.open) menu.showModal();
+  }
+
+  $('btn-menu').addEventListener('click', openMenu);
   menu.querySelector('[data-act="close"]').addEventListener('click', () => menu.close());
   menu.addEventListener('click', e => { if (e.target === menu) menu.close(); }); // 點背景關閉
 
@@ -250,6 +252,93 @@
     toast('匯入完成');
   });
 
+  // ---------- Google 雲端硬碟（同步的流程見 sync.js） ----------
+  const cloudEl = $('cloud');
+  const syncBar = $('sync-bar');
+  const syncText = syncBar.querySelector('.sync-text');
+  const syncBtn = syncBar.querySelector('.sync-btn');
+  let syncAction = null;
+
+  function syncStatusText(st) {
+    if (st.running) return '同步中…';
+    if (st.error) return `同步失敗：${st.error}`;
+    if (st.pending && st.needLogin) return `有 ${st.pending} 筆還沒同步，請按「同步」`;
+    if (st.needLogin) return '登入已過期，按「同步」可以抓試算表的最新資料';
+    if (st.pending) return `有 ${st.pending} 筆等待同步`;
+    return '已是最新';
+  }
+
+  const redirectNote = '<p class="note muted">登入視窗打不開時，可以'
+    + '<button type="button" class="link-btn" data-act="redirect">改用整頁登入</button>。</p>';
+
+  function renderCloud(st) {
+    if (!st.linked) {
+      cloudEl.innerHTML = `
+        <p class="note muted cloud-intro">連結後，資料會存到你自己的 Google 雲端硬碟（一份試算表）。手機和電腦登入同一個帳號，就能看到同一份資料，也可以直接用 Google 試算表查看、修改。</p>
+        <button type="button" class="wide-btn primary" data-act="link" ${st.running ? 'disabled' : ''}>${st.running ? '連結中…' : '連結 Google 帳號'}</button>
+        ${redirectNote}`;
+      return;
+    }
+    const shown = st.problems.slice(0, 20).map(p => `<li>${U.esc(Sheet.problemText(p))}</li>`).join('');
+    const more = st.problems.length > 20 ? `<p class="note muted">…還有 ${st.problems.length - 20} 個</p>` : '';
+    cloudEl.innerHTML = `
+      <ul class="member-list cloud-info">
+        <li><span class="member-info"><small>帳號</small><b>${U.esc(st.email)}</b></span></li>
+        <li><span class="member-info"><small>上次同步</small><b>${st.lastSyncAt ? U.fmtDateTime(st.lastSyncAt) : '—'}</b></span></li>
+        <li><span class="member-info"><small>狀態</small><b class="${st.error ? 'warn' : ''}">${U.esc(syncStatusText(st))}</b></span></li>
+      </ul>
+      ${st.problems.length ? `
+        <p id="cloud-problems" class="note warn-text">試算表裡有 ${st.problems.length} 個地方看不懂，這幾筆可能會算錯，請到試算表修正：</p>
+        <ul class="problem-list">${shown}</ul>${more}` : ''}
+      <button type="button" class="wide-btn primary" data-act="sync" ${st.running ? 'disabled' : ''}>${st.running ? '同步中…' : '同步'}</button>
+      ${st.url ? `<a class="wide-btn" href="${U.esc(st.url)}" target="_blank" rel="noopener">開啟試算表</a>` : ''}
+      ${redirectNote}
+      <button type="button" class="text-btn danger cloud-unlink" data-act="unlink">取消連結</button>`;
+  }
+
+  // 「同步」要在點擊的當下呼叫（登入過期時會跳出 Google 視窗）
+  cloudEl.addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'link') Sync.startLink();
+    else if (act === 'sync') Sync.syncNow();
+    else if (act === 'redirect') Sync.loginByRedirect();
+    else if (act === 'unlink') Sync.unlink();
+  });
+
+  // 畫面上方的提示列：只在需要使用者處理時出現；自動同步進行中不出現，免得一直閃
+  function renderSyncBar(st) {
+    let text = '';
+    let btn = '';
+    syncAction = null;
+    if (!st.linked) {
+      text = '';
+    } else if (st.running) {
+      if (syncBar.hidden) return;
+      text = '同步中…';
+    } else if (st.error) {
+      text = `同步失敗：${st.error}`;
+      btn = '重試';
+      syncAction = Sync.syncNow;
+    } else if (st.pending && st.needLogin) {
+      text = `有 ${st.pending} 筆還沒同步`;
+      btn = '同步';
+      syncAction = Sync.syncNow;
+    } else if (st.problems.length) {
+      text = `試算表裡有 ${st.problems.length} 個地方看不懂`;
+      btn = '查看';
+      syncAction = () => {
+        openMenu();
+        ($('cloud-problems') || cloudEl).scrollIntoView({ block: 'start' });
+      };
+    }
+    syncBar.hidden = !text;
+    syncText.textContent = text;
+    syncBtn.hidden = !btn;
+    syncBtn.textContent = btn;
+  }
+
+  syncBtn.addEventListener('click', () => { if (syncAction) syncAction(); });
+
   // ---------- 啟動 ----------
   if (!Store.available) {
     const banner = $('banner');
@@ -272,4 +361,21 @@
   let savedTab = 'overview';
   try { savedTab = localStorage.getItem(TAB_KEY) || 'overview'; } catch (_) {}
   showTab(savedTab);
+
+  // 試算表的資料讀回來之後，全部重畫
+  Sync.init({
+    toast,
+    onData() {
+      renderMemberSwitch();
+      refreshAll();
+      if (menu.open) {
+        renderMembers();
+        renderBackupInfo();
+      }
+    },
+    onStatus(st) {
+      renderSyncBar(st);
+      renderCloud(st);
+    },
+  });
 })();

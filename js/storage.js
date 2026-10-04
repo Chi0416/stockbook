@@ -1,11 +1,16 @@
 // 資料存放：瀏覽器 localStorage，另可匯出／匯入 data.json
 //   家庭成員：交易明細與庫存快照每筆記上成員 id（member 欄位），除權息全家共用
 //   檢視範圍（scope）：單一成員的 id，或 'all'（全家）；list() 預設只回傳目前範圍內的資料
+//   連結 Google 試算表時（見 sync.js）：試算表是正本，這裡是副本
+//     每次修改都記在待同步清單（哪張表的哪一筆、新增修改或刪除），同步成功後清掉
+//     onChange() 註冊的函式在每次修改後立刻呼叫（還在使用者點擊的當下，可以跳出登入視窗）
 const Store = (() => {
   const KEY = 'stockbook.v1';
   const SCOPE_KEY = 'stockbook.member';
+  const SYNC_KEY = 'stockbook.sync';
   const TABLES = Object.keys(SCHEMAS);
   const MEMBER_TABLES = TABLES.filter(t => SCHEMAS[t].fields.some(f => f.type === 'member'));
+  const PER_MEMBER = TABLES.flatMap(t => SCHEMAS[t].fields.filter(f => f.type === 'perMember').map(f => [t, f.key]));
   const DEFAULT_MEMBER = { id: 'me', name: '我' }; // 舊資料沒有成員時，全部歸到這位
   let available = true;
 
@@ -72,6 +77,7 @@ const Store = (() => {
     if (!available) return false;
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
+      localStorage.setItem(SYNC_KEY, JSON.stringify(sync));
       return true;
     } catch (e) {
       alert(`儲存失敗：${e.message}\n請先匯出 data.json 備份。`);
@@ -80,6 +86,32 @@ const Store = (() => {
   }
 
   let data = load();
+
+  // ---------- 待同步清單 ----------
+  // pending：{ 表（含 members）: { id: { del, v } } }，v 是遞增的版本號
+  //   同步開始時先拍一份快照，結束後只清掉版本號沒變的（同步途中又改過的留到下一次）
+  // full：匯入資料後整份要重寫
+  function loadSync() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SYNC_KEY));
+      if (s && typeof s.pending === 'object') return { pending: s.pending, v: s.v || 0, full: !!s.full };
+    } catch (_) {}
+    return { pending: {}, v: 0, full: false };
+  }
+  let sync = loadSync();
+
+  function mark(table, id, del = false) {
+    (sync.pending[table] ||= {})[id] = { del, v: ++sync.v };
+  }
+
+  // 成員改名或刪除時，寫著這位成員名字的資料也要重寫（試算表的成員欄和基準日股數寫的是名字）
+  function markMemberRefs(id) {
+    MEMBER_TABLES.forEach(t => data[t].filter(r => r.member === id).forEach(r => mark(t, r.id)));
+    PER_MEMBER.forEach(([t, key]) => data[t].filter(r => r[key] && id in r[key]).forEach(r => mark(t, r.id)));
+  }
+
+  const listeners = [];
+  const changed = () => listeners.forEach(fn => fn());
 
   // ---------- 檢視範圍 ----------
   const validScope = s => s === 'all' || data.members.some(m => m.id === s);
@@ -106,7 +138,9 @@ const Store = (() => {
     add(table, rec) {
       const r = { id: U.uid(), ...rec };
       data[table].push(r);
+      mark(table, r.id);
       persist();
+      changed();
       return r;
     },
 
@@ -114,12 +148,21 @@ const Store = (() => {
       const i = data[table].findIndex(r => r.id === id);
       if (i < 0) return;
       data[table][i] = { ...data[table][i], ...rec, id };
+      mark(table, id);
       persist();
+      changed();
     },
 
     remove(table, id) {
       data[table] = data[table].filter(r => r.id !== id);
+      mark(table, id, true);
       persist();
+      changed();
+    },
+
+    // 一筆資料（table 可以是 'members'）
+    get(table, id) {
+      return (table === 'members' ? data.members : data[table]).find(r => r.id === id);
     },
 
     // ---------- 家庭成員 ----------
@@ -145,7 +188,9 @@ const Store = (() => {
     addMember(name) {
       const m = { id: U.uid(), name };
       data.members.push(m);
+      mark('members', m.id);
       persist();
+      changed();
       return m;
     },
 
@@ -153,16 +198,23 @@ const Store = (() => {
       const m = data.members.find(x => x.id === id);
       if (!m) return;
       m.name = name;
+      mark('members', id);
+      markMemberRefs(id);
       persist();
+      changed();
     },
 
     // 連同這位成員的交易明細與庫存快照一起刪除；至少要留一位成員
     removeMember(id) {
       if (data.members.length < 2) return;
+      markMemberRefs(id);
+      MEMBER_TABLES.forEach(t => data[t].filter(r => r.member === id).forEach(r => mark(t, r.id, true)));
+      mark('members', id, true);
       data.members = data.members.filter(m => m.id !== id);
       MEMBER_TABLES.forEach(t => { data[t] = data[t].filter(r => r.member !== id); });
       persist();
       if (scope === id) setScope('all');
+      changed();
     },
 
     // ---------- 匯出／匯入 ----------
@@ -191,6 +243,73 @@ const Store = (() => {
       const lastExportAt = data.lastExportAt;
       data = normalize(parsed);
       data.lastExportAt = lastExportAt;
+      sync = { pending: {}, v: sync.v, full: true };
+      persist();
+      if (!validScope(scope)) setScope('all');
+      changed();
+    },
+
+    // ---------- 同步（sync.js 使用） ----------
+    onChange(fn) {
+      listeners.push(fn);
+    },
+
+    // 還沒同步的筆數；匯入後整份要重寫時是全部的筆數
+    pendingCount() {
+      if (sync.full) return TABLES.reduce((n, t) => n + data[t].length, 0);
+      return Object.values(sync.pending).reduce((n, ids) => n + Object.keys(ids).length, 0);
+    },
+
+    pendingSnapshot() {
+      const items = Object.entries(sync.pending).flatMap(([table, ids]) =>
+        Object.entries(ids).map(([id, p]) => ({ table, id, del: p.del, v: p.v })));
+      return { full: sync.full, items };
+    },
+
+    // 同步成功後清掉快照裡、之後沒有再改過的項目；tables 有給時只清這幾張表
+    clearPending(snap, tables = null) {
+      snap.items.forEach(({ table, id, v }) => {
+        if (tables && !tables.includes(table)) return;
+        if (sync.pending[table]?.[id]?.v === v) delete sync.pending[table][id];
+      });
+      if (snap.full && !tables) sync.full = false;
+      persist();
+    },
+
+    clearAllPending() {
+      sync = { pending: {}, v: sync.v, full: false };
+      persist();
+    },
+
+    // 以試算表的資料為主，疊上還沒同步的修改；keep 裡的表（試算表那邊缺分頁或缺欄位）整張保留這裡的資料
+    mergeRemote(remote, keep = []) {
+      const out = normalize(remote);
+      ['members', ...TABLES].forEach(t => {
+        if (keep.includes(t)) { out[t] = data[t]; return; }
+        Object.entries(sync.pending[t] || {}).forEach(([id, p]) => {
+          const i = out[t].findIndex(r => r.id === id);
+          if (p.del) {
+            if (i >= 0) out[t].splice(i, 1);
+            return;
+          }
+          const local = this.get(t, id);
+          if (!local) return;
+          if (i >= 0) out[t][i] = local;
+          else out[t].push(local);
+        });
+      });
+      out.lastExportAt = data.lastExportAt;
+      data = normalize(out);
+      persist();
+      if (!validScope(scope)) setScope('all');
+    },
+
+    // 改用試算表的資料（連結時選了雲端那一份），這台裝置的修改全部放棄
+    loadRemote(remote) {
+      const lastExportAt = data.lastExportAt;
+      data = normalize(remote);
+      data.lastExportAt = lastExportAt;
+      sync = { pending: {}, v: sync.v, full: false };
       persist();
       if (!validScope(scope)) setScope('all');
     },
