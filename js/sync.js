@@ -212,13 +212,18 @@ const Sync = (() => {
 
     const memberRow = (m, header) => header.map(h => (h === '名稱' ? m.name : h === Sheet.ID ? m.id : null));
     const rowValues = (t, rec, header) => (t === 'members' ? memberRow(rec, header) : Sheet.encodeRow(t, rec, local.members, header));
+    const overwritten = new Set(); // 這次用這台裝置的版本整列寫回的列
     const put = (t, rec) => {
       const title = titleOf(t);
       const header = parsed.headers[title];
       const row = parsed.rowOf[title]?.[rec.id];
       const values = rowValues(t, rec, header);
-      if (row) writes.push({ range: a1(title, `A${row}`), values: [values] });
-      else (appends[title] ||= []).push(values);
+      if (row) {
+        writes.push({ range: a1(title, `A${row}`), values: [values] });
+        overwritten.add(`${title}:${row}`);
+      } else {
+        (appends[title] ||= []).push(values);
+      }
     };
 
     // 試算表裡打了新的成員名字：補到「成員」分頁
@@ -235,6 +240,8 @@ const Sync = (() => {
       const rec = Store.get(t, id);
       if (rec) put(t, rec);
     });
+    // 在 App 裡改好、這次整列寫回的資料，試算表上原本看不懂的地方已經不算問題了
+    problems = problems.filter(p => !(p.row && overwritten.has(`${p.tab}:${p.row}`)));
 
     // 順序：先改既有的列（不影響列號）→ 由下往上刪（前面的列號才不會跑掉）→ 最後才新增
     if (writes.length) {

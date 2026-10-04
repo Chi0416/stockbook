@@ -453,3 +453,15 @@ test('取消連結：資料保留，不再同步', async () => {
   assert.equal(d.Sync.state().linked, false);
   assert.equal(d.Store.list('snapshots', 'all').length, 1);
 });
+
+test('試算表上看不懂的那一筆，在 App 裡改好之後，同一次同步就不再算問題', async () => {
+  const { fake, d, id } = await linked();
+  fake.setCell(id, '庫存快照', 2, 1, '2026/13/01'); // 長輩打錯日期
+  await d.Sync.syncNow();
+  assert.deepEqual(plain(d.Sync.state().problems).map(p => p.msg), ['快照日期看不懂（2026/13/01）']);
+  const s = d.Store.list('snapshots', 'all')[0];
+  d.Store.update('snapshots', s.id, { date: '2026-08-31' }); // 在 App 裡改好
+  await d.Sync.syncNow();
+  assert.deepEqual(plain(d.Sync.state().problems), []);
+  assert.equal(fake.values(id, '庫存快照')[1][1], d.Sheet.toSerial('2026-08-31'));
+});
