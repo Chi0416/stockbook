@@ -131,20 +131,14 @@ function createList(tableKey, schema, { openForm }) {
       </button>`;
   }
 
-  // 合計目前篩選範圍內的數字；有 pending（例如還沒入帳）時並列「已入帳 / 待入帳」兩個一樣大的數字，
-  // 下方依狀態拆開（例如「待發放 X · 待除權息 Y」，日期近的在前）；算不出來的列不計入並提示
+  // 合計目前篩選範圍內的數字；有 pending（例如還沒入帳）時並列「已入帳 / 待入帳」兩個一樣大的數字；
+  // 算不出來的列不計入並提示
   function summaryHTML(rows) {
     const { key, label } = schema.total;
     const isNum = r => typeof r[key] === 'number';
     const total = list => U.round(list.reduce((s, r) => s + r[key], 0));
     const counted = rows.filter(r => !isPending(r) && isNum(r));
     const pending = rows.filter(r => isPending(r) && isNum(r));
-    const byStatus = new Map();
-    pending.slice().reverse().forEach(r => {
-      const k = statusOf(r).label;
-      byStatus.set(k, (byStatus.get(k) || 0) + r[key]);
-    });
-    const parts = [...byStatus].map(([k, v]) => `${k} ${U.fmtNum(U.round(v))}`).join(' · ');
     const who = Store.members().length < 2 ? '' : Store.scope === 'all' ? '全家' : Store.memberName(Store.scope);
     const scope = [who, state.period && periodLabel(state.period)].filter(Boolean).join(' · ') || '全部';
     const missing = rows.length - counted.length - pending.length;
@@ -153,7 +147,7 @@ function createList(tableKey, schema, { openForm }) {
         <small>${U.esc(scope)} ${label}合計</small>
         <b>${U.fmtNum(total(counted))}${pending.length
           ? `<span class="summary-sep"> / </span><span class="summary-pend">${U.fmtNum(total(pending))}</span>` : ''}</b>
-        ${pending.length ? `<span class="summary-pending">已入帳 / 待入帳（${U.esc(parts)}）</span>` : ''}
+        ${pending.length ? `<span class="summary-pending">已入帳 / 待入帳</span>` : ''}
         ${missing ? `<span class="summary-note">另有 ${missing} 筆算不出來，未計入</span>` : ''}
       </div>`;
   }
