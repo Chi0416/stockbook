@@ -361,13 +361,18 @@ const Sheet = (() => {
   // _meta 分頁的內容：格式版本，以後改格式時用來判斷要不要轉換
   const metaValues = () => [['version', VERSION]];
 
+  // _股價 分頁（隱藏）：A 欄代號、B 欄用 GOOGLEFINANCE 抓的現價（見 sync.js）
+  //   用「使用者輸入」的方式寫入：代號前面加 ' 才會存成文字（0050 不會變成 50），公式才會計算
+  const PRICES = { title: '_股價' };
+  const priceValues = codes => [['代號', '現價'], ...codes.map(c => [`'${c}`, `=GOOGLEFINANCE("TPE:${c}","price")`])];
+
   // 同步時讀取的範圍（values.batchGet），順序和 fromValues 需要的分頁一樣
   const readRanges = () => [MEMBERS.title, ...TABLES.map(t => TAB[t].title)];
 
   return {
-    VERSION, ID, MEMBERS, META, TAB,
+    VERSION, ID, MEMBERS, META, PRICES, TAB,
     toSerial, fromSerial, colLetter,
     encodeRow, toValues, fromValues, problemText,
-    createBody, setupRequests, metaValues, readRanges,
+    createBody, setupRequests, metaValues, priceValues, readRanges,
   };
 })();

@@ -5,6 +5,7 @@
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
 //   總投資成本卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
+//   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js），持股列表上方註明更新時間；不是自己的資料，隱藏金額時照常顯示
 //   subtitle：標題後面的小字，顯示今天的日期
 const OVERVIEW = {
   title: '持股總覽',
@@ -149,8 +150,22 @@ function createOverview() {
       : `<span class="card-note">${U.esc(one.changed ? `股數 = ${Privacy.text(one.formula)}` : `依 ${U.fmtDate(one.snapDate)} 庫存快照`)}</span>`;
   }
 
-  function cardHTML(p) {
+  // 股價：連結 Google、抓過股價才有；沒連結時不顯示現價
+  const quotes = () => (Sync.state().linked ? Sync.prices() : null);
+
+  // 「價格更新於 14:05，可能延遲 20 分鐘」；不是今天的話加上日期
+  function priceNote(q, positions) {
+    const t = q.at ? U.fmtDateTime(q.at) : '';
+    const time = t.startsWith(U.today().replace(/-/g, '/')) ? t.slice(11) : t;
+    const missing = positions.filter(p => q.quotes[p.code] === null).length;
+    const parts = [time ? `價格更新於 ${time}，可能延遲 20 分鐘` : '正在抓價格…'];
+    if (missing) parts.push(`${missing} 檔抓不到價格`);
+    return `<p class="list-intro">${U.esc(parts.join('；'))}</p>`;
+  }
+
+  function cardHTML(p, q) {
     const avg = p.shares > 0 ? U.round(p.cost / p.shares, 2) : null;
+    const price = q?.quotes[p.code];
     return `
       <div class="card static">
         <span class="card-top">
@@ -160,6 +175,7 @@ function createOverview() {
         <span class="card-grid">
           <span class="cell"><small>股數</small><span>${shares(p.shares)}</span></span>
           <span class="cell"><small>平均成本</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
+          ${q ? `<span class="cell"><small>現價</small><span>${typeof price === 'number' ? U.fmtNum(U.round(price, 2)) : '—'}</span></span>` : ''}
         </span>
         ${noteHTML(p)}
       </div>`;
@@ -176,8 +192,9 @@ function createOverview() {
     const text = p => `${p.code} ${p.name} ${(p.parts || []).map(x => Store.memberName(x.member)).join(' ')}`;
     const rows = all.filter(p => !kw || text(p).toLowerCase().includes(kw));
     countEl.textContent = rows.length === all.length ? `${all.length} 檔` : `${rows.length}／${all.length} 檔`;
+    const q = quotes();
     listEl.innerHTML = rows.length
-      ? rows.map(cardHTML).join('')
+      ? (q ? priceNote(q, all) : '') + rows.map(p => cardHTML(p, q)).join('')
       : `<p class="empty">${all.length ? '沒有符合條件的持股' : '目前沒有持股'}</p>`;
   }
 

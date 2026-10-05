@@ -443,6 +443,10 @@
       renderCloud(st);
       Inbox.syncStatus(st);
     },
+    // 讀回新的股價：持股總覽重畫
+    onPrices() {
+      lists.overview.refresh();
+    },
     // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始
     onLogout() {
       try { sessionStorage.setItem(LOGOUT_KEY, '1'); } catch (_) {}

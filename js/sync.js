@@ -6,6 +6,7 @@
 //   時機：打開 App、從背景切回來、修改資料後（等幾秒一起送），登入還有效就自動同步
 //         登入過期時，修改資料的那一下順便跳出 Google 視窗；沒成功就顯示「同步」按鈕讓使用者按
 //   登出：先同步一次，確定試算表已經有這台裝置的全部資料，才清掉這台裝置上的資料（換帳號時不會混在一起）
+//   股價：同步成功後，在試算表隱藏的「_股價」分頁用 GOOGLEFINANCE 抓目前持股的現價，讀回來給持股總覽顯示
 const Sync = (() => {
   const CLOUD_KEY = 'stockbook.cloud';
   const MARK = 'stockbook'; // 試算表上的標記（雲端硬碟的 appProperties），用來找回這份試算表
@@ -45,7 +46,8 @@ const Sync = (() => {
   let loggingOut = false;
   let idleWaiters = []; // 等同步跑完的人（登出用）
   // notify：重要的事留在訊息匣（{ title, body }）；onLogout：登出、清掉資料之後（app.js 重新載入頁面）
-  let hooks = { onData() {}, onStatus() {}, toast() {}, notify() {}, onLogout() {} };
+  // onPrices：讀回新的股價
+  let hooks = { onData() {}, onStatus() {}, toast() {}, notify() {}, onLogout() {}, onPrices() {} };
 
   function state() {
     return {
@@ -323,6 +325,8 @@ const Sync = (() => {
       saveCloud();
       okAt = Date.now();
       if (manual) hooks.toast('已同步');
+      // 股價抓不到不算同步失敗，下次同步再試
+      try { await updatePrices(meta, manual); } catch (_) {}
     } catch (e) {
       if (e.code === 'network') offline = true;
       else if (e.code !== 'need_login') error = e.message || String(e);
@@ -435,7 +439,87 @@ const Sync = (() => {
     problems = [];
     incomplete = [];
     saveCloud();
+    clearPrices();
     return Google.signOut();
+  }
+
+  // ---------- 股價（GOOGLEFINANCE） ----------
+  // 試算表隱藏的「_股價」分頁：A 欄全家目前持股的代號、B 欄 =GOOGLEFINANCE("TPE:代號","price")，讀回 Google 算好的現價
+  //   同步成功後更新：持股的代號變了、或按了「同步」就馬上更新，否則最多 5 分鐘一次
+  //   每次都清掉重寫公式，讓 Google 重新抓價格；剛寫進去時可能還是「Loading...」，過幾秒再讀一次（最多 3 次）
+  //   價格只存在這台裝置：{ at: 讀到價格的時間, quotes: { 代號: 價格；null 是抓不到；沒有這個代號是還在抓 } }
+  //   不寫進資料、不進 data.json；登出、取消連結時一起清掉
+  const PRICES_KEY = 'stockbook.prices';
+  const PRICE_EVERY = 5 * 60000;
+  const PRICE_RETRY = 4000;
+  let prices = null;
+  try { prices = JSON.parse(localStorage.getItem(PRICES_KEY)); } catch (_) {}
+  let priceKey = '';      // 上次寫進試算表的代號
+  let priceWrittenAt = 0; // 上次寫進試算表的時間
+  let priceTimer = null;
+
+  function savePrices() {
+    try {
+      if (prices) localStorage.setItem(PRICES_KEY, JSON.stringify(prices));
+      else localStorage.removeItem(PRICES_KEY);
+    } catch (_) {}
+  }
+
+  function clearPrices() {
+    clearTimeout(priceTimer);
+    prices = null;
+    priceKey = '';
+    priceWrittenAt = 0;
+    savePrices();
+  }
+
+  async function updatePrices(meta, force = false) {
+    // 只用英數字的代號（寫進公式裡，不能有引號之類的字）
+    const codes = Holdings.heldCodes(U.today()).filter(c => /^[0-9A-Z]+$/.test(c));
+    const key = codes.join(',');
+    if (!force && key === priceKey && Date.now() - priceWrittenAt < PRICE_EVERY) return;
+    const title = Sheet.PRICES.title;
+    if (meta.sheetIds[title] === undefined) {
+      const r = await api(`${Google.SHEETS}/${meta.id}:batchUpdate`, {
+        method: 'POST',
+        body: { requests: [{ addSheet: { properties: { title, hidden: true } } }] },
+      });
+      meta.sheetIds[title] = r.replies[0].addSheet.properties.sheetId;
+    }
+    await api(`${Google.SHEETS}/${meta.id}/values:batchClear`, { method: 'POST', body: { ranges: [a1(title)] } });
+    await api(`${Google.SHEETS}/${meta.id}/values:batchUpdate`, {
+      method: 'POST',
+      body: { valueInputOption: 'USER_ENTERED', data: [{ range: a1(title, 'A1'), values: Sheet.priceValues(codes) }] },
+    });
+    priceKey = key;
+    priceWrittenAt = Date.now();
+    await readPrices(meta.id, codes, 0);
+  }
+
+  async function readPrices(id, codes, tries) {
+    const r = await api(`${Google.SHEETS}/${id}/values:batchGet?ranges=${enc(a1(Sheet.PRICES.title))}&valueRenderOption=UNFORMATTED_VALUE`);
+    const got = new Map((r.valueRanges[0].values || []).slice(1).map(([c, v]) => [String(c ?? '').trim().toUpperCase(), v]));
+    const old = prices?.quotes || {};
+    const quotes = {};
+    let loading = false;
+    codes.forEach(c => {
+      const v = got.get(c);
+      if (typeof v === 'number') quotes[c] = v;
+      else if (v === undefined || v === '' || /^loading/i.test(String(v))) {
+        loading = true;
+        if (c in old) quotes[c] = old[c]; // 還在抓：先用上次的價格
+      } else quotes[c] = null; // #N/A 之類：GOOGLEFINANCE 抓不到這個代號
+    });
+    const fresh = codes.some(c => typeof got.get(c) === 'number');
+    prices = { at: fresh ? new Date().toISOString() : prices?.at || null, quotes };
+    savePrices();
+    hooks.onPrices();
+    if (loading && tries < 3) {
+      clearTimeout(priceTimer);
+      priceTimer = setTimeout(() => {
+        if (cloud?.spreadsheetId === id) readPrices(id, codes, tries + 1).catch(() => {});
+      }, PRICE_RETRY);
+    }
   }
 
   // ---------- 登出 ----------
@@ -539,5 +623,5 @@ const Sync = (() => {
     emit();
   }
 
-  return { init, state, startLink, syncNow, loginByRedirect, logout };
+  return { init, state, prices: () => prices, startLink, syncNow, loginByRedirect, logout };
 })();

@@ -197,6 +197,13 @@ const Holdings = (() => {
     };
   }
 
+  // 全家目前持有的代號（不管目前看哪一位成員），依代號排序；同步股價用（見 sync.js）
+  function heldCodes(date) {
+    const codes = Store.members().flatMap(m =>
+      (memberAll(m.id, date)?.positions || []).filter(p => p.shares > 0).map(p => p.code));
+    return [...new Set(codes)].sort();
+  }
+
   // ---------- 核對 ----------
   // 前一期快照的股數（第一期從 0 開始）＋期間的買賣與配股，應該等於這一期快照的股數
   // 回傳成員每一期快照、每一檔的結果 { member, date, prevDate, code, name, expected, actual, status, formula, recId }
@@ -249,5 +256,5 @@ const Holdings = (() => {
   // 成員在 date（含當天）時用來推算持股的快照日期；沒有快照時為 null
   const snapDate = (member, date) => snapDateBefore(member, date, true);
 
-  return { codeOf, position, entitled, all, check, snapDate };
+  return { codeOf, position, entitled, all, heldCodes, check, snapDate };
 })();

@@ -13,6 +13,7 @@ class FakeGoogle {
     this.n = 0;
     this.calls = [];
     this.onBatchGet = null; // 讀取時插入的動作（模擬同步途中使用者又改了資料）
+    this.quotes = {};       // GOOGLEFINANCE 算出來的值：{ 代號: 價格、'#N/A' 或 'Loading...' }；沒列出的是 '#N/A'
   }
 
   // 'title'!A5、'title'!A:ZZ、title
@@ -47,8 +48,12 @@ class FakeGoogle {
   }
 
   // 直接改試算表（模擬長輩在 Google 試算表裡手動修改）
+  //   讀出來時 GOOGLEFINANCE 公式換成算好的值
   values(id, title) {
-    return FakeGoogle.read(this.sheet(id, title).grid);
+    return FakeGoogle.read(this.sheet(id, title).grid).map(r => r.map(v => {
+      const m = typeof v === 'string' && v.match(/^=GOOGLEFINANCE\("TPE:([0-9A-Z]+)","price"\)$/);
+      return m ? (this.quotes[m[1]] ?? '#N/A') : v;
+    }));
   }
 
   setCell(id, title, row, col, v) {
@@ -122,7 +127,9 @@ class FakeGoogle {
       return ok({});
     }
     if (rest === '/values:batchUpdate') {
-      body.data.forEach(d => this.write(id, d.range, d.values));
+      // 使用者輸入（USER_ENTERED）：開頭的 ' 表示存成文字，本身不存
+      const typed = v => (body.valueInputOption === 'USER_ENTERED' && typeof v === 'string' && v.startsWith("'") ? v.slice(1) : v);
+      body.data.forEach(d => this.write(id, d.range, d.values.map(r => r.map(typed))));
       return ok({});
     }
     if (rest === '/values:batchGet') {
@@ -143,7 +150,7 @@ class FakeGoogle {
 
 // ---------- 載入 App ----------
 const ROOT = new URL('../', import.meta.url);
-const FILES = ['util', 'schema', 'storage', 'config', 'google', 'sheet', 'sync'];
+const FILES = ['util', 'schema', 'storage', 'holdings', 'config', 'google', 'sheet', 'sync'];
 
 // 每個測試一個全新的裝置：localStorage、權杖、Google 都是新的
 function device(fake, { storage = {}, token = true, confirmAnswer = true } = {}) {
@@ -153,6 +160,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
   const asked = { answer: confirmAnswer, messages: [] };
   const alerts = [];
   const loggedOut = { count: 0 };
+  const priced = { count: 0 };
   const ctx = vm.createContext({
     localStorage: {
       getItem: k => (k in ls ? ls[k] : null),
@@ -190,8 +198,9 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
     toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg),
     notify: m => notes.push(m.title),
     onLogout: () => { loggedOut.count++; },
+    onPrices: () => { priced.count++; },
   });
-  return { ...app, ls, toasts, asked, notes, alerts, loggedOut };
+  return { ...app, ls, toasts, asked, notes, alerts, loggedOut, priced };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -489,6 +498,7 @@ test('登出：先把還沒同步的修改送出，確認後清掉這台裝置�
   assert.equal(d.Sync.state().linked, false);
   assert.equal(d.Store.list('trades', 'all').length, 0);
   assert.equal(d.Store.list('snapshots', 'all').length, 0);
+  assert.equal(d.Sync.prices(), null);
   assert.deepEqual(Object.keys(d.ls).filter(k => k.startsWith('stockbook.')), []);
 
   // 同一台裝置再登入：資料從試算表抓回來
@@ -573,4 +583,68 @@ test('試算表上看不懂的那一筆，在 App 裡改好之後，同一次同
   await d.Sync.syncNow();
   assert.deepEqual(plain(d.Sync.state().problems), []);
   assert.equal(fake.values(id, '庫存快照')[1][1], d.Sheet.toSerial('2026-08-31'));
+});
+
+// ---------- 股價（GOOGLEFINANCE） ----------
+const priceTab = (fake, id) => fake.sheet(id, '_股價');
+
+test('股價：同步後在隱藏的「_股價」分頁寫入持股代號和 GOOGLEFINANCE 公式，讀回現價', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': 37.85 };
+  const { d, id } = await linked(fake);
+  // 代號存成文字（0056 不會變成 56），公式寫成 GOOGLEFINANCE
+  assert.deepEqual(priceTab(fake, id).grid.slice(0, 2), [['代號', '現價'], ['0056', '=GOOGLEFINANCE("TPE:0056","price")']]);
+  const p = plain(d.Sync.prices());
+  assert.deepEqual(p.quotes, { '0056': 37.85 });
+  assert.ok(Date.now() - Date.parse(p.at) < 5000);
+  assert.ok(d.priced.count >= 1);
+  assert.deepEqual(JSON.parse(d.ls['stockbook.prices']).quotes, { '0056': 37.85 });
+});
+
+test('股價：抓不到的代號記成 null；還在 Loading 的先用上次的價格、不更新時間', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': '#N/A' };
+  const { d } = await linked(fake);
+  assert.deepEqual(plain(d.Sync.prices()), { at: null, quotes: { '0056': null } });
+
+  fake.quotes = { '0056': 37.85 };
+  await d.Sync.syncNow();
+  const at = d.Sync.prices().at;
+  assert.equal(d.Sync.prices().quotes['0056'], 37.85);
+
+  fake.quotes = { '0056': 'Loading...' };
+  await d.Sync.syncNow();
+  assert.deepEqual(plain(d.Sync.prices()), { at, quotes: { '0056': 37.85 } });
+});
+
+test('股價：持股的代號變了就重寫（賣光的拿掉、新買的加上）；全家的持股都算', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': 37.85, '0050': 115.95 };
+  const { d, id } = await linked(fake);
+  const mom = d.Store.addMember('媽媽');
+  d.Store.add('trades', { ...TRADE, member: mom.id });
+  const s = d.Store.list('snapshots', 'all')[0];
+  d.Store.add('trades', { ...TRADE, code: '0056', name: '元大高股息', type: '普賣', shares: s.shares });
+  await d.Sync.syncNow();
+  assert.deepEqual(fake.values(id, '_股價'), [['代號', '現價'], ['0050', 115.95]]);
+  assert.deepEqual(plain(d.Sync.prices().quotes), { '0050': 115.95 });
+});
+
+test('股價：沒有持股時只留標題列', async () => {
+  const fake = new FakeGoogle();
+  const d = device(fake);
+  await d.Sync.startLink();
+  const id = d.Sync.state().url.split('/').pop();
+  assert.deepEqual(fake.values(id, '_股價'), [['代號', '現價']]);
+  assert.deepEqual(plain(d.Sync.prices().quotes), {});
+});
+
+test('股價：沒有網路時保留上次的價格，不算同步失敗以外的錯誤', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': 37.85 };
+  const { d } = await linked(fake);
+  fake.offline = true;
+  await d.Sync.syncNow();
+  assert.equal(d.Sync.state().offline, true);
+  assert.equal(d.Sync.prices().quotes['0056'], 37.85);
 });
