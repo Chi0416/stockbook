@@ -239,6 +239,19 @@ const Store = (() => {
       return normalize(obj);
     },
 
+    // 登出：清掉這台裝置上記錄簿存的所有東西（資料、待同步清單、成員、訊息匣、登入資訊、壞掉時留的備份）
+    //   之後由 app.js 重新載入頁面
+    wipe() {
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        keys.filter(k => k.startsWith('stockbook.')).forEach(k => localStorage.removeItem(k));
+      } catch (_) {}
+      data = blank();
+      sync = { pending: {}, v: 0, full: false };
+      scope = 'all';
+    },
+
     replaceAll(parsed) {
       const lastExportAt = data.lastExportAt;
       data = normalize(parsed);

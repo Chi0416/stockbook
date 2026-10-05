@@ -156,12 +156,17 @@ const Google = (() => {
     return json;
   }
 
-  // 取消連結：撤銷這次的授權，下次連結時會重新詢問
+  // 取消連結、登出：撤銷這次的授權，下次連結時會重新詢問
+  //   回傳的 Promise 在 Google 回覆後完成（最多等 3 秒），登出時等它再清資料、重新載入頁面
   function signOut() {
-    if (token && ready()) {
-      try { google.accounts.oauth2.revoke(token.accessToken, () => {}); } catch (_) {}
-    }
+    const t = token;
     clearToken();
+    if (!t || !ready()) return Promise.resolve();
+    return new Promise(resolve => {
+      const timer = setTimeout(resolve, 3000);
+      const done = () => { clearTimeout(timer); resolve(); };
+      try { google.accounts.oauth2.revoke(t.accessToken, done); } catch (_) { done(); }
+    });
   }
 
   return { SHEETS, DRIVE, ready, hasToken, requestToken, redirectLogin, consumeRedirect, api, signOut };

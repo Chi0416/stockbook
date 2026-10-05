@@ -5,6 +5,7 @@
 //         寫回時用 id 找到那一列再改，不靠列號；長輩手動輸入、沒有 id 的列會補上 id
 //   時機：打開 App、從背景切回來、修改資料後（等幾秒一起送），登入還有效就自動同步
 //         登入過期時，修改資料的那一下順便跳出 Google 視窗；沒成功就顯示「同步」按鈕讓使用者按
+//   登出：先同步一次，確定試算表已經有這台裝置的全部資料，才清掉這台裝置上的資料（換帳號時不會混在一起）
 const Sync = (() => {
   const CLOUD_KEY = 'stockbook.cloud';
   const MARK = 'stockbook'; // 試算表上的標記（雲端硬碟的 appProperties），用來找回這份試算表
@@ -37,11 +38,14 @@ const Sync = (() => {
   let problems = [];
   let problemsAt = 0; // 這次打開 App 後，最近一次檢查試算表內容的時間（訊息匣用來判斷問題解決了沒）
   let okAt = 0;       // 這次打開 App 後，最近一次同步成功的時間
+  let incomplete = []; // 上次同步時試算表缺欄位、沒辦法寫回去的表：這幾張表 App 裡的資料比試算表完整
   let lastRunAt = 0;
   let timer = null;
   let autoLoginTried = false;
-  // notify：重要的事留在訊息匣（{ title, body }）
-  let hooks = { onData() {}, onStatus() {}, toast() {}, notify() {} };
+  let loggingOut = false;
+  let idleWaiters = []; // 等同步跑完的人（登出用）
+  // notify：重要的事留在訊息匣（{ title, body }）；onLogout：登出、清掉資料之後（app.js 重新載入頁面）
+  let hooks = { onData() {}, onStatus() {}, toast() {}, notify() {}, onLogout() {} };
 
   function state() {
     return {
@@ -55,6 +59,7 @@ const Sync = (() => {
       problems,
       problemsAt,
       okAt,
+      loggingOut,
       needLogin: !!cloud && !Google.hasToken(),
       pending: Store.pendingCount(),
     };
@@ -203,6 +208,7 @@ const Sync = (() => {
     const appends = {};
     const deletes = [];
     const done = ['members', ...TABLES].filter(t => !parsed.broken.includes(t) || empty.includes(t));
+    incomplete = ['members', ...TABLES].filter(t => !done.includes(t));
 
     empty.forEach(t => writes.push({ range: a1(titleOf(t), 'A1'), values: all[titleOf(t)] }));
     const handled = t => done.includes(t) && !empty.includes(t);
@@ -298,6 +304,7 @@ const Sync = (() => {
         meta = await createSpreadsheet(Store.exportPayload());
         Store.clearPending(snap);
         problems = [];
+        incomplete = [];
         problemsAt = Date.now();
         cloud.spreadsheetId = meta.id;
         cloud.url = meta.url;
@@ -307,6 +314,7 @@ const Sync = (() => {
         await writeAll(meta.id, Store.exportPayload());
         Store.clearPending(snap);
         problems = [];
+        incomplete = [];
         problemsAt = Date.now();
       } else {
         Store.clearPending(snap, await exchange(meta, snap));
@@ -327,6 +335,7 @@ const Sync = (() => {
         again = false;
         run();
       }
+      if (!running) idleWaiters.splice(0).forEach(fn => fn());
     }
   }
 
@@ -347,7 +356,12 @@ const Sync = (() => {
       const found = await findSpreadsheet();
       if (found) meta = await info(found);
 
+      // 雲端還沒有資料時，這台裝置的資料會寫過去：先確認是這個帳號（例如之前留著別人的資料）
+      const localCount = countRecords(local);
+      const upload = () => !localCount || confirm(`這台裝置上有 ${localCount} 筆資料，會存到 ${email} 的 Google 試算表。\n\n`
+        + '按「確定」：存過去並連結。\n按「取消」：先不連結。');
       if (!meta) {
+        if (!upload()) return;
         meta = await createSpreadsheet(local);
         Store.clearAllPending();
       } else {
@@ -355,10 +369,10 @@ const Sync = (() => {
         const parsed = Sheet.fromValues(await pull(meta), local.members);
         const remoteCount = countRecords(parsed.data);
         if (!remoteCount) {
+          if (!upload()) return;
           await writeAll(meta.id, local);
           Store.clearAllPending();
         } else {
-          const localCount = countRecords(local);
           if (localCount) {
             const lines = TABLES.map(t => `${SCHEMAS[t].title} ${parsed.data[t].length} 筆`).join('、');
             const ok = confirm(`你的 Google 雲端硬碟裡已經有一份記錄簿（${lines}）。\n\n`
@@ -419,17 +433,75 @@ const Sync = (() => {
     error = '';
     offline = false;
     problems = [];
+    incomplete = [];
     saveCloud();
-    Google.signOut();
+    return Google.signOut();
   }
 
-  function unlink() {
-    if (!confirm('取消連結後，這台裝置上的資料會保留，但不再和 Google 試算表同步。\n'
-      + '雲端的試算表不會被刪除，之後可以再連結。\n\n確定取消連結？')) return;
-    disconnect();
+  // ---------- 登出 ----------
+  // 等目前的同步（和排在後面的那一次）都跑完
+  const idle = () => (running ? new Promise(fn => idleWaiters.push(fn)) : Promise.resolve());
+
+  // 不能登出的原因（試算表還沒有這台裝置的全部資料）；可以登出時回傳空字串
+  //   ok：這次同步成功了
+  function logoutBlocker(ok) {
+    const lines = [];
+    if (!ok) {
+      lines.push(offline ? '目前沒有網路，連上網路後再按一次「登出」。'
+        : error ? `同步失敗：${error}\n請稍後再按一次「登出」。`
+        : '還沒同步完成，請再按一次「登出」。');
+    } else if (incomplete.length) {
+      // 缺欄位的表沒辦法寫回試算表（見 exchange）；改回標題的說明在 problems 裡
+      const tabs = incomplete.map(titleOf);
+      const fix = problems.filter(p => tabs.includes(p.tab) && p.row === 1).map(Sheet.problemText);
+      lines.push(`試算表的標題被改過，「${tabs.join('」「')}」的資料沒辦法寫回試算表：`,
+        ...(fix.length ? fix : ['請到「訊息」看要改回哪個標題']), '改回來之後，再按一次「登出」。');
+    } else if (Store.pendingCount()) {
+      lines.push(`還有 ${Store.pendingCount()} 筆沒有同步完成，請再按一次「登出」。`);
+    }
+    return lines.length ? `還不能登出：要先確定試算表裡有這台裝置的全部資料，登出才不會遺失。\n\n${lines.join('\n')}` : '';
+  }
+
+  // 必須在使用者點擊的當下呼叫：登入過期時要先跳出 Google 視窗（第一個 await 之前）
+  async function logout() {
+    if (!cloud || loggingOut) return;
+    loggingOut = true;
     emit();
-    hooks.toast('已取消連結');
-    hooks.notify({ title: '已取消連結', body: '這台裝置的資料還在，但不再和 Google 試算表同步。' });
+    let wiped = false;
+    try {
+      if (!Google.hasToken()) await Google.requestToken({ hint: cloud.email });
+      wiped = await finishLogout();
+    } catch (e) {
+      if (e.code === 'popup_failed_to_open') hooks.toast('登入視窗打不開，請先用「改用整頁登入」同步，再按「登出」', 'error');
+      else if (e.code !== 'popup_closed' && e.code !== 'superseded') hooks.toast(e.message || String(e), 'error');
+    } finally {
+      // 清掉資料之後不再更新畫面（訊息匣會把舊的訊息寫回去），交給 app.js 重新載入頁面
+      if (wiped) hooks.onLogout();
+      else {
+        loggingOut = false;
+        emit();
+      }
+    }
+  }
+
+  // 回傳是否已經清掉資料
+  async function finishLogout() {
+    autoLoginTried = false;
+    clearTimeout(timer);
+    await idle();
+    const start = Date.now();
+    await run();
+    await idle();
+    if (!cloud) return false; // 同步時發現試算表不見了、選擇取消連結：資料留在這台裝置
+    const blocker = logoutBlocker(okAt >= start && !error && !offline);
+    if (blocker) {
+      alert(blocker);
+      return false;
+    }
+    if (!confirm(`登出後，這台裝置上的記錄簿資料會清除。\n資料都存在 ${cloud.email} 的 Google 試算表裡，下次登入會再抓回來。\n\n確定登出？`)) return false;
+    await disconnect();
+    Store.wipe();
+    return true;
   }
 
   // 資料改了：登入有效就等幾秒後一起送出；過期了，趁這次點擊（儲存、刪除）跳出 Google 視窗
@@ -467,5 +539,5 @@ const Sync = (() => {
     emit();
   }
 
-  return { init, state, startLink, syncNow, loginByRedirect, unlink };
+  return { init, state, startLink, syncNow, loginByRedirect, logout };
 })();

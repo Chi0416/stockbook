@@ -794,7 +794,9 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 a.wide-btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .wide-btn:disabled { opacity: .55; cursor: default; }
 .link-btn { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; }
-.cloud-unlink { display: block; margin: 12px auto 0; }
+.cloud-logout { display: block; margin: 12px auto 0; }
+.cloud-logout:disabled { opacity: .55; cursor: default; }
+.cloud-logout-note { margin-top: 4px; text-align: center; }
 
 /* ---------- 訊息匣 ---------- */
 .inbox-btn { position: relative; margin-right: 0; }

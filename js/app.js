@@ -1,6 +1,7 @@
 // 進入點：分頁、列表、表單、Google 雲端硬碟同步、訊息匣、家庭成員、資料備份
 (() => {
   const TAB_KEY = 'stockbook.tab';
+  const LOGOUT_KEY = 'stockbook.loggedOut'; // 登出後重新載入頁面時顯示「已登出」（sessionStorage，登出清資料時不會被清掉）
   const $ = id => document.getElementById(id);
 
   // ---------- 提示訊息（有開啟的 sheet 時顯示在 sheet 上層） ----------
@@ -305,7 +306,8 @@
       <button type="button" class="wide-btn primary" data-act="sync" ${st.running ? 'disabled' : ''}>${st.running ? '同步中…' : '同步'}</button>
       ${st.url ? `<a class="wide-btn" href="${U.esc(st.url)}" target="_blank" rel="noopener">開啟試算表</a>` : ''}
       ${redirectNote}
-      <button type="button" class="text-btn danger cloud-unlink" data-act="unlink">取消連結</button>`;
+      <button type="button" class="text-btn danger cloud-logout" data-act="logout" ${st.running || st.loggingOut ? 'disabled' : ''}>${st.loggingOut ? '登出中…' : '登出'}</button>
+      <p class="note muted cloud-logout-note">登出會清除這台裝置上的資料，資料都還在試算表裡。要換別的 Google 帳號（例如幫家人記帳）時先登出。</p>`;
   }
 
   // 「同步」要在點擊的當下呼叫（登入過期時會跳出 Google 視窗）
@@ -314,7 +316,7 @@
     if (act === 'link') Sync.startLink();
     else if (act === 'sync') Sync.syncNow();
     else if (act === 'redirect') Sync.loginByRedirect();
-    else if (act === 'unlink') Sync.unlink();
+    else if (act === 'logout') Sync.logout();
     else if (act === 'inbox') {
       menu.close();
       Inbox.open();
@@ -377,6 +379,12 @@
   let savedTab = 'overview';
   try { savedTab = localStorage.getItem(TAB_KEY) || 'overview'; } catch (_) {}
   showTab(savedTab);
+  try {
+    if (sessionStorage.getItem(LOGOUT_KEY)) {
+      sessionStorage.removeItem(LOGOUT_KEY);
+      toast('已登出，這台裝置上的資料已清除');
+    }
+  } catch (_) {}
 
   // ---------- 訊息匣（見 inbox.js） ----------
   // 點訊息：打開那一筆資料、打開試算表、切到相關頁面或同步
@@ -422,6 +430,11 @@
       renderSyncBar(st);
       renderCloud(st);
       Inbox.syncStatus(st);
+    },
+    // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始
+    onLogout() {
+      try { sessionStorage.setItem(LOGOUT_KEY, '1'); } catch (_) {}
+      location.reload();
     },
   });
 })();

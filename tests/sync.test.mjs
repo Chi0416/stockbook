@@ -151,13 +151,17 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
   const toasts = [];
   const notes = []; // 送進訊息匣的標題
   const asked = { answer: confirmAnswer, messages: [] };
+  const alerts = [];
+  const loggedOut = { count: 0 };
   const ctx = vm.createContext({
     localStorage: {
       getItem: k => (k in ls ? ls[k] : null),
       setItem: (k, v) => { ls[k] = String(v); },
       removeItem: k => { delete ls[k]; },
+      key: i => Object.keys(ls)[i] ?? null,
+      get length() { return Object.keys(ls).length; },
     },
-    alert: () => {},
+    alert: msg => alerts.push(msg),
     confirm: msg => { asked.messages.push(msg); return asked.answer; },
     setTimeout: () => 0, // 自動同步的計時器不執行，測試裡直接呼叫同步
     clearTimeout: () => {},
@@ -175,15 +179,19 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
       oauth2: {
         initTokenClient: cfg => ({ requestAccessToken: () => cfg.callback({ access_token: 'fake', expires_in: 3600 }) }),
         hasGrantedAllScopes: () => true,
-        revoke: () => {},
+        revoke: (t, done) => done && done(),
       },
     },
   };
   if (token) ls['stockbook.google.token'] = JSON.stringify({ accessToken: 'fake', expiresAt: Date.now() + 3600e3 });
   for (const f of FILES) vm.runInContext(readFileSync(new URL(`js/${f}.js`, ROOT), 'utf8'), ctx, { filename: `${f}.js` });
   const app = vm.runInContext('({ Store, Sync, Sheet })', ctx);
-  app.Sync.init({ toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg), notify: m => notes.push(m.title) });
-  return { ...app, ls, toasts, asked, notes };
+  app.Sync.init({
+    toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg),
+    notify: m => notes.push(m.title),
+    onLogout: () => { loggedOut.count++; },
+  });
+  return { ...app, ls, toasts, asked, notes, alerts, loggedOut };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -194,6 +202,7 @@ async function linked(fake = new FakeGoogle()) {
   const d = device(fake);
   d.Store.add('snapshots', { member: 'me', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, avgCost: 32.56, totalCost: 1367670, cumDividend: 434810 });
   await d.Sync.startLink();
+  d.asked.messages.length = 0; // 連結時「資料會存到哪個帳號」的確認，另外測
   const id = d.Sync.state().url.split('/').pop();
   return { fake, d, id };
 }
@@ -399,12 +408,32 @@ test('試算表被丟到垃圾桶：選「取消」就取消連結，資料保�
   assert.ok(d.toasts.includes('已取消連結'));
 });
 
-test('第二台裝置（沒有資料）連結：直接用雲端的資料', async () => {
+test('第二台裝置（沒有資料）連結：直接用雲端的資料，不詢問', async () => {
   const { fake } = await linked();
   const phone = device(fake);
   await phone.Sync.startLink();
   assert.equal(phone.Store.list('snapshots', 'all').length, 1);
   assert.equal(phone.Sync.state().linked, true);
+  assert.deepEqual(phone.asked.messages, []);
+});
+
+test('連結：這台裝置有資料、雲端還沒有記錄簿時，先確認要存到哪個帳號；選「取消」就不連結', async () => {
+  const fake = new FakeGoogle();
+  const d = device(fake, { confirmAnswer: false });
+  d.Store.add('trades', TRADE);
+  await d.Sync.startLink();
+  assert.equal(d.asked.messages.length, 1);
+  assert.match(d.asked.messages[0], /這台裝置上有 1 筆資料，會存到 test@example\.com 的 Google 試算表/);
+  assert.equal(d.Sync.state().linked, false);
+  assert.deepEqual(Object.keys(fake.files), []); // 沒有建立試算表
+  assert.equal(d.Store.list('trades', 'all').length, 1);
+
+  // 選「確定」才建立
+  d.asked.answer = true;
+  await d.Sync.startLink();
+  assert.equal(d.Sync.state().linked, true);
+  const id = d.Sync.state().url.split('/').pop();
+  assert.equal(fake.values(id, '交易明細').length, 2);
 });
 
 test('兩邊都有資料時先詢問；選「取消」就不連結', async () => {
@@ -447,9 +476,89 @@ test('登入過期：不會自動同步，狀態顯示需要重新連線', async
   assert.equal(again.Sync.state().pending, 0);
 });
 
-test('取消連結：資料保留，不再同步', async () => {
+test('登出：先把還沒同步的修改送出，確認後清掉這台裝置的資料；再登入會抓回來', async () => {
+  const { fake, d, id } = await linked();
+  d.Store.add('trades', TRADE);
+  assert.equal(d.Sync.state().pending, 1);
+  await d.Sync.logout();
+  assert.equal(fake.values(id, '交易明細').length, 2); // 登出前送出了
+  assert.equal(d.asked.messages.length, 1);
+  assert.match(d.asked.messages[0], /登出後，這台裝置上的記錄簿資料會清除。\n資料都存在 test@example\.com 的 Google 試算表裡/);
+  assert.deepEqual(d.alerts, []);
+  assert.equal(d.loggedOut.count, 1);
+  assert.equal(d.Sync.state().linked, false);
+  assert.equal(d.Store.list('trades', 'all').length, 0);
+  assert.equal(d.Store.list('snapshots', 'all').length, 0);
+  assert.deepEqual(Object.keys(d.ls).filter(k => k.startsWith('stockbook.')), []);
+
+  // 同一台裝置再登入：資料從試算表抓回來
+  const again = device(fake, { storage: d.ls, token: false });
+  await again.Sync.startLink();
+  assert.equal(again.Store.list('trades', 'all').length, 1);
+  assert.equal(again.Store.list('snapshots', 'all').length, 1);
+});
+
+test('登出：登入過期時先重新登入、同步，再登出', async () => {
+  const { fake, d } = await linked();
+  const storage = { ...d.ls, 'stockbook.google.token': JSON.stringify({ accessToken: 'old', expiresAt: Date.now() - 1 }) };
+  const again = device(fake, { storage, token: false });
+  again.Store.add('trades', TRADE);
+  await again.Sync.logout();
+  assert.equal(again.loggedOut.count, 1);
+  assert.equal(again.Store.list('trades', 'all').length, 0);
+});
+
+test('登出：選「取消」就不登出，資料和連結都保留', async () => {
   const { d } = await linked();
-  d.Sync.unlink();
+  d.asked.answer = false;
+  await d.Sync.logout();
+  assert.equal(d.asked.messages.length, 1);
+  assert.equal(d.loggedOut.count, 0);
+  assert.equal(d.Sync.state().linked, true);
+  assert.equal(d.Sync.state().loggingOut, false);
+  assert.equal(d.Store.list('snapshots', 'all').length, 1);
+});
+
+test('登出：沒有網路時不清資料，告訴使用者原因', async () => {
+  const { fake, d } = await linked();
+  d.Store.add('trades', TRADE);
+  fake.offline = true;
+  await d.Sync.logout();
+  assert.deepEqual(d.asked.messages, []); // 沒走到確認
+  assert.equal(d.alerts.length, 1);
+  assert.match(d.alerts[0], /還不能登出/);
+  assert.match(d.alerts[0], /目前沒有網路，連上網路後再按一次「登出」/);
+  assert.equal(d.loggedOut.count, 0);
+  assert.equal(d.Sync.state().linked, true);
+  assert.equal(d.Store.list('trades', 'all').length, 1);
+  assert.equal(d.Sync.state().pending, 1);
+});
+
+test('登出：試算表的標題被改壞時不清資料（就算沒有待同步的修改），告訴使用者要改回哪個標題', async () => {
+  const { fake, d, id } = await linked();
+  fake.setCell(id, '庫存快照', 1, 5, '股數'); // 「庫存餘額」被改名：這張表 App 的資料比試算表完整
+  await d.Sync.logout();
+  assert.equal(d.Sync.state().pending, 0);
+  assert.equal(d.alerts.length, 1);
+  assert.match(d.alerts[0], /「庫存快照」的資料沒辦法寫回試算表/);
+  assert.match(d.alerts[0], /請把標題改回「庫存餘額」/);
+  assert.equal(d.loggedOut.count, 0);
+  assert.equal(d.Store.list('snapshots', 'all')[0].shares, 42000);
+
+  // 改回來之後就可以登出
+  fake.setCell(id, '庫存快照', 1, 5, '庫存餘額');
+  await d.Sync.logout();
+  assert.equal(d.loggedOut.count, 1);
+});
+
+test('登出：同步時發現試算表不見了、選「取消」：取消連結，資料留在這台裝置', async () => {
+  const { fake, d, id } = await linked();
+  fake.files[id].trashed = true;
+  d.asked.answer = false;
+  await d.Sync.logout();
+  assert.equal(d.asked.messages.length, 1);
+  assert.match(d.asked.messages[0], /試算表找不到了/);
+  assert.equal(d.loggedOut.count, 0);
   assert.equal(d.Sync.state().linked, false);
   assert.equal(d.Store.list('snapshots', 'all').length, 1);
 });
