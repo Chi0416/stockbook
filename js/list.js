@@ -229,12 +229,5 @@ function createList(tableKey, schema, { openForm }) {
     refresh();
   }
 
-  // 從其他頁面直接打開統計（總覽的「今年現金股利」）：period 是年份；沒有那一年的資料時改看全部
-  function showStats(period) {
-    Object.assign(state, { period, keyword: '', flashId: null, mode: 'stats', statsAll: false, statsOpen: new Set() });
-    keywordInput.value = '';
-    refresh();
-  }
-
-  return { el, refresh, changed, reset, showStats };
+  return { el, refresh, changed, reset };
 }

@@ -487,11 +487,6 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .kpi-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 .kpi-sub.warn { color: var(--danger); }
 .kpi-note { grid-column: 1 / -1; margin: 0 4px; font-size: 12px; color: var(--danger); }
-/* 可以點的 KPI（今年現金股利 → 累積現金股利的統計）：標題右邊有「›」 */
-.kpi.go { width: 100%; cursor: pointer; }
-.kpi.go small { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.go-icon { flex: none; width: 18px; height: 18px; margin: -2px -6px -2px 0; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.kpi.go:active { background: var(--chip-bg); }
 
 /* 不能點的卡片（持股總覽的每檔持股） */
 .card.static { cursor: default; }
@@ -499,7 +494,6 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 
 @media (hover: hover) {
   .card.static:hover { border-color: var(--border); box-shadow: var(--shadow); }
-  .kpi.go:hover { border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
 }
 /* 寬螢幕：主角一列，其餘三格並排 */
 @media (min-width: 960px) {
