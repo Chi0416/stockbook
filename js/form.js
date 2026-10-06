@@ -712,13 +712,14 @@ const Form = (() => {
   // 日期、下拉選單有些瀏覽器只送 change
   fieldsEl.addEventListener('change', renderNotes);
 
-  // Enter（手機鍵盤的「下一項」）跳下一格，最後一格直接儲存
+  // Enter（手機鍵盤的「下一項」）跳下一格；最後一格（鍵盤上是「完成」）只收起鍵盤，不會儲存
+  //   一定要按右上角的「儲存」才存：按「完成」多半只是想收鍵盤，直接存起來會嚇一跳
   fieldsEl.addEventListener('keydown', e => {
     const i = inputs.indexOf(e.target);
     if (i < 0 || !isEnter(e)) return;
     e.preventDefault();
     if (i < inputs.length - 1) focusField(i + 1);
-    else save();
+    else e.target.blur();
   });
 
   return { init, open };
