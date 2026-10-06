@@ -204,7 +204,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
-const TRADE = { member: 'me', date: '2026-09-01', type: '普買', code: '0050', name: '元大台灣50', shares: 1000, price: 96.5, amount: 96500, fee: 137, tax: 0 };
+const TRADE = { member: 'me', date: '2026-09-01', type: '普買', code: '0050', name: '元大台灣50', shares: 1000, price: 96.5, fee: 137, tax: 0, settle: 96637 };
 
 // 連結後的第一台裝置，已有一筆快照
 async function linked(fake = new FakeGoogle()) {
@@ -227,7 +227,7 @@ test('連結：雲端沒有試算表時建立一份，寫入這台裝置的資�
   assert.deepEqual(fake.files[id].appProperties, { stockbook: '1' });
   assert.deepEqual(fake.values(id, '庫存快照')[1].slice(0, 5), ['我', d.Sheet.toSerial('2026-08-31'), '現股', '0056', '元大高股息']);
   assert.deepEqual(fake.values(id, '成員'), [['名稱', 'id'], ['我', 'me']]);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 1]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 2]]);
 });
 
 test('新增、修改、刪除都寫回試算表的同一列', async () => {
@@ -250,6 +250,33 @@ test('新增、修改、刪除都寫回試算表的同一列', async () => {
   await d.Sync.syncNow();
   assert.equal(fake.values(id, '交易明細').length, 1);
   assert.equal(d.Sync.state().pending, 0);
+});
+
+test('舊格式的試算表（版本 1）：同步一次改好標題、成交金額換算成應收付金額，記成版本 2；再同步不會重複換算', async () => {
+  const { fake, d, id } = await linked();
+  const old = ['成員', '成交日期', '交易別', '代號', '證券', '股數', '單價', '成交金額', '手續費', '證交稅款', 'id'];
+  fake.sheet(id, '交易明細').grid = [
+    old,
+    ['我', d.Sheet.toSerial('2026-08-03'), '普買', '00878', '國泰永續高股息', 5000, 32.74, 163700, 233, 0, 'b1'],
+    ['我', d.Sheet.toSerial('2026-10-05'), '普賣', '2501', '國建', 6000, 20.4, 122400, 174, 367, 's1'],
+  ];
+  fake.sheet(id, '_meta').grid = [['version', 1]];
+
+  await d.Sync.syncNow();
+  assert.equal(d.Sync.state().error, '');
+  assert.deepEqual(plain(d.Sync.state().problems), []);
+  const expected = [
+    ['成員', '成交日期', '交易別', '代號', '證券', '成交數量', '成交單價', '應收付金額', '手續費', '交易稅', 'id'],
+    ['我', d.Sheet.toSerial('2026-08-03'), '普買', '00878', '國泰永續高股息', 5000, 32.74, 163933, 233, 0, 'b1'],
+    ['我', d.Sheet.toSerial('2026-10-05'), '普賣', '2501', '國建', 6000, 20.4, 121859, 174, 367, 's1'],
+  ];
+  assert.deepEqual(fake.values(id, '交易明細'), expected);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 2]]);
+  assert.deepEqual(plain(d.Store.list('trades', 'all')).map(t => [t.id, t.settle, 'amount' in t]), [['b1', 163933, false], ['s1', 121859, false]]);
+
+  await d.Sync.syncNow();
+  assert.deepEqual(fake.values(id, '交易明細'), expected);
+  assert.deepEqual(plain(d.Store.list('trades', 'all')).map(t => t.settle), [163933, 121859]);
 });
 
 test('長輩在試算表裡修改、新增（沒有 id、新的成員名字），同步後 App 也有', async () => {

@@ -3,7 +3,7 @@
 //   股數：買進加、賣出減（交易別含「買」或「賣」）
 //         配股在發放日入帳，依除權息日前的持股計算：股票股利每股 X 元 = 每股配 X/10 股，不足一股不計
 //   成本：移動平均，和券商算法一致
-//         買進加上成交金額＋手續費；賣出依平均成本扣除（平均成本不變）；配股不增加成本
+//         買進加上應收付金額（已含手續費）；賣出依平均成本扣除（平均成本不變）；配股不增加成本
 //   各頁之間用代號對應（不分大小寫）
 //   每位成員分開推算（各自有自己的快照日期）；全家時再依代號合計
 const Holdings = (() => {
@@ -65,7 +65,7 @@ const Holdings = (() => {
         if (/買/.test(t.type)) {
           shares += n;
           bought += n;
-          cost += num(t.amount) + num(t.fee);
+          cost += num(t.settle);
         } else if (/賣/.test(t.type)) {
           cost = shares > 0 ? Math.round(cost * Math.max(shares - n, 0) / shares) : 0;
           shares -= n;

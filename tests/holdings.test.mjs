@@ -30,8 +30,9 @@ function app({ members = [{ id: 'me', name: '我' }], trades = [], snapshots = [
 const plain = v => JSON.parse(JSON.stringify(v));
 
 let n = 0;
+// amount 是成交金額；應收付金額買進加上手續費、賣出扣掉手續費
 const trade = (member, date, type, code, shares, amount, fee = 0) =>
-  ({ id: `t${++n}`, member, date, type, code, name: code, shares, price: 0, amount, fee, tax: 0 });
+  ({ id: `t${++n}`, member, date, type, code, name: code, shares, price: 0, fee, tax: 0, settle: /買/.test(type) ? amount + fee : amount - fee });
 const snap = (member, date, code, shares, totalCost) =>
   ({ id: `s${++n}`, member, date, type: '現股', code, name: code, shares, avgCost: 0, totalCost, cumDividend: 0 });
 const div = (code, exDate, payDate, cash, stock = 0, baseShares = null) =>
@@ -180,6 +181,17 @@ test('核對：第一期快照之前的交易可以慢慢補，比快照少是�
   });
   assert.equal(notes.cards[full.id], undefined);
   assert.equal(notes.cards[over.id].warn, true);
+});
+
+test('舊版的成交金額換算成應收付金額：買進的成本和以前一樣（成交金額 + 手續費）', () => {
+  const old = (type, shares, amount, fee, tax) =>
+    ({ id: `o${++n}`, member: 'me', date: '2026-09-01', type, code: '0050', name: '元大台灣50', shares, price: 0, amount, fee, tax });
+  const { Holdings } = app({
+    trades: [old('普買', 5000, 163700, 233, 0), old('普買', 1000, 103196, 0, 0), old('普賣', 2000, 122400, 174, 367)],
+  });
+  const h = Holdings.all('2026-10-04');
+  // 買進成本 163,933 + 103,196（照舊說明填付出成本、手續費 0）；賣出 2,000 股依平均成本扣掉
+  assert.deepEqual(positions(h), [['0050', 4000, Math.round((163933 + 103196) * 4000 / 6000), '從 0 開始 + 買進 6,000 − 賣出 2,000']]);
 });
 
 test('交易表單的提醒：成交日期在這位成員的快照當天或之前時出現', () => {

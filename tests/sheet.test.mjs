@@ -18,8 +18,8 @@ const plain = v => JSON.parse(JSON.stringify(v));
 const sample = () => ({
   members: [{ id: 'm1', name: '爸爸' }, { id: 'm2', name: '媽媽' }],
   trades: [
-    { id: 't1', member: 'm1', date: '2026-09-01', type: '普買', code: '0050', name: '元大台灣50', shares: 1000, price: 96.5, amount: 96500, fee: 137, tax: 0 },
-    { id: 't2', member: 'm2', date: '2026-09-15', type: '普賣', code: '00878', name: '國泰永續高股息', shares: 2000, price: 22.31, amount: 44620, fee: 63, tax: 44 },
+    { id: 't1', member: 'm1', date: '2026-09-01', type: '普買', code: '0050', name: '元大台灣50', shares: 1000, price: 96.5, fee: 137, tax: 0, settle: 96637 },
+    { id: 't2', member: 'm2', date: '2026-09-15', type: '普賣', code: '00878', name: '國泰永續高股息', shares: 2000, price: 22.31, fee: 63, tax: 44, settle: 44513 },
   ],
   snapshots: [
     { id: 's1', member: 'm1', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, avgCost: 32.56, totalCost: 1367670, cumDividend: 434810 },
@@ -65,7 +65,7 @@ test('寫出後再讀回，資料完全一樣', () => {
 
 test('寫出的格式：中文標題、成員寫名字、日期是序號、代號是文字、基準日股數寫名字', () => {
   const v = plain(Sheet.toValues(sample()));
-  assert.deepEqual(v['交易明細'][0], ['成員', '成交日期', '交易別', '代號', '證券', '股數', '單價', '成交金額', '手續費', '證交稅款', 'id']);
+  assert.deepEqual(v['交易明細'][0], ['成員', '成交日期', '交易別', '代號', '證券', '成交數量', '成交單價', '手續費', '交易稅', '應收付金額', 'id']);
   const t1 = v['交易明細'][1];
   assert.equal(t1[0], '爸爸');
   assert.equal(t1[1], Sheet.toSerial('2026-09-01'));
@@ -97,8 +97,8 @@ test('手動輸入：空白列略過、沒有 id 的列補上 id', () => {
 
 test('手動輸入：調換欄位順序、多出不認得的欄位也讀得到', () => {
   const r = plain(Sheet.fromValues(withTab('交易明細', [
-    ['備註', '代號', '證券', '成交日期', '成員', '交易別', '股數', '單價', '成交金額', '手續費', '證交稅款', 'id'],
-    ['長輩自己加的', '0050', '元大台灣50', Sheet.toSerial('2026-09-01'), '爸爸', '普買', 1000, 96.5, 96500, 137, 0, 't1'],
+    ['備註', '代號', '證券', '成交日期', '成員', '交易別', '應收付金額', '成交數量', '成交單價', '手續費', '交易稅', 'id'],
+    ['長輩自己加的', '0050', '元大台灣50', Sheet.toSerial('2026-09-01'), '爸爸', '普買', 96637, 1000, 96.5, 137, 0, 't1'],
   ])));
   assert.deepEqual(r.problems, []);
   assert.deepEqual(r.data.trades, [plain(sample().trades[0])]);
@@ -113,7 +113,7 @@ test('寫回一筆時依目前的標題列排列，不認得的欄位不動（nu
 test('手動輸入：新的成員名字自動新增', () => {
   const r = plain(Sheet.fromValues(withTab('交易明細', [
     Sheet.TAB.trades.headers,
-    ['阿姨', Sheet.toSerial('2026-09-02'), '普買', '2330', '台積電', 10, 1000, 10000, 20, 0, 'x1'],
+    ['阿姨', Sheet.toSerial('2026-09-02'), '普買', '2330', '台積電', 10, 1000, 20, 0, 10020, 'x1'],
   ])));
   assert.deepEqual(r.problems, []);
   assert.equal(r.newMembers.length, 1);
@@ -125,21 +125,56 @@ test('手動輸入：新的成員名字自動新增', () => {
 test('看不懂的值記成問題，其他資料照常讀進來', () => {
   const r = plain(Sheet.fromValues(withTab('交易明細', [
     Sheet.TAB.trades.headers,
-    ['爸爸', '2026/13/01', '普買', 50, '元大台灣50', '一千', 96.5, 96500, 137, 0, 'bad1'],
-    ['', Sheet.toSerial('2026-09-03'), '普買', '0056', '元大高股息', 1000, 35, 35000, 50, '', 'bad2'],
+    ['爸爸', '2026/13/01', '普買', 50, '元大台灣50', '一千', 96.5, 137, 0, 96637, 'bad1'],
+    ['', Sheet.toSerial('2026-09-03'), '普買', '0056', '元大高股息', 1000, '', '', '', '', 'bad2'], // 成交單價、手續費、交易稅可以空白
   ])));
   const texts = r.problems.map(p => `${p.tab}第 ${p.row} 列：${p.msg}`);
   assert.deepEqual(texts, [
     '交易明細第 2 列：成交日期看不懂（2026/13/01）',
     '交易明細第 2 列：代號被存成數字 50，開頭的 0 可能不見了，請把這一欄設成純文字後重打',
-    '交易明細第 2 列：股數不是數字（一千）',
+    '交易明細第 2 列：成交數量不是數字（一千）',
     '交易明細第 3 列：成員空白，先算在「爸爸」名下',
-    '交易明細第 3 列：證交稅款空白',
+    '交易明細第 3 列：應收付金額空白',
   ]);
   assert.equal(r.data.trades.length, 2);
   assert.equal(r.data.trades[0].code, '50');
   assert.equal(r.data.trades[0].date, null);
   assert.equal(r.data.trades[1].member, 'm1');
+});
+
+test('舊格式（版本 1）：標題改成券商 App 的名稱，成交金額換算成應收付金額（買進加手續費、賣出扣手續費和交易稅）', () => {
+  const v = withTab('交易明細', [
+    ['成員', '成交日期', '交易別', '代號', '證券', '股數', '單價', '成交金額', '手續費', '證交稅款', 'id'],
+    ['爸爸', Sheet.toSerial('2026-09-01'), '普買', '0050', '元大台灣50', 1000, 96.5, 96500, 137, 0, 't1'],
+    ['媽媽', Sheet.toSerial('2026-09-15'), '普賣', '00878', '國泰永續高股息', 2000, 22.31, 44620, 63, 44, 't2'],
+    ['爸爸', Sheet.toSerial('2026-09-16'), '普買', '0056', '元大高股息', 1000, 0, 35050, 0, 0, 't3'], // 照舊說明填了付出成本、手續費 0
+  ]);
+  const r = plain(Sheet.fromValues(v)); // 沒有 _meta：版本 1
+  assert.equal(r.version, 1);
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.broken, []);
+  assert.deepEqual(r.data.trades.slice(0, 2), plain(sample().trades));
+  assert.equal(r.data.trades[2].settle, 35050);
+  assert.ok(r.data.trades.every(t => !('amount' in t)));
+  assert.deepEqual(r.headers['交易明細'], plain(Sheet.TAB.trades.headers).slice(0, 5)
+    .concat(['成交數量', '成交單價', '應收付金額', '手續費', '交易稅', 'id']));
+  assert.deepEqual(r.rewrites.map(c => [c.row, Sheet.colLetter(c.col), c.value]), [
+    [1, 'F', '成交數量'], [1, 'G', '成交單價'], [1, 'J', '交易稅'], [1, 'H', '應收付金額'],
+    [2, 'H', 96637], [3, 'H', 44513], [4, 'H', 35050],
+  ]);
+});
+
+test('版本 2 的試算表：有人把標題改回「成交金額」也只改名，不會再加一次手續費', () => {
+  const v = withTab('交易明細', [
+    ['成員', '成交日期', '交易別', '代號', '證券', '成交數量', '成交單價', '手續費', '交易稅', '成交金額', 'id'],
+    ['爸爸', Sheet.toSerial('2026-09-01'), '普買', '0050', '元大台灣50', 1000, 96.5, 137, 0, 96637, 't1'],
+  ]);
+  v._meta = [['version', 2]];
+  const r = plain(Sheet.fromValues(v));
+  assert.equal(r.version, 2);
+  assert.equal(r.data.trades[0].settle, 96637);
+  assert.deepEqual(r.rewrites.map(c => [c.row, Sheet.colLetter(c.col), c.value]), [[1, 'J', '應收付金額']]);
+  assert.deepEqual(plain(Sheet.metaValues()), [['version', 2]]);
 });
 
 test('基準日股數：各種寫法', () => {

@@ -127,14 +127,22 @@ const Sync = (() => {
   }
 
   // 被刪掉或改名的分頁補建回來（含格式），之後當作空分頁寫入這台裝置的資料
+  //   隱藏的 _meta（格式版本）不見時也補建，讀不到版本時當作版本 1（見 sheet.js）
   async function ensureTabs(meta) {
     const need = Sheet.readRanges().filter(t => meta.sheetIds[t] === undefined);
-    if (!need.length) return;
+    const noMeta = meta.sheetIds[Sheet.META.title] === undefined;
+    if (!need.length && !noMeta) return;
     const r = await api(`${Google.SHEETS}/${meta.id}:batchUpdate`, {
       method: 'POST',
-      body: { requests: need.map(title => ({ addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } })) },
+      body: {
+        requests: [
+          ...need.map(title => ({ addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } })),
+          ...(noMeta ? [{ addSheet: { properties: { title: Sheet.META.title, hidden: true } } }] : []),
+        ],
+      },
     });
     r.replies.forEach(x => { meta.sheetIds[x.addSheet.properties.title] = x.addSheet.properties.sheetId; });
+    if (!need.length) return;
     await api(`${Google.SHEETS}/${meta.id}:batchUpdate`, {
       method: 'POST',
       body: { requests: Sheet.setupRequests(Object.fromEntries(need.map(t => [t, meta.sheetIds[t]]))) },
@@ -157,7 +165,7 @@ const Sync = (() => {
   }
 
   async function pull(meta) {
-    const titles = Sheet.readRanges();
+    const titles = [...Sheet.readRanges(), Sheet.META.title];
     const ranges = titles.map(t => `ranges=${enc(a1(t))}`).join('&');
     const r = await api(`${Google.SHEETS}/${meta.id}/values:batchGet?${ranges}`
       + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER');
@@ -250,6 +258,15 @@ const Sync = (() => {
     });
     // 在 App 裡改好、這次整列寫回的資料，試算表上原本看不懂的地方已經不算問題了
     problems = problems.filter(p => !(p.row && overwritten.has(`${p.tab}:${p.row}`)));
+
+    // 舊格式的試算表：改名的標題、換算過的金額寫回那一格（這次整列寫回的不用另外寫）
+    //   和其他修改同一次寫入；有舊欄位的表都寫好了，才記成新的格式版本
+    parsed.rewrites
+      .filter(c => handled(c.table) && !overwritten.has(`${c.tab}:${c.row}`))
+      .forEach(c => writes.push({ range: a1(c.tab, `${Sheet.colLetter(c.col)}${c.row}`), values: [[c.value]] }));
+    if (parsed.version < Sheet.VERSION && TABLES.filter(t => SCHEMAS[t].legacy).every(t => done.includes(t))) {
+      writes.push({ range: a1(Sheet.META.title, 'A1'), values: Sheet.metaValues() });
+    }
 
     // 順序：先改既有的列（不影響列號）→ 由下往上刪（前面的列號才不會跑掉）→ 最後才新增
     if (writes.length) {

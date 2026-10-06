@@ -101,9 +101,9 @@ test('資料核對：庫存快照對不上、沒填代號；修好後標成已�
   const { Store, Inbox } = app();
   const snap = { member: 'me', type: '現股', code: '0050', name: '元大台灣50', avgCost: 1, totalCost: 1, cumDividend: 0 };
   Store.add('snapshots', { ...snap, date: '2026-08-01', shares: 1000 });
-  Store.add('trades', { member: 'me', date: '2026-08-10', type: '普買', code: '0050', name: '元大台灣50', shares: 500, price: 1, amount: 500, fee: 0, tax: 0 });
+  Store.add('trades', { member: 'me', date: '2026-08-10', type: '普買', code: '0050', name: '元大台灣50', shares: 500, price: 1, fee: 0, tax: 0, settle: 500 });
   const later = Store.add('snapshots', { ...snap, date: '2026-08-31', shares: 1000 });
-  const nocode = Store.add('trades', { member: 'me', date: '2026-09-01', type: '普買', code: '', name: '某檔', shares: 1, price: 1, amount: 1, fee: 0, tax: 0 });
+  const nocode = Store.add('trades', { member: 'me', date: '2026-09-01', type: '普買', code: '', name: '某檔', shares: 1, price: 1, fee: 0, tax: 0, settle: 1 });
   Inbox.checkData();
 
   const open = () => plain(Inbox.list()).filter(m => !m.resolved);

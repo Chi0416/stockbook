@@ -5,8 +5,13 @@
 //   日期存成試算表的日期（可以排序、篩選）；基準日股數寫成「爸爸 30000、媽媽 5000」
 //   讀取時容許手動輸入：空白列略過、沒有 id 的列補上 id、新的成員名字自動新增；
 //   看不懂的值記在 problems（例如「交易明細第 12 列：成交日期看不懂」），其他資料照常讀進來
+//   格式版本（_meta 分頁）：
+//     1：交易明細是「股數、單價、成交金額、手續費、證交稅款」，成交金額不含手續費
+//     2（2026-10-06）：照券商 App 改成「成交數量、成交單價、手續費、交易稅、應收付金額」
+//        版本 1 的試算表同步時改標題、成交金額換算成應收付金額（見 schema.js 的 toSettle），寫好後記成版本 2
+//        只有版本 1 才換算：之後有人把標題改回「成交金額」，也只是改名，不會再加一次手續費
 const Sheet = (() => {
-  const VERSION = 1;
+  const VERSION = 2;
   const ID = 'id';
   const MEMBERS = { title: '成員', sheetId: 1, headers: ['名稱', ID] };
   const META = { title: '_meta', sheetId: 99 };
@@ -233,10 +238,25 @@ const Sheet = (() => {
     }
     const header = values[0] || [];
     const idx = headerIndex(header);
-    const lost = fields.filter(f => !f.optional && !idx.has(f.label));
+    // 欄位依標題找，找不到再找改名前的標題（was）；{ key: { col, label } }
+    const at = {};
+    fields.forEach(f => {
+      const label = [f.label, ...(f.was || [])].find(l => idx.has(l));
+      if (label) at[f.key] = { col: idx.get(label), label };
+    });
+    const lost = fields.filter(f => !f.optional && !at[f.key]);
     lost.forEach(f => problem(ctx, tab, 1, `找不到「${f.label}」欄，請把標題改回「${f.label}」`));
     if (lost.length) ctx.broken.push(t);
     const idCol = idColumn(tab, idx, header, ctx);
+    // 改名前的標題：同步時改成新的（headers 先換掉，寫回資料時才對得上欄位）
+    fields.filter(f => at[f.key] && at[f.key].label !== f.label).forEach(f => {
+      ctx.headers[tab][at[f.key].col] = f.label;
+      ctx.rewrites.push({ table: t, tab, row: 1, col: at[f.key].col, value: f.label });
+    });
+    // 格式版本 1 的舊欄位：值讀進舊的 key，由 migrate 換算後寫回那一格
+    const legacy = ctx.version < 2 ? SCHEMAS[t].legacy || {} : {};
+    const converted = fields.filter(f => at[f.key] && legacy[at[f.key].label]);
+    const migrate = SCHEMAS[t].migrate || (r => r);
     const seen = new Set();
     const rows = [];
 
@@ -245,7 +265,7 @@ const Sheet = (() => {
       if (!cells || cells.every(blank)) return;
       const rec = {};
       fields.forEach(f => {
-        const col = idx.get(f.label);
+        const col = at[f.key]?.col;
         const raw = col === undefined ? '' : cells[col];
         if (f.type === 'member') {
           rec[f.key] = readMemberCell(raw, tab, row, ctx);
@@ -254,21 +274,36 @@ const Sheet = (() => {
         const { value, error } = decode(f, raw, ctx);
         if (error) problem(ctx, tab, row, error);
         else if (!f.optional && col !== undefined && (value === null || value === '')) problem(ctx, tab, row, `${f.label}空白`);
-        if (value !== undefined) rec[f.key] = value;
+        if (value !== undefined) rec[(col !== undefined && legacy[at[f.key].label]) || f.key] = value;
       });
-      rows.push({ id: takeId(cells, idCol, tab, row, seen, ctx), ...rec });
+      const out = migrate(rec);
+      converted.forEach(f => {
+        if (typeof out[f.key] === 'number') ctx.rewrites.push({ table: t, tab, row, col: at[f.key].col, value: out[f.key] });
+      });
+      rows.push({ id: takeId(cells, idCol, tab, row, seen, ctx), ...out });
     });
     return rows;
   }
 
-  // byTitle：{ 分頁名稱: values }，由 readRanges() 的範圍讀回
-  // 回傳 { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken }
+  // _meta 分頁記的格式版本；沒有這個分頁（或讀不到）時當作版本 1
+  function metaVersion(values) {
+    const row = (values || []).find(r => String(r?.[0] ?? '').trim() === 'version');
+    const v = Number(row?.[1]);
+    return v > 0 ? v : 1;
+  }
+
+  // byTitle：{ 分頁名稱: values }，由 readRanges() 的範圍讀回，有 _meta 分頁時也一起讀
+  // 回傳 { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites }
   //   data 和 data.json 同樣的結構；newMembers 是讀取時新增、要寫回「成員」分頁的成員
   //   rowOf[分頁][id] 是那一筆在第幾列；headers[分頁] 是標題列（補上 id 欄之後）
   //   broken 是缺分頁或缺欄位的資料表：讀到的資料不完整，同步時不要拿來取代 App 裡的資料
+  //   version 是試算表目前的格式版本；rewrites 是舊格式要改寫的格子 [{ table, tab, row, col, value }]（改名的標題、換算過的金額）
   // knownMembers：「成員」分頁讀不到時改用這份名單（App 裡現有的成員），名字才對得回原本的 id
   function fromValues(byTitle, knownMembers = []) {
-    const ctx = { members: [], newMembers: [], problems: [], idFixes: [], addIdHeader: [], rowOf: {}, headers: {}, broken: [] };
+    const ctx = {
+      members: [], newMembers: [], problems: [], idFixes: [], addIdHeader: [], rowOf: {}, headers: {}, broken: [],
+      version: metaVersion(byTitle[META.title]), rewrites: [],
+    };
     readMembers(byTitle[MEMBERS.title], ctx);
     if (!ctx.members.length && knownMembers.length) {
       if (!ctx.broken.includes('members')) ctx.broken.push('members');
@@ -278,8 +313,8 @@ const Sheet = (() => {
     TABLES.forEach(t => { data[t] = readTable(t, byTitle[TAB[t].title], ctx); });
     firstMember(ctx);
     data.members = ctx.members;
-    const { problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken } = ctx;
-    return { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken };
+    const { problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites } = ctx;
+    return { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites };
   }
 
   // 「交易明細第 12 列：成交日期看不懂（2026/13/01）」

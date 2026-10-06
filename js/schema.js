@@ -26,7 +26,9 @@
 //   empty:       還沒有資料時列表顯示的文字
 //   annotate:    列表的補充說明：annotate(rows) 回傳 { groups: { 分組值: { text, warn, lines } }, cards: { 記錄 id: { text, warn } } }
 //                groups 顯示在分組標題下方，cards 顯示在卡片最下方
+//   was:         這個欄位以前在試算表上的標題（改名前），讀得到舊標題的試算表，同步時改成新標題
 //   migrate:     讀取舊格式資料時的轉換
+//   legacy:      試算表格式版本 1 的舊欄位：{ 舊標題: 舊的 key }，讀進舊的 key 再由 migrate 換算（見 sheet.js）
 
 // 股利的三個階段（以今天為準），除權息頁和累積現金股利頁共用：
 //   除權息日之前              → 'ex'  待除權息（之前還可能買賣，股數會變，金額是預估）
@@ -45,6 +47,20 @@ function splitSecurity(r) {
   return m ? { ...r, code: m[1].toUpperCase(), name: m[2].trim() } : { ...r, code: '' };
 }
 
+// 舊版存的是成交金額（amount，不含手續費），換算成應收付金額（settle）：買進加上手續費，賣出扣掉手續費和交易稅
+//   買進的成本和舊版一樣（舊版的成本 = 成交金額 + 手續費），總覽的數字不會變
+function toSettle(r) {
+  if ('settle' in r || !('amount' in r)) return r;
+  const { amount, ...rest } = r;
+  const n = v => Number(v) || 0;
+  let settle = amount;
+  if (typeof amount === 'number') {
+    if (/買/.test(r.type)) settle = amount + n(r.fee);
+    else if (/賣/.test(r.type)) settle = amount - n(r.fee) - n(r.tax);
+  }
+  return { ...rest, settle };
+}
+
 // 代號在股票清單（stocklist.js）和自己記過的資料裡都查不到時提醒；只是提醒，照樣可以儲存
 //   打到 4 碼才檢查，打字途中不提醒；瀏覽器還拿著舊版程式、沒有清單時不提醒
 function codeNote(v) {
@@ -59,7 +75,7 @@ const SCHEMAS = {
   trades: {
     title: '交易明細',
     period: { key: 'date', unit: 'month', label: '年月' },
-    card: { code: 'code', title: 'name', badge: 'type', primary: 'amount' },
+    card: { code: 'code', title: 'name', badge: 'type', primary: 'settle' },
     fields: [
       { key: 'member', label: '成員',     type: 'member', keep: true, full: true },
       { key: 'date',   label: '成交日期', type: 'date', keep: true,
@@ -74,15 +90,17 @@ const SCHEMAS = {
       { key: 'code',   label: '代號',     type: 'text', caps: true, pair: 'name', suggestFrom: ['snapshots'],
         hint: '要和庫存快照一致', note: codeNote },
       { key: 'name',   label: '證券',     type: 'text' },
-      // 計算只用到股數、成交金額和手續費（買進的成本 = 成交金額 + 手續費，見 holdings.js）；單價、證交稅款只是顯示
-      { key: 'shares', label: '股數',     type: 'number', hint: '1 張 = 1,000 股' },
-      { key: 'price',  label: '單價',     type: 'number', digits: 2, hint: '不知道寫 0 沒關係' },
-      { key: 'amount', label: '成交金額', type: 'number', full: true,
-        hint: '買進可以直接填券商 App 的「付出成本」（已含手續費），手續費就寫 0，才不會多算一次' },
-      { key: 'fee',    label: '手續費',   type: 'number', hint: '不知道寫 0 沒關係' },
-      { key: 'tax',    label: '證交稅款', type: 'number', hint: '不知道寫 0 沒關係' },
+      // 名稱和順序照券商 App 的成交明細；成交金額（= 成交數量 × 成交單價）算得出來，不另外存
+      // 計算只用到成交數量和應收付金額（買進的成本 = 應收付金額，已含手續費，見 holdings.js）；成交單價、手續費、交易稅只是記錄
+      { key: 'shares', label: '成交數量',   type: 'number', hint: '股數，1 張 = 1,000 股', was: ['股數'] },
+      { key: 'price',  label: '成交單價',   type: 'number', digits: 2, optional: true, hint: '可以空白', was: ['單價'] },
+      { key: 'fee',    label: '手續費',     type: 'number', optional: true, hint: '可以空白' },
+      { key: 'tax',    label: '交易稅',     type: 'number', optional: true, hint: '賣出才有，可以空白', was: ['證交稅款'] },
+      { key: 'settle', label: '應收付金額', type: 'number', full: true, was: ['成交金額'],
+        hint: '照券商 App 填：買進是付出的錢（含手續費），賣出是拿回的錢' },
     ],
-    migrate: splitSecurity,
+    legacy: { 成交金額: 'amount' },
+    migrate: r => toSettle(splitSecurity(r)),
   },
 
   snapshots: {
