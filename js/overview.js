@@ -85,9 +85,9 @@ function createOverview() {
       const value = priced.reduce((s, p) => s + p.shares * q.quotes[p.code], 0);
       const pricedCost = priced.reduce((s, p) => s + p.cost, 0);
       const pl = Math.round(value) - Math.round(pricedCost);
-      const sign = pl > 0 ? '+' : '';
+      // 和券商的卡片一樣：賺錢不加「+」，用紅色表示；賠錢留著「-」，綠色（長輩不一定注意得到顏色）
       const tone = Privacy.hidden || !pl ? '' : pl > 0 ? 'gain' : 'loss';
-      const rate = pricedCost > 0 ? Privacy.num(`${sign}${U.fmtNum(U.round(pl / pricedCost * 100, 2), 2)}%`) : '—';
+      const rate = pricedCost > 0 ? Privacy.num(`${U.fmtNum(U.round(pl / pricedCost * 100, 2), 2)}%`) : '—';
       const unpriced = holdings.positions.filter(p => p.shares > 0).length - priced.length;
       const priceNote = !q ? '連結 Google 帳號後，會用 GOOGLEFINANCE 抓現價算市值'
         : !priced.length ? (q.at ? '抓不到現價，算不出市值' : '正在抓現價…')
@@ -96,7 +96,7 @@ function createOverview() {
       hero = `
         <b>${priced.length ? money(value) : '—'}</b>
         <span class="kpi-row">
-          ${cell('損益試算', priced.length ? Privacy.num(`${sign}${U.fmtNum(pl)}`) : '—', tone)}
+          ${cell('損益試算', priced.length ? Privacy.num(U.fmtNum(pl)) : '—', tone)}
           ${cell('報酬率', priced.length ? rate : '—', tone)}
           ${cell('總付出成本', money(holdings.positions.reduce((s, p) => s + p.cost, 0)))}
         </span>

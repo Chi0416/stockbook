@@ -495,7 +495,7 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 }
 .kpi-cell { display: block; min-width: 0; }
 .kpi-cell small { font-size: 12px; }
-.kpi.hero .kpi-cell b { font-size: 19px; }
+.kpi.hero .kpi-cell b { font-size: 17px; }
 /* 損益：賺錢紅色、賠錢綠色（台股的習慣） */
 .kpi .gain { color: var(--buy); }
 .kpi .loss { color: var(--sell); }
