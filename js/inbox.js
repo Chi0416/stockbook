@@ -6,12 +6,14 @@
 //       問題不見了（修好了）就標成「已解決」變灰，不會直接刪掉
 //   打開訊息匣、關掉時全部算已讀；最多留 100 則，超過時從最舊的刪起（還沒解決的問題不刪）
 //   點有動作的訊息：打開那一筆資料、打開試算表、切到相關頁面或同步（由 app.js 處理）
+//   有些問題帶著自己的按鈕（buttons）或勾選清單（list），例如除權息和公告不一樣、還沒記的除權息；
+//     點這些按鈕不會關掉訊息匣，可以接著處理下一則
 const Inbox = (() => {
   const KEY = 'stockbook.inbox';
   const MAX = 100;
   const $ = id => document.getElementById(id);
 
-  let items = load(); // [{ key, kind, title, body, action, at, read, resolved }]
+  let items = load(); // [{ key, kind, title, body, action, buttons, list, at, read, resolved }]
   let els = null;     // 畫面元素（init 之後才有；測試時沒有畫面）
   let hooks = { onAction() {} };
 
@@ -60,17 +62,21 @@ const Inbox = (() => {
 
   // 問題：list 是這一類（key 都以 prefix 開頭）目前存在的問題
   //   新的問題新增；又出現或內容變了的重新標成未讀；不在 list 裡的標成已解決
+  //   buttons（自己的按鈕）、list（勾選清單）也算內容，變了也重新標成未讀
   function reconcile(prefix, list) {
     const now = Date.now();
     const current = new Set(list.map(i => i.key));
+    const extra = i => ({ action: i.action || null, buttons: i.buttons || null, list: i.list || null });
+    const same = (m, i) => m.title === i.title && m.body === (i.body || '') &&
+      JSON.stringify([m.buttons || null, m.list || null]) === JSON.stringify([i.buttons || null, i.list || null]);
     let changed = false;
     list.forEach(i => {
       const m = items.find(x => x.key === i.key);
       if (!m) {
-        items.push({ key: i.key, kind: 'issue', title: i.title, body: i.body || '', action: i.action || null, at: now, read: false, resolved: false });
+        items.push({ key: i.key, kind: 'issue', title: i.title, body: i.body || '', ...extra(i), at: now, read: false, resolved: false });
         changed = true;
-      } else if (m.resolved || m.title !== i.title || m.body !== (i.body || '')) {
-        Object.assign(m, { title: i.title, body: i.body || '', action: i.action || null, at: now, read: false, resolved: false });
+      } else if (m.resolved || !same(m, i)) {
+        Object.assign(m, { title: i.title, body: i.body || '', ...extra(i), at: now, read: false, resolved: false });
         changed = true;
       }
     });
@@ -111,6 +117,53 @@ const Inbox = (() => {
         body: `${who(r.member)}${U.fmtDate(r.date)} ${r.name || '（沒有證券名稱）'}：沒有代號就沒辦法算進持股和股利`,
         action: { type: 'record', table: t, id: r.id },
       }))));
+
+    checkAnnounced();
+  }
+
+  // ---------- 公告的除權息（見 announced.js） ----------
+  //   記的跟公告不一樣：每一筆一則，［改成公告的］［保留我的］
+  //   家裡持有但還沒記的：集中成一則勾選清單，［加入勾選的］［勾選的不用記］
+  //   「家裡持有」：除權息日之前的持股要能往後推算出來才算（之前有庫存快照，或從 0 加總交易），全家有人持有就算
+  //     最早一期快照之前、要往回推猜的不算：沒有交易紀錄時看不出當時買了沒，列錯了會多算股利、少算成本
+  const md = d => (String(d).startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
+  const LABEL = { exDate: '除權息日', payDate: '發放日', cash: '每股現金股利', stock: '股票股利' };
+  const show = (k, v) => (/Date$/.test(k) ? U.fmtDate(v) : U.fmtNum(Number(v) || 0));
+  // 加入時用家裡習慣的名稱（最近記過的），沒記過才用公告的
+  function usedName(code, fallback) {
+    for (const t of ['dividends', 'trades', 'snapshots']) {
+      const r = Store.list(t, 'all').slice().reverse().find(x => Holdings.codeOf(x) === code && x.name);
+      if (r) return r.name;
+    }
+    return fallback;
+  }
+
+  function checkAnnounced() {
+    if (typeof Announced === 'undefined') return; // 瀏覽器還拿著舊版程式時略過
+    const recorded = Store.list('dividends', 'all');
+    reconcile('announce-diff:', Announced.diffs(recorded).map(x => ({
+      key: `announce-${x.key}`,
+      title: '除權息和公告不一樣',
+      body: `${x.record.code} ${x.record.name}（${U.fmtDate(x.record.exDate)} 除權息）\n` +
+        x.fields.map(k => `${LABEL[k]}：你記的 ${show(k, x.record[k])}，公告是 ${show(k, x.announced[k])}`).join('\n'),
+      buttons: [
+        { label: '改成公告的', action: { type: 'announce-apply', id: x.record.id,
+          values: { exDate: x.announced.exDate, payDate: x.announced.payDate, cash: x.announced.cash, stock: x.announced.stock } } },
+        { label: '保留我的', action: { type: 'announce-keep', keys: [x.key] } },
+      ],
+    })));
+
+    const members = Store.members();
+    const codes = ['trades', 'snapshots'].flatMap(t => Store.list(t, 'all').map(Holdings.codeOf)).filter(Boolean);
+    const held = (code, exDate) => members.some(m => Holdings.position(m.id, code, exDate, false).shares > 0);
+    const miss = Announced.missing({ recorded, codes: [...new Set(codes)], held, today: U.today() });
+    reconcile('announce-missing', miss.length ? [{
+      key: 'announce-missing',
+      title: `有 ${miss.length} 筆除權息可以帶入`,
+      body: '公告裡有、家裡當時持有，還沒記在「除權息」。勾選要加入的：',
+      list: miss.map(r => ({ id: `${r.code}:${r.exDate}`, code: r.code, name: usedName(r.code, r.name),
+        exDate: r.exDate, payDate: r.payDate, cash: r.cash, stock: r.stock })),
+    }] : []);
   }
 
   // ---------- 同步 ----------
@@ -171,8 +224,27 @@ const Inbox = (() => {
   // 核對和股利算不出來的說明裡有股數，隱藏金額時（見 privacy.js）換成 ＊＊＊
   const personal = m => /^(check|dividend):/.test(m.key);
 
+  // 勾選清單（還沒記的除權息）：預設全部勾選
+  const listHTML = m => `
+    <span class="msg-list">${m.list.map(r => `
+      <label class="msg-check"><input type="checkbox" checked data-row="${U.esc(r.id)}">
+        <span><b>${U.esc(r.code)} ${U.esc(r.name)}</b><small>${U.esc(md(r.exDate))} 除息、${U.esc(md(r.payDate))} 發放、每股 ${U.fmtNum(r.cash)}${
+          r.stock ? `、配股 ${U.fmtNum(r.stock)}` : ''}</small></span>
+      </label>`).join('')}
+    </span>
+    <span class="msg-actions">
+      <button type="button" class="msg-btn primary" data-key="${U.esc(m.key)}" data-list="add">加入勾選的</button>
+      <button type="button" class="msg-btn" data-key="${U.esc(m.key)}" data-list="skip">勾選的不用記</button>
+    </span>`;
+  const buttonsHTML = m => `
+    <span class="msg-actions">${m.buttons.map((b, j) =>
+      `<button type="button" class="msg-btn${j ? '' : ' primary'}" data-key="${U.esc(m.key)}" data-btn="${j}">${U.esc(b.label)}</button>`).join('')}
+    </span>`;
+
   function msgHTML(m) {
-    const go = m.action && !m.resolved;
+    // 帶著自己按鈕的訊息整則不能點，免得點到按鈕以外的地方也觸發
+    const choices = !m.resolved && (m.buttons || m.list);
+    const go = !choices && m.action && !m.resolved;
     const tag = go ? 'button' : 'div';
     const body = personal(m) ? Privacy.text(m.body) : m.body;
     return `
@@ -180,6 +252,8 @@ const Inbox = (() => {
         <${tag}${go ? ' type="button"' : ''} class="msg${m.read ? '' : ' unread'}${m.resolved ? ' resolved' : ''}" data-key="${U.esc(m.key)}">
           <span class="msg-head"><b>${U.esc(m.title)}</b><time>${timeText(m.at)}</time></span>
           ${body ? `<span class="msg-body">${U.esc(body)}</span>` : ''}
+          ${choices && m.list ? listHTML(m) : ''}
+          ${choices && m.buttons ? buttonsHTML(m) : ''}
           ${m.resolved ? '<span class="msg-tag">已解決</span>' : ''}
           ${go ? '<span class="msg-go" aria-hidden="true">›</span>' : ''}
         </${tag}>
@@ -224,6 +298,23 @@ const Inbox = (() => {
     els.clear.addEventListener('click', clearRead);
     // 「同步」要在點擊的當下呼叫（登入過期時會跳出 Google 視窗），所以直接在這裡處理
     els.list.addEventListener('click', e => {
+      // 訊息自己的按鈕、勾選清單的按鈕：留在訊息匣，可以接著處理下一則
+      const choice = e.target.closest('[data-btn], [data-list]');
+      if (choice) {
+        const m = items.find(x => x.key === choice.dataset.key);
+        if (!m) return;
+        if (choice.dataset.btn != null) {
+          hooks.onAction(m.buttons[+choice.dataset.btn].action);
+          return;
+        }
+        const picked = [...choice.closest('.msg').querySelectorAll('input[data-row]:checked')]
+          .map(x => m.list.find(r => r.id === x.dataset.row)).filter(Boolean);
+        if (!picked.length) return;
+        hooks.onAction(choice.dataset.list === 'add'
+          ? { type: 'announce-add', rows: picked }
+          : { type: 'announce-keep', keys: picked.map(r => `missing:${r.code}:${r.exDate}`), skip: true });
+        return;
+      }
       const btn = e.target.closest('button[data-key]');
       const m = btn && items.find(x => x.key === btn.dataset.key);
       if (!m?.action) return;
@@ -233,5 +324,5 @@ const Inbox = (() => {
     render();
   }
 
-  return { init, open, add, reconcile, checkData, syncStatus, unread, markAllRead, clearRead, list: () => items };
+  return { init, open, render, add, reconcile, checkData, syncStatus, unread, markAllRead, clearRead, list: () => items };
 })();

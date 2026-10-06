@@ -1033,6 +1033,27 @@ button.msg:active { background: var(--hover); }
 .msg-tag { display: inline-block; margin-top: 6px; padding: 0 8px; border-radius: 6px; background: var(--chip-bg); color: var(--muted); font-size: 12px; }
 .msg.resolved b, .msg.resolved .msg-body { color: var(--muted); }
 .msg-go { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 22px; color: var(--muted); }
+/* 訊息自己的按鈕（改成公告的｜保留我的）、勾選清單（還沒記的除權息），見 inbox.js */
+.msg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.msg-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  border: .5px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.msg-btn.primary { border-color: transparent; background: var(--text); color: var(--bg); font-weight: 600; }
+.msg-btn:active { opacity: .8; }
+.msg-list { display: block; margin-top: 8px; border: .5px solid var(--border); border-radius: 12px; background: var(--surface); }
+.msg-check { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; cursor: pointer; }
+.msg-check + .msg-check { border-top: .5px solid var(--border); }
+.msg-check input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); }
+.msg-check b { display: block; font-weight: 600; }
+.msg-check small { display: block; margin-top: 1px; font-size: 13px; color: var(--text-2); }
 .inbox-empty { padding: 56px 0 40px; text-align: center; color: var(--muted); }
 .inbox-empty svg { width: 64px; height: 64px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
 .inbox-empty p { margin: 12px 0 0; }

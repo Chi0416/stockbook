@@ -418,6 +418,26 @@
         else toast('還沒有連結 Google 試算表');
       } else if (a.type === 'sync') {
         Sync.syncNow();
+      } else if (a.type === 'announce-apply') {
+        // 除權息和公告不一樣：改成公告的數字（會照常同步到試算表）
+        if (!Store.get('dividends', a.id)) {
+          toast('這筆資料已經不在了');
+          return;
+        }
+        Store.update('dividends', a.id, a.values);
+        refreshAll();
+        toast('已改成公告的數字');
+      } else if (a.type === 'announce-keep') {
+        // 保留我的、勾選的不用記：記在這台裝置，之後不再問（見 announced.js）
+        Announced.keep(a.keys);
+        Inbox.checkData();
+        toast(a.skip ? `這 ${a.keys.length} 筆不用記，之後不再提醒` : '好，保留你記的');
+      } else if (a.type === 'announce-add') {
+        // 還沒記的除權息：加入勾選的（基準日股數自動推算）
+        a.rows.forEach(r => Store.add('dividends',
+          { code: r.code, name: r.name, exDate: r.exDate, payDate: r.payDate, cash: r.cash, stock: r.stock, baseShares: {} }));
+        refreshAll();
+        toast(`已加入 ${a.rows.length} 筆除權息`);
       }
     },
   });
