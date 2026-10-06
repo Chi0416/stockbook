@@ -1,10 +1,12 @@
 // 持股總覽：上方 KPI、下方目前每檔持股；全部由其他資料表推算，不另外儲存
-//   總投資成本：目前持股的成本加總（持股與成本的算法見 holdings.js：最近一期快照＋之後的交易，沒有快照時加總全部交易）
+//   庫存總市值：每檔股數 × 現價（現價見下面），抓不到現價的那幾檔不算進去
+//     損益試算 = 市值 − 那幾檔的付出成本；報酬率 = 損益 ÷ 那幾檔的付出成本（沒有扣掉賣出的手續費和證交稅）
+//     總付出成本：目前持股的成本加總（持股與成本的算法見 holdings.js：最近一期快照＋之後的交易，沒有快照時加總全部交易）
 //   今年現金股利：今年已發放（發放日 ≤ 今天）的股息淨值加總
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
-//   總投資成本卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
+//   庫存總市值卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
 //   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js），持股列表上方註明更新時間；不是自己的資料，隱藏金額時照常顯示
 //   subtitle：標題後面的小字，顯示今天的日期
 const OVERVIEW = {
@@ -74,10 +76,35 @@ function createOverview() {
     const basis = h => (h.snapDate ? `依 ${U.fmtDate(h.snapDate)} 庫存快照推算到今天`
       : h.mixed ? '依各成員的庫存快照和交易明細推算到今天'
       : '依交易明細加總到今天');
-    const cost = holdings
-      ? `<b>${money(holdings.positions.reduce((s, p) => s + p.cost, 0))}</b>
-         <span class="kpi-sub">${basis(holdings)}</span>`
-      : `<b>—</b><span class="kpi-sub">還沒有交易明細或庫存快照</span>`;
+    // 庫存總市值：大數字下面一排三格（損益試算、報酬率、總付出成本）
+    //   損益賺錢紅色、賠錢綠色（台股的習慣）；隱藏金額時連正負號和顏色都不顯示
+    let hero;
+    if (holdings) {
+      const q = quotes();
+      const priced = q ? holdings.positions.filter(p => p.shares > 0 && typeof q.quotes[p.code] === 'number') : [];
+      const value = priced.reduce((s, p) => s + p.shares * q.quotes[p.code], 0);
+      const pricedCost = priced.reduce((s, p) => s + p.cost, 0);
+      const pl = Math.round(value) - Math.round(pricedCost);
+      const sign = pl > 0 ? '+' : '';
+      const tone = Privacy.hidden || !pl ? '' : pl > 0 ? 'gain' : 'loss';
+      const rate = pricedCost > 0 ? Privacy.num(`${sign}${U.fmtNum(U.round(pl / pricedCost * 100, 2), 2)}%`) : '—';
+      const unpriced = holdings.positions.filter(p => p.shares > 0).length - priced.length;
+      const priceNote = !q ? '連結 Google 帳號後，會用 GOOGLEFINANCE 抓現價算市值'
+        : !priced.length ? (q.at ? '抓不到現價，算不出市值' : '正在抓現價…')
+        : unpriced ? `另有 ${unpriced} 檔抓不到現價，沒有算進市值和損益` : '';
+      const cell = (label, v, cls = '') => `<span class="kpi-cell"><small>${label}</small><b class="${cls}">${v}</b></span>`;
+      hero = `
+        <b>${priced.length ? money(value) : '—'}</b>
+        <span class="kpi-row">
+          ${cell('損益試算', priced.length ? Privacy.num(`${sign}${U.fmtNum(pl)}`) : '—', tone)}
+          ${cell('報酬率', priced.length ? rate : '—', tone)}
+          ${cell('總付出成本', money(holdings.positions.reduce((s, p) => s + p.cost, 0)))}
+        </span>
+        <span class="kpi-sub">${basis(holdings)}</span>
+        ${priceNote ? `<span class="kpi-sub">${priceNote}</span>` : ''}`;
+    } else {
+      hero = `<b>—</b><span class="kpi-sub">還沒有交易明細或庫存快照</span>`;
+    }
 
     let nextTile;
     if (next.length) {
@@ -105,7 +132,7 @@ function createOverview() {
     }
 
     kpisEl.innerHTML = `
-      <div class="kpi wide hero"><small>總投資成本</small>${eyeHTML()}${cost}</div>
+      <div class="kpi wide hero"><small>庫存總市值</small>${eyeHTML()}${hero}</div>
       <div class="kpi">
         <small>今年現金股利</small>
         <b>${money(sumNet(thisYear))}</b>

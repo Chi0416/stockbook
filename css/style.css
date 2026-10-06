@@ -452,7 +452,7 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   button.bar-row:not(.on):hover, .rank-row:hover { background: var(--hover); }
 }
 
-/* ---------- 持股總覽：KPI 卡片（總投資成本佔滿一列當主角，其餘兩兩並排） ---------- */
+/* ---------- 持股總覽：KPI 卡片（庫存總市值佔滿一列當主角，其餘兩兩並排） ---------- */
 .kpis {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -484,7 +484,22 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   overflow-wrap: anywhere;
 }
 .kpi.hero b { font-size: 36px; }
-/* 隱藏金額的眼睛：總投資成本卡片右上角（見 overview.js、privacy.js） */
+/* 庫存總市值下面一排三格：損益試算、報酬率、總付出成本 */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 10px;
+  padding-top: 12px;
+  border-top: .5px solid var(--border);
+}
+.kpi-cell { display: block; min-width: 0; }
+.kpi-cell small { font-size: 12px; }
+.kpi.hero .kpi-cell b { font-size: 19px; }
+/* 損益：賺錢紅色、賠錢綠色（台股的習慣） */
+.kpi .gain { color: var(--buy); }
+.kpi .loss { color: var(--sell); }
+/* 隱藏金額的眼睛：庫存總市值卡片右上角（見 overview.js、privacy.js） */
 .kpi.hero { position: relative; }
 .eye-btn {
   position: absolute;
