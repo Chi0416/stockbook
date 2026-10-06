@@ -15,6 +15,8 @@ const Form = (() => {
   let noteEls = [];   // 各欄位的提醒（schema 的 note；沒有的欄位為 null）
   let initial = [];   // 開啟或連續新增後的欄位值，用來判斷是否有未儲存的內容
   let lastCode = [];  // 代號欄位上一次的值，用來判斷證券名稱是不是自動帶入的（見 autofillPair）
+  let combos = [];    // 股票欄（代號和證券合成一格，見 buildCombo）
+  let captions = [];  // 代號＋證券快選按鈕上方的那行小字
   let hooks = { toast() {}, onChanged() {} };
 
   // 注音等輸入法選字時按的 Enter 不算
@@ -62,6 +64,8 @@ const Form = (() => {
     fieldsEl.innerHTML = '';
     chipBoxes = fields.map(() => null);
     noteEls = fields.map(() => null);
+    captions = fields.map(() => null);
+    combos = [];
     const wraps = [];
     inputs = fields.map((f, i) => {
       const wrap = document.createElement('div');
@@ -107,17 +111,169 @@ const Form = (() => {
       wraps.push(wrap);
       return inp;
     });
-    // 成對的快選按鈕放在兩個欄位下方，佔滿整列
+    // 成對的快選按鈕放在兩個欄位下方，佔滿整列；上面一行小字說明是記過的股票，不是目前的庫存（賣光的也會出現）
     fields.forEach((f, i) => {
       if (!f.pair) return;
+      const group = document.createElement('div');
+      group.className = 'chips-group';
+      group.innerHTML = '<div class="chips-caption">最近記過的股票，點一下帶入（不代表目前持有）</div>';
       chipBoxes[i] = document.createElement('div');
-      chipBoxes[i].className = 'chips chips-row';
-      wraps[Math.max(i, fieldIndex(f.pair))].after(chipBoxes[i]);
+      chipBoxes[i].className = 'chips';
+      group.appendChild(chipBoxes[i]);
+      captions[i] = group.querySelector('.chips-caption');
+      wraps[Math.max(i, fieldIndex(f.pair))].after(group);
+      if (typeof StockSearch !== 'undefined') buildCombo(i); // 瀏覽器還拿著舊版程式時維持兩格
     });
     renderAllChips();
     renderNotes();
     initial = inputs.map(inp => inp.value);
     lastCode = inputs.map(inp => inp.value);
+  }
+
+  // ---------- 股票欄：代號和證券合成一格（搜尋見 stocksearch.js） ----------
+  //   打代號或名稱都可以，下面列出符合的股票，點一下帶入；選好之後只顯示名稱，代號是前面的灰色小字（和列表卡片一樣）
+  //   資料還是分成代號、證券兩欄存：原本的兩格藏起來，選好的值放在裡面，儲存、連續新增、提醒都照舊
+  //   打完沒點按鈕時（離開這格、按 Enter、儲存），打的是完整代號、完整名稱或「代號 名稱」就認得出來
+  //   清單裡找不到時，可以打「代號 名稱」（剛上市的 ETF、已經下市的股票），或按「分開填代號和名稱」改回兩格
+  const comboOf = k => combos.find(c => !c.split && (c.i === k || c.n === k));
+  const ownStocks = c => pairSuggestions(ctx.fields[c.i]);
+  // 正在打字、還沒選好：打的字和選好的名稱不一樣
+  const typing = c => c.editing && c.text.value.trim() !== inputs[c.n].value.trim();
+
+  function buildCombo(i) {
+    const n = fieldIndex(ctx.fields[i].pair);
+    const wrap = document.createElement('div');
+    wrap.className = 'field full stock-field';
+    wrap.innerHTML = `
+      <label for="fld-stock-${i}">股票</label>
+      <div class="stock-box">
+        <span class="stock-code"></span>
+        <input id="fld-stock-${i}" type="text" autocomplete="off" spellcheck="false" enterkeyhint="next"
+          autocapitalize="characters" placeholder="打代號或名稱，例如 2330、台積">
+        <button type="button" class="stock-clear" aria-label="清除，重新選股票">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>
+        </button>
+      </div>
+      <div class="err"></div>`;
+    const c = { i, n, wrap, text: wrap.querySelector('input'), codeEl: wrap.querySelector('.stock-code'), editing: false, split: false };
+    // 代號查不到的提醒（schema 的 note）搬到這一格；原本的兩格藏起來
+    if (noteEls[i]) wrap.querySelector('.err').before(noteEls[i]);
+    inputs[i].parentElement.before(wrap);
+    inputs[i].parentElement.hidden = true;
+    inputs[n].parentElement.hidden = true;
+
+    // 已經選好時全選，直接打字就會取代原本的名稱（點下去之後已經開始打字的話不選）
+    c.text.addEventListener('focus', () => {
+      c.editing = true;
+      renderCombo(c);
+      const before = c.text.value;
+      if (before) setTimeout(() => { if (c.text.value === before) c.text.select(); }, 0);
+    });
+    // 注音選字途中（ㄊㄞˊ）先不搜尋，選好字才搜尋
+    const onType = () => {
+      c.editing = true;
+      setComboError(c, '');
+      renderCombo(c);
+      renderChips(c.i);
+    };
+    c.text.addEventListener('input', e => { if (!e.isComposing) onType(); });
+    c.text.addEventListener('compositionend', onType);
+    // 離開這格時認認看；稍等一下，點快選按鈕的話先讓按鈕帶入
+    c.text.addEventListener('blur', () => setTimeout(() => {
+      if (!c.editing || document.activeElement === c.text) return;
+      commitCombo(c);
+      renderChips(c.i);
+      renderNotes();
+    }, 150));
+    // Enter（手機鍵盤的「下一項」）：認得出來就跳下一格；認不出來時選第一個候選
+    c.text.addEventListener('keydown', e => {
+      if (!isEnter(e)) return;
+      e.preventDefault();
+      if (!commitCombo(c)) {
+        const first = StockSearch.search(c.text.value, ownStocks(c))[0];
+        if (!first) {
+          setComboError(c, comboError(c));
+          return;
+        }
+        pickStock(c, first.code, first.name);
+      }
+      renderChips(c.i);
+      renderNotes();
+      focusField(c.n + 1);
+    });
+    wrap.querySelector('.stock-clear').addEventListener('click', () => {
+      pickStock(c, '', '');
+      c.text.focus();
+    });
+    combos.push(c);
+    renderCombo(c);
+  }
+
+  // 選好之後顯示名稱，代號是前面的灰色小字；打字時只顯示打的字
+  function renderCombo(c) {
+    const code = inputs[c.i].value.trim();
+    const name = inputs[c.n].value.trim();
+    if (!c.editing) c.text.value = name || code;
+    c.codeEl.textContent = !typing(c) && code && name ? code : '';
+    c.wrap.classList.toggle('picked', !c.editing && !!code);
+  }
+
+  function pickStock(c, code, name) {
+    inputs[c.i].value = code;
+    inputs[c.n].value = name;
+    lastCode[c.i] = code;
+    c.editing = false;
+    setComboError(c, '');
+    renderCombo(c);
+  }
+
+  // 打完：清空就清掉；和選好的名稱一樣就不動；認得出來就帶入。認不出來回傳 false（字留著，儲存時再提醒）
+  function commitCombo(c) {
+    const t = c.text.value.trim();
+    if (!t) pickStock(c, '', '');
+    else if (!typing(c)) {
+      c.editing = false;
+      renderCombo(c);
+    } else {
+      const hit = StockSearch.resolve(t, ownStocks(c));
+      if (!hit) return false;
+      pickStock(c, hit.code, hit.name);
+    }
+    return true;
+  }
+
+  const comboError = c => (typing(c)
+    ? `認不出「${c.text.value.trim()}」是哪一檔：請點下方的股票，或打「代號 名稱」，例如 00999Z 新ETF`
+    : '請選一檔股票');
+
+  function setComboError(c, msg) {
+    c.wrap.classList.toggle('invalid', !!msg);
+    c.wrap.querySelector('.err').textContent = msg;
+  }
+
+  // 改回分開的兩格：打的字像代號（數字開頭）就放進代號、否則放進證券，另一格清空，免得和之前選的股票湊在一起
+  function splitCombo(c) {
+    const t = c.text.value.trim();
+    if (typing(c)) {
+      const asCode = /^\d/.test(U.toHalf(t));
+      inputs[c.i].value = asCode ? t : '';
+      inputs[c.n].value = asCode ? '' : t;
+    }
+    c.split = true;
+    c.wrap.hidden = true;
+    inputs[c.i].parentElement.hidden = false;
+    inputs[c.n].parentElement.hidden = false;
+    if (noteEls[c.i]) inputs[c.i].parentElement.querySelector('.err').before(noteEls[c.i]);
+    lastCode[c.i] = inputs[c.i].value;
+    renderChips(c.i);
+    renderNotes();
+    inputs[inputs[c.i].value ? c.n : c.i].focus();
+  }
+
+  // 第 k 個欄位：合成股票欄的代號、證券改成股票欄那一格
+  function focusField(k) {
+    const c = comboOf(k);
+    (c ? c.text : inputs[k])?.focus();
   }
 
   // 欄位下方的提醒，依目前填的內容重新產生（例如成交日期已經算在庫存快照裡）
@@ -174,12 +330,31 @@ const Form = (() => {
       const name = inputs[fieldIndex(f.pair)].value.trim();
       const all = pairSuggestions(f);
       const picked = p => p.code === code && p.name === name;
+      const c = comboOf(i);
+      if (c) {
+        // 股票欄：打字時搜尋自己記過的和股票清單（排成好幾行，一眼看到全部）；沒在打字時列出最近記過的
+        const q = typing(c) ? c.text.value.trim() : '';
+        const list = q ? StockSearch.search(q, all) : all.slice(0, 8);
+        box.classList.toggle('wrap', !!q);
+        box.innerHTML = list.map(p => chipHTML(i, p.code, `${p.code} ${p.name}`, picked(p), p.name)).join('') +
+          (q && !list.length ? `<button type="button" class="chips-split" data-split="${i}">分開填代號和名稱</button>` : '');
+        if (captions[i]) {
+          captions[i].textContent = !q ? '最近記過的股票，點一下帶入（不代表目前持有）'
+            : list.length ? `符合「${q}」的股票，點一下帶入`
+            : `股票清單裡找不到「${q}」：可以打「代號 名稱」，例如 00999Z 新ETF，或分開填`;
+        }
+        box.parentElement.hidden = !q && !list.length;
+        return;
+      }
+      if (captions[i]) captions[i].textContent = '最近記過的股票，點一下帶入（不代表目前持有）';
+      box.classList.remove('wrap');
       // 有輸入代號就用代號篩選，否則用證券名稱篩選
       const q = (code || name).toLowerCase();
       const list = !q || all.some(picked)
         ? all
         : all.filter(p => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
       box.innerHTML = list.slice(0, 8).map(p => chipHTML(i, p.code, `${p.code} ${p.name}`, picked(p), p.name)).join('');
+      box.parentElement.hidden = !list.length; // 沒有按鈕時連說明一起藏起來
       return;
     }
 
@@ -239,8 +414,15 @@ const Form = (() => {
         else msg = f.type === 'member' ? '請選擇成員' : '必填';
       } else if (f.type === 'number' && (v = U.parseNum(raw)) === null) msg = '請輸入數字';
       else if (f.type === 'date' && (v = U.parseDate(raw)) === null) msg = '日期格式如 2025/06/05';
-      setError(i, msg);
-      if (msg && !firstBad) firstBad = inputs[i];
+      const c = comboOf(i);
+      if (!c) {
+        setError(i, msg);
+        if (msg && !firstBad) firstBad = inputs[i];
+      } else if (i === c.i) {
+        const bad = typing(c) || !raw || !inputs[c.n].value.trim() ? comboError(c) : '';
+        setComboError(c, bad);
+        if (bad && !firstBad) firstBad = c.text;
+      }
       if (f.group) {
         // 每位成員一格的欄位合併成 { 成員 id: 數字 }；空白的不存（全部清空時存成 {}，才蓋得掉舊值）
         rec[f.group] = rec[f.group] || {};
@@ -266,6 +448,7 @@ const Form = (() => {
 
   // ---------- 動作 ----------
   function save() {
+    combos.forEach(c => { if (c.editing) commitCombo(c); });
     const { rec, firstBad } = collect();
     if (firstBad) {
       firstBad.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -295,14 +478,14 @@ const Form = (() => {
     renderNotes();
     initial = inputs.map(inp => inp.value);
     lastCode = inputs.map(inp => inp.value);
+    combos.forEach(c => { c.editing = false; setComboError(c, ''); renderCombo(c); });
     closeBtn.textContent = '完成';
     statusEl.textContent = `已新增：${summary(saved)}（本次共 ${ctx.count} 筆）`;
     statusEl.hidden = false;
     bodyEl.scrollTop = 0;
     // 手機上收起鍵盤；電腦上直接跳到下一筆的第一個要填的欄位
     if (matchMedia('(pointer: fine)').matches) {
-      const next = inputs[ctx.fields.findIndex(f => !f.keep)] || inputs[0];
-      next.focus();
+      focusField(Math.max(ctx.fields.findIndex(f => !f.keep), 0));
     } else if (document.activeElement) {
       document.activeElement.blur();
     }
@@ -317,7 +500,7 @@ const Form = (() => {
   }
 
   function isDirty() {
-    return inputs.some((inp, i) => inp.value !== initial[i] && (ctx.id || !ctx.fields[i].keep));
+    return inputs.some((inp, i) => inp.value !== initial[i] && (ctx.id || !ctx.fields[i].keep)) || combos.some(typing);
   }
 
   function requestClose() {
@@ -332,6 +515,12 @@ const Form = (() => {
   dlg.addEventListener('cancel', e => { e.preventDefault(); requestClose(); });
 
   fieldsEl.addEventListener('click', e => {
+    const split = e.target.closest('[data-split]');
+    if (split) {
+      const c = combos.find(x => x.i === +split.dataset.split);
+      if (c) splitCombo(c);
+      return;
+    }
     const chip = e.target.closest('.chip');
     if (!chip) return;
     const i = +chip.dataset.i;
@@ -342,9 +531,18 @@ const Form = (() => {
       inputs[fieldIndex(pair)].value = chip.dataset.pair;
       setError(fieldIndex(pair), '');
       lastCode[i] = chip.dataset.v;
+      const c = comboOf(i);
+      if (c) {
+        pickStock(c, chip.dataset.v, chip.dataset.pair);
+        c.text.blur(); // 選好了，手機上收起鍵盤
+      }
     }
     renderAllChips();
     renderNotes();
+  });
+
+  fieldsEl.addEventListener('mousedown', e => {
+    if (e.target.closest('.chips-group') && combos.some(c => c.editing)) e.preventDefault();
   });
 
   fieldsEl.addEventListener('input', e => {
@@ -363,7 +561,7 @@ const Form = (() => {
     const i = inputs.indexOf(e.target);
     if (i < 0 || !isEnter(e)) return;
     e.preventDefault();
-    if (i < inputs.length - 1) inputs[i + 1].focus();
+    if (i < inputs.length - 1) focusField(i + 1);
     else save();
   });
 

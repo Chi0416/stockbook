@@ -732,7 +732,10 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
   scrollbar-width: none;
 }
 .chips::-webkit-scrollbar { display: none; }
-.chips-row { grid-column: 1 / -1; margin-top: -8px; }
+/* 代號＋證券的快選按鈕：佔滿整列，上面一行小字說明（見 form.js） */
+.chips-group { grid-column: 1 / -1; margin-top: -8px; }
+.chips-caption { margin: 0 2px; font-size: 12px; color: var(--muted); }
+.chips-caption + .chips { margin-top: 6px; }
 .chips:empty { display: none; }
 .chip {
   flex-shrink: 0;
@@ -746,6 +749,53 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
   cursor: pointer;
 }
 .chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+/* 搜尋結果：排成好幾行，一眼看到全部 */
+.chips.wrap { flex-wrap: wrap; overflow: visible; }
+.chips-split {
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 股票欄：代號和證券合成一格（見 form.js）；選好之後代號是前面的灰色小字，和列表卡片一樣 */
+.stock-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 4px 0 12px;
+  background: var(--surface);
+  border: .5px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  transition: border-color .15s, box-shadow .15s;
+}
+.stock-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.field.invalid .stock-box { border-color: var(--danger); background-color: var(--invalid-bg); }
+.field .stock-box input { flex: 1; height: 44px; padding: 0; border: 0; background: none; box-shadow: none; }
+.field .stock-box input:focus { box-shadow: none; }
+.stock-code { flex: none; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.stock-code:empty { display: none; }
+.stock-clear {
+  display: none;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.stock-clear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.stock-clear:active { background: var(--chip-bg); }
+.stock-field.picked .stock-clear { display: grid; }
 
 .wide-btn {
   display: block;
