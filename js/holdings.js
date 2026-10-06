@@ -207,7 +207,8 @@ const Holdings = (() => {
   // ---------- 核對 ----------
   // 前一期快照的股數（第一期從 0 開始）＋期間的買賣與配股，應該等於這一期快照的股數
   // 回傳成員每一期快照、每一檔的結果 { member, date, prevDate, code, name, expected, actual, status, formula, recId }
-  //   status：'ok' 相符、'diff' 對不上、'nohistory' 第一期之前還沒有這檔的交易紀錄（不核對）
+  //   status：'ok' 相符、'diff' 對不上、'nohistory' 第一期之前還沒有這檔的買賣紀錄（不核對）
+  //           只有配股也算沒有：配到股的持股是開始記帳之前就有的，從 0 開始推算不出來
   //   recId：這一期快照裡這檔的第一筆記錄；快照裡沒有這檔時為 null
   function checkMember(member) {
     const snaps = Store.list('snapshots', member);
@@ -235,7 +236,7 @@ const Holdings = (() => {
         });
         const expected = base + bought - sold + bonus;
         const actual = sum(now);
-        const status = !prev && !bought && !sold && !bonus ? 'nohistory' : expected === actual ? 'ok' : 'diff';
+        const status = !prev && !bought && !sold ? 'nohistory' : expected === actual ? 'ok' : 'diff';
         const formula = (prev ? `${U.fmtDate(prev)} 快照 ${U.fmtNum(base)}` : '從 0 開始') +
           (bought ? ` + 買進 ${U.fmtNum(bought)}` : '') +
           (sold ? ` − 賣出 ${U.fmtNum(sold)}` : '') +

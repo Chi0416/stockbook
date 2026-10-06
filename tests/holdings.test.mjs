@@ -144,6 +144,19 @@ test('全家：只看某位成員時，只算那個人的', () => {
   assert.deepEqual(positions(app(data, 'mom').Holdings.all('2026-10-04')), [['2330', 100, 60000, '從 0 開始 + 買進 100']]);
 });
 
+test('核對：第一期快照之前只有配股、沒有買賣紀錄時不核對（配到股的持股是開始記帳之前就有的）', () => {
+  const { Holdings } = app({
+    snapshots: [snap('me', '2026-08-31', '2887', 25431, 317850), snap('me', '2026-08-31', '0050', 2100, 300000)],
+    trades: [trade('me', '2026-03-02', '普買', '0050', 2000, 300000)],
+    dividends: [
+      div('2887', '2026-07-10', '2026-08-05', 0, 0.1, { me: 25180 }), // 基準日股數手動填，配 251 股
+      div('0050', '2026-07-16', '2026-08-08', 0, 0.5),                 // 依交易算 2,000 股，配 100 股
+    ],
+  });
+  const checks = plain(Holdings.check()).map(c => [c.code, c.status, c.expected, c.actual]);
+  assert.deepEqual(checks, [['2887', 'nohistory', 251, 25431], ['0050', 'ok', 2100, 2100]]);
+});
+
 test('交易表單的提醒：成交日期在這位成員的快照當天或之前時出現', () => {
   const { SCHEMAS } = app({
     members: [{ id: 'dad', name: '爸爸' }, { id: 'mom', name: '媽媽' }],
