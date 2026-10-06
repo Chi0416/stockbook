@@ -194,7 +194,7 @@ function createOverview() {
     return n ? `<p class="kpi-note">有 ${n} 筆庫存快照的股數和交易紀錄對不上，明細請看「庫存快照」頁</p>` : '';
   }
 
-  // ---------- 持股列表（依總投資成本由大到小） ----------
+  // ---------- 持股列表（依代號由小到大，和券商 App 的庫存、對帳單同一個順序，方便對資料） ----------
   function noteHTML(p) {
     // 全家：列出每位成員的股數；有人算出負數時改列那個人的算式
     if (p.parts && Store.members().length > 1) {
@@ -250,7 +250,7 @@ function createOverview() {
       return;
     }
     const kw = state.keyword.trim().toLowerCase();
-    const all = holdings.positions.slice().sort((a, b) => b.cost - a.cost);
+    const all = holdings.positions.slice().sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
     const text = p => `${p.code} ${p.name} ${(p.parts || []).map(x => Store.memberName(x.member)).join(' ')}`;
     const rows = all.filter(p => !kw || text(p).toLowerCase().includes(kw));
     countEl.textContent = rows.length === all.length ? `${all.length} 檔` : `${rows.length}／${all.length} 檔`;
