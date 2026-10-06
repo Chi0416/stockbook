@@ -157,6 +157,31 @@ test('核對：第一期快照之前只有配股、沒有買賣紀錄時不核�
   assert.deepEqual(checks, [['2887', 'nohistory', 251, 25431], ['0050', 'ok', 2100, 2100]]);
 });
 
+test('核對：第一期快照之前的交易可以慢慢補，比快照少是還沒補齊（不警告），補齊了相符，比快照多才是對不上', () => {
+  const partial = snap('me', '2026-08-31', '0050', 3000, 290150);
+  const full = snap('me', '2026-08-31', '00919', 10000, 307450);
+  const over = snap('me', '2026-08-31', '00878', 1000, 30000);
+  const { Holdings, SCHEMAS } = app({
+    snapshots: [partial, full, over],
+    trades: [
+      trade('me', '2026-08-05', '普買', '0050', 1000, 103050, 146),  // 8 月以前買的還沒補
+      trade('me', '2026-08-18', '普買', '00919', 5000, 150750, 214),
+      trade('me', '2026-08-28', '普買', '00919', 5000, 156700, 223),
+      trade('me', '2026-08-03', '普買', '00878', 5000, 163700, 233), // 比快照多：少記了賣出或打錯
+    ],
+  });
+  const checks = plain(Holdings.check()).map(c => [c.code, c.status, c.expected, c.actual]);
+  assert.deepEqual(checks, [['0050', 'partial', 1000, 3000], ['00919', 'ok', 10000, 10000], ['00878', 'diff', 5000, 1000]]);
+
+  const notes = plain(SCHEMAS.snapshots.annotate([{ date: '2026-08-31' }]));
+  assert.deepEqual(notes.groups['2026-08-31'], { text: '核對：1 檔對不上，1 檔更早的交易還沒補齊', warn: true, lines: [] });
+  assert.deepEqual(notes.cards[partial.id], {
+    warn: false, text: '更早的交易還沒補齊：推算 1,000 股（從 0 開始 + 買進 1,000），快照是 3,000 股，還差 2,000 股',
+  });
+  assert.equal(notes.cards[full.id], undefined);
+  assert.equal(notes.cards[over.id].warn, true);
+});
+
 test('交易表單的提醒：成交日期在這位成員的快照當天或之前時出現', () => {
   const { SCHEMAS } = app({
     members: [{ id: 'dad', name: '爸爸' }, { id: 'mom', name: '媽媽' }],

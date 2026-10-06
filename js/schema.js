@@ -106,6 +106,7 @@ const SCHEMAS = {
     ],
     // 核對（見 holdings.js 的 check）：前一期快照（第一期從 0 開始）＋期間的買賣與配股，應該等於這一期的股數
     //   分組標題下方寫整期的結果；對不上的卡片寫出算式；快照裡沒有、但推算還有股數的另外列在分組說明
+    //   第一期之前的交易還沒補齊的卡片寫出還差幾股（不是警告，可以慢慢補）
     annotate(rows) {
       if (typeof Holdings.check !== 'function') return null; // 瀏覽器快取到舊版 holdings.js 時略過
       const dates = new Set(rows.map(r => r.date));
@@ -117,10 +118,12 @@ const SCHEMAS = {
         const list = results.filter(c => c.date === date);
         const diff = list.filter(c => c.status === 'diff');
         const ok = list.filter(c => c.status === 'ok').length;
+        const partial = list.filter(c => c.status === 'partial');
         const skip = list.filter(c => c.status === 'nohistory').length;
         const parts = [];
         if (diff.length) parts.push(`${diff.length} 檔對不上`);
-        else if (ok) parts.push('全部相符 ✓');
+        else if (ok) parts.push(partial.length ? `${ok} 檔相符 ✓` : '全部相符 ✓');
+        if (partial.length) parts.push(`${partial.length} 檔更早的交易還沒補齊`);
         if (skip) parts.push(`${skip} 檔還沒有交易紀錄，沒有核對`);
         if (!parts.length) return;
         groups[date] = {
@@ -135,6 +138,13 @@ const SCHEMAS = {
             warn: true,
             text: `核對不符：推算 ${U.fmtNum(c.expected)} 股（${c.formula}），快照是 ${U.fmtNum(c.actual)} 股，` +
               `${gap > 0 ? '多' : '少'} ${U.fmtNum(Math.abs(gap))} 股`,
+          };
+        });
+        partial.filter(c => c.recId).forEach(c => {
+          cards[c.recId] = {
+            warn: false,
+            text: `更早的交易還沒補齊：推算 ${U.fmtNum(c.expected)} 股（${c.formula}），快照是 ${U.fmtNum(c.actual)} 股，` +
+              `還差 ${U.fmtNum(c.actual - c.expected)} 股`,
           };
         });
       });
