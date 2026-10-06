@@ -412,7 +412,7 @@ const Form = (() => {
 
   // ---------- 公告的除權息（見 announced.js）：新增除權息時，選好股票就列出這一檔公告的除權息 ----------
   //   按一下帶入除權息日、發放日、現金股利、股票股利，自己再按儲存；已經記過的那一次不列
-  //   固定一行（左右滑），還沒選股票、公告裡沒有時寫一句話，表單不會跟著變長變短
+  //   固定一行（左右滑），還沒選股票、公告裡沒有、公告的都記過了時寫一句話，表單不會跟著變長變短
   const ANNOUNCE_KEYS = ['exDate', 'payDate', 'cash', 'stock'];
   // 今年的日期只寫月/日
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
@@ -422,12 +422,15 @@ const Form = (() => {
   function renderAnnounce() {
     if (!announceEl) return;
     const code = inputs[+announceEl.dataset.pair].value.trim();
+    const all = code ? Announced.forCode(code) : [];
     announced = code ? Announced.forCode(code, Store.list('dividends', 'all')) : [];
     // 表單上的日期和金額剛好是這一筆時標起來
     const now = ANNOUNCE_KEYS.map(k => inputs[fieldIndex(k)]?.value.trim() ?? '');
     const on = r => ANNOUNCE_KEYS.every((k, j) => (/Date$/.test(k) ? U.parseDate(now[j]) : U.parseNum(now[j])) === r[k]);
     announceEl.querySelector('.chips').innerHTML = !code ? '<span class="announce-empty">先選股票</span>'
-      : !announced.length ? '<span class="announce-empty">公告裡沒有這檔，請照股利通知書填</span>'
+      : !all.length ? '<span class="announce-empty">公告裡沒有這檔，請照股利通知書填</span>'
+      // 公告的都記過了（例如一年配一次的個股）：寫出最近一次，才不會以為公告裡沒有
+      : !announced.length ? `<span class="announce-empty">公告的除權息都記過了（最近一次 ${U.esc(md(all[0].exDate))} 除息）</span>`
       : announced.slice(0, 6).map((r, k) =>
         `<button type="button" class="chip${on(r) ? ' on' : ''}" data-announce="${k}">${U.esc(announceText(r))}</button>`).join('');
   }
