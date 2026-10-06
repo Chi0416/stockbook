@@ -431,6 +431,26 @@ test('分頁被刪掉：補建回來並寫入這台裝置的資料', async () =>
   assert.equal(d.Sync.state().error, '');
   assert.equal(d.Store.list('snapshots', 'all').length, 1);
   assert.equal(fake.values(id, '庫存快照').length, 2);
+  assert.deepEqual(plain(d.Sync.state().problems), []); // 這次就寫回去了，不算看不懂的地方
+});
+
+test('觀察清單：舊版建立的試算表沒有這個分頁，同步時補建、寫進去，不算看不懂的地方；試算表裡加的也讀得回來', async () => {
+  const { fake, d, id } = await linked();
+  fake.files[id].sheets = fake.files[id].sheets.filter(s => s.title !== '觀察清單');
+  d.Store.add('watch', { code: '00878', name: '國泰永續高股息' });
+  await d.Sync.syncNow();
+  const st = d.Sync.state();
+  assert.equal(st.error, '');
+  assert.equal(st.pending, 0);
+  assert.deepEqual(plain(st.problems), []);
+  const rows = fake.values(id, '觀察清單');
+  assert.deepEqual(rows[0], ['代號', '證券', 'id']);
+  assert.deepEqual(rows.slice(1).map(r => r.slice(0, 2)), [['00878', '國泰永續高股息']]);
+  // 長輩在試算表裡加一檔（沒有 id）
+  fake.appendRow(id, '觀察清單', ['2412', '中華電']);
+  await d.Sync.syncNow();
+  assert.deepEqual(plain(d.Store.list('watch', 'all').map(r => r.code).sort()), ['00878', '2412']);
+  assert.equal(fake.values(id, '觀察清單').length, 3);
 });
 
 test('標題被改壞：App 的資料保留、修改留著，顯示要改回哪個標題', async () => {
@@ -686,6 +706,17 @@ test('股價：持股的代號變了就重寫（賣光的拿掉、新買的加�
   await d.Sync.syncNow();
   assert.deepEqual(fake.values(id, '_股價'), [['代號', '現價'], ['0050', 115.95]]);
   assert.deepEqual(plain(d.Sync.prices().quotes), { '0050': 115.95 });
+});
+
+test('股價：觀察清單的代號也一起抓，和持股重複的只抓一次', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': 37.85, '00878': 22.5 };
+  const { d, id } = await linked(fake);
+  d.Store.add('watch', { code: '00878', name: '國泰永續高股息' });
+  d.Store.add('watch', { code: '0056', name: '元大高股息' });
+  await d.Sync.syncNow();
+  assert.deepEqual(fake.values(id, '_股價'), [['代號', '現價'], ['0056', 37.85], ['00878', 22.5]]);
+  assert.deepEqual(plain(d.Sync.prices().quotes), { '0056': 37.85, '00878': 22.5 });
 });
 
 test('股價：沒有持股時只留標題列', async () => {

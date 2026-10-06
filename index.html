@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="記錄簿">
   <!-- 加到主畫面時的名稱與圖示 -->
-  <link rel="manifest" href="manifest.json?v=2026.10.06.21">
+  <link rel="manifest" href="manifest.json?v=2026.10.06.22">
   <link rel="icon" type="image/png" href="icons/book-192.png">
   <link rel="apple-touch-icon" href="icons/book-180.png">
   <title>股票記錄簿</title>
@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/style.css?v=2026.10.06.21">
+  <link rel="stylesheet" href="css/style.css?v=2026.10.06.22">
 </head>
 <body>
   <div class="app">
@@ -28,7 +28,7 @@
         <span id="page-sub" class="page-sub" hidden></span>
       </div>
       <div class="appbar-actions">
-        <!-- 新增：只在資料表頁面出現；寫出會新增到哪一頁（手機上只顯示「新增」） -->
+        <!-- 新增：總覽以外的頁面都有；寫出會新增什麼（新增交易、新增快照、新增除權息、新增觀察） -->
         <button id="btn-add" class="add-btn" type="button" aria-label="新增記錄">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           <span>新增<span class="add-what">記錄</span></span>
@@ -45,6 +45,8 @@
         </button>
       </div>
     </header>
+    <!-- 上方切換：底部一格裡有兩頁時（記帳、股利、殖利率），在標題下面左右切換（見 app.js 的 GROUPS） -->
+    <div id="subtabs" class="subtabs" role="tablist" hidden></div>
     <div id="banner" class="banner" hidden></div>
     <!-- 同步提示：有資料還沒同步、太久沒同步、沒有網路、同步失敗時才出現（其他提醒在訊息匣） -->
     <div id="sync-bar" class="sync-bar" role="status" hidden>
@@ -61,21 +63,20 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></svg>
         <span>總覽</span>
       </button>
-      <button type="button" role="tab" data-tab="trades">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>
-        <span>交易明細</span>
+      <!-- 記帳：交易明細、庫存快照 -->
+      <button type="button" role="tab" data-tab="book">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></svg>
+        <span>記帳</span>
       </button>
-      <button type="button" role="tab" data-tab="snapshots">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 12.5 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
-        <span>庫存快照</span>
-      </button>
-      <button type="button" role="tab" data-tab="dividends">
+      <!-- 股利：股利（以前的累積現金股利）、除權息 -->
+      <button type="button" role="tab" data-tab="income">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.4-1.3-2.6-1.3-1.5 0-2.6.8-2.6 1.9 0 2.6 5.2 1.4 5.2 4.1 0 1.1-1.1 2-2.6 2-1.2 0-2.2-.5-2.7-1.3M12 6.5V8M12 16v1.5"/></svg>
-        <span>除權息</span>
+        <span>股利</span>
       </button>
-      <button type="button" role="tab" data-tab="cashDividends">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M15.5 15h2.5"/></svg>
-        <span>累積現金股利</span>
+      <!-- 殖利率：庫存、觀察 -->
+      <button type="button" role="tab" data-tab="yield">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="M18 6 6 18"/></svg>
+        <span>殖利率</span>
       </button>
     </div>
   </nav>
@@ -114,7 +115,7 @@
       <h3 class="section-head">家庭成員</h3>
       <ul id="member-list" class="member-list"></ul>
       <button id="btn-add-member" type="button" class="wide-btn">新增成員</button>
-      <p class="note muted">交易明細和庫存快照分開記在每位成員名下；除權息全家共用一份，股利依各人持股計算。</p>
+      <p class="note muted">交易明細和庫存快照分開記在每位成員名下；除權息和觀察清單全家共用一份，股利依各人持股計算。</p>
 
       <h3 class="section-head">資料備份</h3>
       <dl id="stats" class="stats"></dl>
@@ -129,7 +130,7 @@
 
       <!-- 每次更新網站時改這裡，用來確認手機上開的是不是新版
            css、js 網址後面的 ?v= 也要一起改成同一個版本號，瀏覽器才會重新下載（tests/version.test.mjs 會檢查） -->
-      <p class="note muted">版本 2026.10.06.21</p>
+      <p class="note muted">版本 2026.10.06.22</p>
     </div>
   </dialog>
 
@@ -151,25 +152,26 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/util.js?v=2026.10.06.21"></script>
-  <script src="js/privacy.js?v=2026.10.06.21"></script>
-  <script src="js/stocklist.js?v=2026.10.06.21"></script>
-  <script src="js/stocksearch.js?v=2026.10.06.21"></script>
-  <script src="js/announced.js?v=2026.10.06.21"></script>
-  <script src="js/schema.js?v=2026.10.06.21"></script>
-  <script src="js/storage.js?v=2026.10.06.21"></script>
-  <script src="js/holdings.js?v=2026.10.06.21"></script>
-  <script src="js/views.js?v=2026.10.06.21"></script>
-  <script src="js/stats.js?v=2026.10.06.21"></script>
-  <script src="js/list.js?v=2026.10.06.21"></script>
-  <script src="js/overview.js?v=2026.10.06.21"></script>
-  <script src="js/form.js?v=2026.10.06.21"></script>
-  <script src="js/config.js?v=2026.10.06.21"></script>
-  <script src="js/google.js?v=2026.10.06.21"></script>
-  <script src="js/sheet.js?v=2026.10.06.21"></script>
-  <script src="js/sync.js?v=2026.10.06.21"></script>
-  <script src="js/inbox.js?v=2026.10.06.21"></script>
-  <script src="js/app.js?v=2026.10.06.21"></script>
+  <script src="js/util.js?v=2026.10.06.22"></script>
+  <script src="js/privacy.js?v=2026.10.06.22"></script>
+  <script src="js/stocklist.js?v=2026.10.06.22"></script>
+  <script src="js/stocksearch.js?v=2026.10.06.22"></script>
+  <script src="js/announced.js?v=2026.10.06.22"></script>
+  <script src="js/schema.js?v=2026.10.06.22"></script>
+  <script src="js/storage.js?v=2026.10.06.22"></script>
+  <script src="js/holdings.js?v=2026.10.06.22"></script>
+  <script src="js/views.js?v=2026.10.06.22"></script>
+  <script src="js/stats.js?v=2026.10.06.22"></script>
+  <script src="js/list.js?v=2026.10.06.22"></script>
+  <script src="js/overview.js?v=2026.10.06.22"></script>
+  <script src="js/yield.js?v=2026.10.06.22"></script>
+  <script src="js/form.js?v=2026.10.06.22"></script>
+  <script src="js/config.js?v=2026.10.06.22"></script>
+  <script src="js/google.js?v=2026.10.06.22"></script>
+  <script src="js/sheet.js?v=2026.10.06.22"></script>
+  <script src="js/sync.js?v=2026.10.06.22"></script>
+  <script src="js/inbox.js?v=2026.10.06.22"></script>
+  <script src="js/app.js?v=2026.10.06.22"></script>
   <!-- Google 登入元件（連結 Google 帳號時才用到，不擋住畫面載入） -->
   <script src="https://accounts.google.com/gsi/client" async></script>
 </body>

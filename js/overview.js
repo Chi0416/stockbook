@@ -192,7 +192,7 @@ function createOverview() {
   function checkNote() {
     if (typeof Holdings.check !== 'function') return '';
     const n = Holdings.check().filter(c => c.status === 'diff').length;
-    return n ? `<p class="kpi-note">有 ${n} 筆庫存快照的股數和交易紀錄對不上，明細請看「庫存快照」頁</p>` : '';
+    return n ? `<p class="kpi-note">有 ${n} 筆庫存快照的股數和交易紀錄對不上，明細請看「記帳」的「庫存快照」</p>` : '';
   }
 
   // ---------- 持股列表（依代號由小到大，和券商 App 的庫存、對帳單同一個順序，方便對資料） ----------
@@ -247,7 +247,7 @@ function createOverview() {
   function renderList(holdings = Holdings.all(U.today())) {
     if (!holdings) {
       countEl.textContent = '';
-      listEl.innerHTML = '<p class="empty">還沒有持股資料<br>到「交易明細」記一筆買進，或到「庫存快照」照券商的庫存填一期，這裡就會算出目前持股</p>';
+      listEl.innerHTML = '<p class="empty">還沒有持股資料<br>到「記帳」記一筆買進，或在「庫存快照」照券商的庫存填一期，這裡就會算出目前持股</p>';
       return;
     }
     const kw = state.keyword.trim().toLowerCase();

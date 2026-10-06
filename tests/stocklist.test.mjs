@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 // 自己記過的資料：清單裡沒有的 9999（例如已經下市）也算認得
-const records = { trades: [{ code: '9999', name: '舊股票' }], snapshots: [], dividends: [] };
+const records = { trades: [{ code: '9999', name: '舊股票' }], snapshots: [], dividends: [], watch: [] };
 const ctx = vm.createContext({ Store: { list: t => records[t] } });
 for (const f of ['util', 'stocklist', 'schema']) {
   const src = readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8');

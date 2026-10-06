@@ -6,7 +6,7 @@
 //   時機：打開 App、從背景切回來、修改資料後（等幾秒一起送），登入還有效就自動同步
 //         登入過期時，修改資料的那一下順便跳出 Google 視窗；沒成功就顯示「同步」按鈕讓使用者按
 //   登出：先同步一次，確定試算表已經有這台裝置的全部資料，才清掉這台裝置上的資料（換帳號時不會混在一起）
-//   股價：同步成功後，在試算表隱藏的「_股價」分頁用 GOOGLEFINANCE 抓目前持股的現價，讀回來給持股總覽顯示
+//   股價：同步成功後，在試算表隱藏的「_股價」分頁用 GOOGLEFINANCE 抓目前持股和觀察清單的現價，讀回來給持股總覽、殖利率顯示
 const Sync = (() => {
   const CLOUD_KEY = 'stockbook.cloud';
   const MARK = 'stockbook'; // 試算表上的標記（雲端硬碟的 appProperties），用來找回這份試算表
@@ -206,7 +206,9 @@ const Sync = (() => {
     problemsAt = Date.now();
 
     // 整個分頁是空的（剛補建或被清空）：用這台裝置的資料整張寫回去；缺欄位的表先不動
+    //   這次就會寫好，「分頁是空的」不算看不懂的地方（新版補建的分頁，例如觀察清單，第一次同步時也是空的）
     const empty = ['members', ...TABLES].filter(t => !byTitle[titleOf(t)].length);
+    problems = problems.filter(p => !empty.some(t => titleOf(t) === p.tab));
     const skip = [...new Set([...parsed.broken, ...empty])];
     keepOrDelete(parsed, skip, snap);
     Store.mergeRemote(parsed.data, skip);
@@ -479,8 +481,8 @@ const Sync = (() => {
   }
 
   // ---------- 股價（GOOGLEFINANCE） ----------
-  // 試算表隱藏的「_股價」分頁：A 欄全家目前持股的代號、B 欄 =GOOGLEFINANCE("TPE:代號","price")，讀回 Google 算好的現價
-  //   同步成功後更新：持股的代號變了、或按了「同步」就馬上更新，否則最多 5 分鐘一次
+  // 試算表隱藏的「_股價」分頁：A 欄全家目前持股和觀察清單的代號、B 欄 =GOOGLEFINANCE("TPE:代號","price")，讀回 Google 算好的現價
+  //   同步成功後更新：代號變了（買了新的、加了觀察）、或按了「同步」就馬上更新，否則最多 5 分鐘一次
   //   每次都清掉重寫公式，讓 Google 重新抓價格；剛寫進去時可能還是「Loading...」，過幾秒再讀一次（最多 3 次）
   //   價格只存在這台裝置：{ at: 讀到價格的時間, quotes: { 代號: 價格；null 是抓不到；沒有這個代號是還在抓 } }
   //   不寫進資料、不進 data.json；登出、取消連結時一起清掉
@@ -510,7 +512,8 @@ const Sync = (() => {
 
   async function updatePrices(meta, force = false) {
     // 只用英數字的代號（寫進公式裡，不能有引號之類的字）
-    const codes = Holdings.heldCodes(U.today()).filter(c => /^[0-9A-Z]+$/.test(c));
+    const watched = Store.list('watch', 'all').map(r => U.toHalf(r.code ?? '').trim().toUpperCase());
+    const codes = [...new Set([...Holdings.heldCodes(U.today()), ...watched])].filter(c => /^[0-9A-Z]+$/.test(c)).sort();
     const key = codes.join(',');
     if (!force && key === priceKey && Date.now() - priceWrittenAt < PRICE_EVERY) return;
     const title = Sheet.PRICES.title;

@@ -30,6 +30,10 @@
 //   annotate:    列表的補充說明：annotate(rows) 回傳 { groups: { 分組值: { text, warn, lines } }, cards: { 記錄 id: { text, warn } } }
 //                groups 顯示在分組標題下方，cards 顯示在卡片最下方
 //   was:         這個欄位以前在試算表上的標題（改名前），讀得到舊標題的試算表，同步時改成新標題
+//   （資料表）formTitle: 表單標題用的名稱（「新增觀察的股票」），沒有時用 title
+//   （資料表）noList:    不用一般的列表，畫面另外畫（觀察清單在殖利率頁，見 yield.js）
+//   （資料表）unique:    不能和其他筆重複的欄位（觀察清單的同一檔股票只能加一次），儲存時擋下來
+//   （資料表）remove:    刪除按鈕的文字和刪除後的提示：{ label, done }，沒有時是「刪除這筆」「已刪除」
 //   migrate:     讀取舊格式資料時的轉換
 //   legacy:      試算表格式版本 1 的舊欄位：{ 舊標題: 舊的 key }，讀進舊的 key 再由 migrate 換算（見 sheet.js）
 
@@ -247,5 +251,20 @@ const SCHEMAS = {
       const isStock = /股/.test(text) && !/息/.test(text);
       return { ...rest, cash: isStock ? 0 : n, stock: isStock ? n : 0 };
     },
+  },
+
+  // 觀察清單：想比較殖利率的股票（還沒買的也可以），全家共用一份；只存代號和名稱
+  //   畫面在「殖利率」的「觀察」（見 yield.js）；最近記過的股票從除權息、庫存快照、交易明細找
+  watch: {
+    title: '觀察清單',
+    formTitle: '觀察的股票',
+    noList: true,
+    unique: ['code'],
+    remove: { label: '從觀察清單移除', done: '已移除' },
+    card: { code: 'code', title: 'name' },
+    fields: [
+      { key: 'code', label: '代號', type: 'text', caps: true, pair: 'name', suggestFrom: ['dividends', 'snapshots', 'trades'], note: codeNote },
+      { key: 'name', label: '證券', type: 'text' },
+    ],
   },
 };

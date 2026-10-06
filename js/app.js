@@ -1,4 +1,5 @@
 // 進入點：分頁、列表、表單、Google 雲端硬碟同步、訊息匣、家庭成員、資料備份
+//   底部 4 格：總覽｜記帳｜股利｜殖利率；記帳、股利、殖利率一格裡有兩頁，在標題下面左右切換（見 GROUPS）
 (() => {
   const TAB_KEY = 'stockbook.tab';
   const LOGOUT_KEY = 'stockbook.loggedOut'; // 登出後重新載入頁面時顯示「已登出」（sessionStorage，登出清資料時不會被清掉）
@@ -17,22 +18,36 @@
 
   // ---------- 列表與表單 ----------
   // 持股總覽、資料表與推算頁面都有列表；推算頁面點卡片時開啟來源資料表的編輯表單
-  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS };
+  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yieldHeld: YIELD_PAGE, yieldWatch: YIELD_PAGE };
   const lists = {};
   let current = 'overview';
 
   lists.overview = createOverview();
   $('panels').appendChild(lists.overview.el);
   Object.entries({ ...SCHEMAS, ...VIEWS }).forEach(([key, page]) => {
+    if (page.noList) return; // 觀察清單畫在殖利率頁（見 yield.js）
     const formKey = page.source || key;
     lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id) });
     $('panels').appendChild(lists[key].el);
   });
+  // 殖利率：庫存、觀察各一頁（見 yield.js）
+  lists.yieldHeld = createYield('held');
+  lists.yieldWatch = createYield('watch');
+  $('panels').append(lists.yieldHeld.el, lists.yieldWatch.el);
 
   Form.init({
     toast,
     onChanged(key, rec) {
+      // 觀察清單：切到「觀察」那一頁，剛加的那一檔閃一下
+      if (key === 'watch') {
+        if (rec && current !== 'yieldWatch') showTab('yieldWatch');
+        lists.yieldWatch.changed(rec);
+        return;
+      }
       lists[key].changed(rec);
+      // 持股、自己記的除權息變了，殖利率跟著重算
+      lists.yieldHeld.refresh();
+      lists.yieldWatch.refresh();
       // 推算頁面跟著重算；正在看的那頁順便標亮剛改的那筆
       Object.entries(VIEWS).forEach(([v, view]) => {
         if (view.source === key && current === v) lists[v].changed(rec);
@@ -43,7 +58,23 @@
   });
 
   // ---------- 分頁 ----------
+  // 底部的每一格（key）和裡面的頁（pages：[頁面, 上方切換的名稱]）；只有一頁的不顯示上方切換
+  //   點底部的另一格時一律先顯示第一頁（記帳先顯示交易明細，免得把交易記成快照）；點目前這一格只捲回最上面
+  const GROUPS = [
+    { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
+    { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
+    { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息']] },
+    { key: 'yield', label: '殖利率', pages: [['yieldHeld', '庫存'], ['yieldWatch', '觀察']] },
+  ];
+  const groupOf = key => GROUPS.find(g => g.key === key || g.pages.some(([k]) => k === key));
+  // 新增按鈕：這一頁新增到哪張表、按鈕上寫什麼（手機上也寫出來）；總覽沒有新增按鈕
+  const ADD = {
+    trades: ['trades', '交易'], snapshots: ['snapshots', '快照'],
+    cashDividends: ['dividends', '除權息'], dividends: ['dividends', '除權息'],
+    yieldHeld: ['watch', '觀察'], yieldWatch: ['watch', '觀察'],
+  };
   const tabBtns = [...document.querySelectorAll('.tabbar [data-tab]')];
+  const subtabsEl = $('subtabs');
   const addBtn = $('btn-add');
   const addWhat = addBtn.querySelector('.add-what');
 
@@ -56,28 +87,42 @@
     subEl.hidden = !sub;
   }
 
+  // key：底部的一格（book）或其中一頁（snapshots）；訊息匣也會直接指定某一頁
+  //   有兩頁的格子：標題寫格子的名稱（記帳），下面切換是哪一頁
   function showTab(key) {
+    const group = groupOf(key) || GROUPS[0];
+    if (group.key === key) key = group.pages[0][0];
     if (!lists[key]) key = 'overview';
     current = key;
-    $('page-title').textContent = PAGES[key].title;
+    $('page-title').textContent = group.pages.length > 1 ? group.label : PAGES[key].title;
     renderSubtitle();
-    // 只有資料表能新增：按鈕寫出會新增到哪一頁（手機上只顯示「新增」），其他頁面隱藏
-    const table = SCHEMAS[key];
-    addBtn.disabled = !table;
-    if (table) {
-      addWhat.textContent = table.title;
-      addBtn.setAttribute('aria-label', `新增${table.title}`);
+    if (subtabsEl) { // 瀏覽器還拿著舊版 index.html 時沒有這一塊
+      subtabsEl.hidden = group.pages.length < 2;
+      subtabsEl.innerHTML = group.pages.length < 2 ? '' : group.pages.map(([k, label]) =>
+        `<button type="button" role="tab" data-page="${k}" aria-selected="${k === key}">${label}</button>`).join('');
     }
-    tabBtns.forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === key)));
+    const add = ADD[key];
+    addBtn.disabled = !add;
+    if (add) {
+      addWhat.textContent = add[1];
+      addBtn.setAttribute('aria-label', `新增${add[1]}`);
+    }
+    tabBtns.forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === group.key)));
     Object.entries(lists).forEach(([k, l]) => { l.el.hidden = k !== key; });
     try { localStorage.setItem(TAB_KEY, key); } catch (_) {}
   }
 
   tabBtns.forEach(b => b.addEventListener('click', () => {
-    showTab(b.dataset.tab);
+    if (groupOf(current).key !== b.dataset.tab) showTab(b.dataset.tab);
     window.scrollTo(0, 0);
   }));
-  addBtn.addEventListener('click', () => Form.open(current, null));
+  subtabsEl?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-page]');
+    if (!btn || btn.dataset.page === current) return;
+    showTab(btn.dataset.page);
+    window.scrollTo(0, 0);
+  });
+  addBtn.addEventListener('click', () => { if (ADD[current]) Form.open(ADD[current][0], null); });
 
   const refreshAll = () => Object.values(lists).forEach(l => l.refresh());
 
@@ -474,9 +519,11 @@
       renderCloud(st);
       Inbox.syncStatus(st);
     },
-    // 讀回新的股價：持股總覽重畫
+    // 讀回新的股價：持股總覽、殖利率重畫
     onPrices() {
       lists.overview.refresh();
+      lists.yieldHeld.refresh();
+      lists.yieldWatch.refresh();
     },
     // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始
     onLogout() {

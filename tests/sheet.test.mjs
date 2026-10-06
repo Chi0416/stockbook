@@ -28,6 +28,9 @@ const sample = () => ({
     { id: 'd1', code: '00919', name: '群益台灣精選高息', exDate: '2026-09-16', payDate: '2026-10-15', cash: 0.866, stock: 0 },
     { id: 'd2', code: '0056', name: '元大高股息', exDate: '2026-07-16', payDate: '2026-08-12', cash: 1, stock: 0, baseShares: { m1: 30000, m2: 5000 } },
   ],
+  watch: [
+    { id: 'w1', code: '00878', name: '國泰永續高股息' },
+  ],
 });
 
 // 試算表讀回來時尾端空白格會被省略，模擬這個行為
@@ -300,7 +303,10 @@ test('補建單一分頁時，只產生那個分頁的格式設定', () => {
 });
 
 test('完全空白的試算表：建立預設成員「我」', () => {
-  const r = plain(Sheet.fromValues({ 成員: [['名稱', 'id']], 交易明細: [Sheet.TAB.trades.headers], 庫存快照: [Sheet.TAB.snapshots.headers], 除權息: [Sheet.TAB.dividends.headers] }));
+  const r = plain(Sheet.fromValues({
+    成員: [['名稱', 'id']], 交易明細: [Sheet.TAB.trades.headers], 庫存快照: [Sheet.TAB.snapshots.headers],
+    除權息: [Sheet.TAB.dividends.headers], 觀察清單: [Sheet.TAB.watch.headers],
+  }));
   assert.deepEqual(r.problems, []);
   assert.deepEqual(r.data.members, [{ id: 'me', name: '我' }]);
   assert.deepEqual(r.newMembers, [{ id: 'me', name: '我' }]);
@@ -308,7 +314,9 @@ test('完全空白的試算表：建立預設成員「我」', () => {
 
 test('建立試算表：分頁、格式、下拉選單、保護', () => {
   const body = plain(Sheet.createBody());
-  assert.deepEqual(body.sheets.map(s => s.properties.title), ['交易明細', '庫存快照', '除權息', '成員', '_meta']);
+  assert.deepEqual(body.sheets.map(s => s.properties.title), ['交易明細', '庫存快照', '除權息', '觀察清單', '成員', '_meta']);
+  // 觀察清單加在最後：既有分頁的 id 不變
+  assert.deepEqual(['trades', 'snapshots', 'dividends', 'watch'].map(t => Sheet.TAB[t].sheetId), [2, 3, 4, 5]);
   assert.equal(body.properties.locale, 'zh_TW');
   assert.equal(body.sheets.at(-1).properties.hidden, true);
 
@@ -328,7 +336,7 @@ test('建立試算表：分頁、格式、下拉選單、保護', () => {
   const lists = reqs.filter(r => r.setDataValidation?.range.sheetId === trades).map(r => r.setDataValidation.rule);
   assert.ok(lists.every(rule => rule.strict === false));
   assert.ok(lists.some(rule => rule.condition.type === 'ONE_OF_LIST' && rule.condition.values.map(v => v.userEnteredValue).join() === '普買,普賣'));
-  assert.equal(reqs.filter(r => r.addProtectedRange).length, 8); // 4 個分頁 × 標題列與 id 欄
+  assert.equal(reqs.filter(r => r.addProtectedRange).length, 10); // 5 個分頁 × 標題列與 id 欄
   assert.ok(reqs.filter(r => r.addProtectedRange).every(r => r.addProtectedRange.protectedRange.warningOnly));
 });
 

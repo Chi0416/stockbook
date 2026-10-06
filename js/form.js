@@ -55,9 +55,11 @@ const Form = (() => {
     const rec = id ? Store.list(tableKey, 'all').find(r => r.id === id) : null;
     if (id && !rec) return;
     ctx = { tableKey, schema, id, count: 0, fields: expandFields(schema.fields) };
-    titleEl.textContent = `${id ? '編輯' : '新增'}${schema.title}`;
+    titleEl.textContent = `${id ? '編輯' : '新增'}${schema.formTitle || schema.title}`;
     closeBtn.textContent = '取消';
+    delBtn.textContent = schema.remove?.label || '刪除這筆';
     delBtn.hidden = !id;
+    dlg.dataset.table = tableKey; // 只有股票一格的表單（觀察清單）要留位置給下拉選單（見 style.css）
     statusEl.hidden = true;
     buildFields(rec);
     dlg.showModal();
@@ -387,8 +389,10 @@ const Form = (() => {
   }
 
   // ---------- 快選按鈕：本表最近輸入過的在前，再補上 suggestFrom 的資料表與預設值（含全家的資料） ----------
+  //   不能重複的表（觀察清單）不列本表的：已經加過的不用再加一次
   function recentRecords(f) {
-    return [ctx.tableKey, ...(f.suggestFrom || [])].flatMap(t => Store.list(t, 'all').slice().reverse());
+    const tables = [...(ctx.schema.unique ? [] : [ctx.tableKey]), ...(f.suggestFrom || [])];
+    return tables.flatMap(t => Store.list(t, 'all').slice().reverse());
   }
 
   function suggestions(f) {
@@ -398,12 +402,13 @@ const Form = (() => {
     return [...seen].slice(0, 12);
   }
 
-  // 代號＋證券：依代號去重，名稱取最近一次輸入的
+  // 代號＋證券：依代號去重，名稱取最近一次輸入的；不能重複的表（觀察清單）不列已經加過的
   function pairSuggestions(f) {
     const byCode = new Map();
+    const taken = new Set(ctx.schema.unique ? Store.list(ctx.tableKey, 'all').map(r => String(r[f.key] ?? '').trim()) : []);
     recentRecords(f).forEach(r => {
       const c = String(r[f.key] ?? '').trim();
-      if (c && !byCode.has(c)) byCode.set(c, String(r[f.pair] ?? ''));
+      if (c && !byCode.has(c) && !taken.has(c)) byCode.set(c, String(r[f.pair] ?? ''));
     });
     return [...byCode].map(([code, name]) => ({ code, name }));
   }
@@ -579,12 +584,21 @@ const Form = (() => {
   const memberOf = rec => (rec.member && Store.members().length > 1 ? Store.memberName(rec.member) : '');
 
   // 儲存後的提示；隱藏金額時（見 privacy.js）金額顯示成 ＊＊＊，表單裡的欄位照常顯示
+  //   沒有主要數字的表（觀察清單）只寫代號和名稱
   function summary(rec) {
     const { code, title, badge, primary } = ctx.schema.card;
-    const pf = ctx.fields.find(f => f.key === primary);
-    const amount = U.display(pf, rec[primary]);
-    return [memberOf(rec), badge && rec[badge], code && rec[code], rec[title], pf.public ? amount : Privacy.num(amount)]
+    const pf = primary && ctx.fields.find(f => f.key === primary);
+    const amount = pf ? U.display(pf, rec[primary]) : '';
+    return [memberOf(rec), badge && rec[badge], code && rec[code], rec[title], pf && (pf.public ? amount : Privacy.num(amount))]
       .filter(Boolean).join(' ');
+  }
+
+  // schema.unique 的欄位和別筆一樣（觀察清單裡已經有這一檔）時，回傳那一筆
+  function duplicateOf(rec) {
+    const keys = ctx.schema.unique;
+    if (!keys) return null;
+    const norm = v => U.toHalf(v ?? '').trim().toUpperCase();
+    return Store.list(ctx.tableKey, 'all').find(r => r.id !== ctx.id && keys.every(k => norm(r[k]) === norm(rec[k]))) || null;
   }
 
   // ---------- 動作 ----------
@@ -594,6 +608,17 @@ const Form = (() => {
     if (firstBad) {
       firstBad.scrollIntoView({ block: 'center', behavior: 'smooth' });
       firstBad.focus({ preventScroll: true });
+      return;
+    }
+    // 已經有了（觀察清單的同一檔股票）：寫在那一格下面，不存
+    const dup = duplicateOf(rec);
+    if (dup) {
+      const i = fieldIndex(ctx.schema.unique[0]);
+      const c = comboOf(i);
+      const msg = `${ctx.schema.title}裡已經有 ${[dup.code, dup.name].filter(Boolean).join(' ')} 了`;
+      if (c) setComboError(c, msg);
+      else setError(i, msg);
+      document.activeElement?.blur(); // 不把焦點放回股票欄：下拉選單會打開，蓋住這句提醒
       return;
     }
 
@@ -634,12 +659,17 @@ const Form = (() => {
     }
   }
 
+  // 觀察清單寫「確定從觀察清單移除：0056 元大高股息？」（schema 的 remove）
   function remove() {
-    if (!confirm(`確定刪除這筆${ctx.schema.title}？`)) return;
+    const rec = Store.get(ctx.tableKey, ctx.id);
+    const what = ctx.schema.remove
+      ? `${ctx.schema.remove.label}：${[rec?.code, rec?.name].filter(Boolean).join(' ')}`
+      : `刪除這筆${ctx.schema.title}`;
+    if (!confirm(`確定${what}？`)) return;
     Store.remove(ctx.tableKey, ctx.id);
     dlg.close();
     hooks.onChanged(ctx.tableKey, null);
-    hooks.toast('已刪除');
+    hooks.toast(ctx.schema.remove?.done || '已刪除');
   }
 
   function isDirty() {
