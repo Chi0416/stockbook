@@ -16,7 +16,8 @@ const StockSearch = (() => {
   }
 
   // 打字時的候選，最多 limit 個：自己記過的在前（代號開頭相同或名稱裡有這幾個字）
-  //   接著是清單：代號完全相同 → 代號開頭相同 → 名稱開頭相同 → 名稱裡有這幾個字，同一類依代號排
+  //   接著是清單：代號完全相同 → 代號開頭相同 → 名稱開頭相同 → 名稱裡有這幾個字
+  //   同一類裡越短越前面（越接近打的字）：代號比長度（4 碼的個股在 6 碼的 ETF 前面），名稱比字數（「玉山」先列玉山金）
   function search(q, own = [], limit = 8) {
     const t = norm(q);
     if (!t) return [];
@@ -24,19 +25,21 @@ const StockSearch = (() => {
     const low = t.toLowerCase();
     const out = own.filter(p => codeKey(p.code).startsWith(up) || String(p.name).toLowerCase().includes(low)).slice(0, limit);
     const seen = new Set(out.map(p => codeKey(p.code)));
+    const byCode = (a, b) => a.code.length - b.code.length;
+    const byName = (a, b) => a.name.length - b.name.length;
     const tiers = [
-      p => p.code === up,
-      p => p.code.startsWith(up),
-      p => p.name.toLowerCase().startsWith(low),
-      p => p.name.toLowerCase().includes(low),
+      [p => p.code === up, byCode],
+      [p => p.code.startsWith(up), byCode],
+      [p => p.name.toLowerCase().startsWith(low), byName],
+      [p => p.name.toLowerCase().includes(low), byName],
     ];
-    for (const tier of tiers) {
-      for (const p of listed()) {
-        if (out.length >= limit) return out;
-        if (!seen.has(p.code) && tier(p)) {
-          out.push(p);
-          seen.add(p.code);
-        }
+    for (const [match, order] of tiers) {
+      if (out.length >= limit) break;
+      // listed() 已經依代號排好，sort 是穩定排序，長度一樣時維持代號順序
+      const hits = listed().filter(p => !seen.has(p.code) && match(p)).sort(order);
+      for (const p of hits.slice(0, limit - out.length)) {
+        out.push(p);
+        seen.add(p.code);
       }
     }
     return out;

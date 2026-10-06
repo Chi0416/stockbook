@@ -17,7 +17,7 @@ test('搜尋：名稱裡有這幾個字', () => {
   assert.deepEqual(plain(StockSearch.search('台積')), [{ code: '2330', name: '台積電' }]);
   const r = codes(StockSearch.search('高股息'));
   assert.equal(r.length, 8); // 最多 8 個
-  assert.deepEqual(r.slice(0, 2), ['0056', '00878']); // 依代號排
+  assert.deepEqual(r.slice(0, 2), ['0056', '00878']); // 元大高股息字最少；字數一樣的依代號排
 });
 
 test('搜尋：代號開頭相同，完全相同的排第一個；全形、小寫也找得到', () => {
@@ -27,10 +27,12 @@ test('搜尋：代號開頭相同，完全相同的排第一個；全形、小�
   assert.equal(codes(StockSearch.search('00679b'))[0], '00679B');
 });
 
-test('搜尋：名稱開頭相同的排在名稱中間有這幾個字的前面', () => {
+test('搜尋：名稱開頭相同的排在名稱中間有這幾個字的前面；同一類越短越前面', () => {
   const r = plain(StockSearch.search('玉山'));
-  assert.equal(r[0].name.startsWith('玉山'), true);
+  assert.deepEqual(r[0], { code: '2884', name: '玉山金' }); // 不是排在一堆玉山 ETF 後面
   assert.ok(r.every(p => p.name.includes('玉山')));
+  assert.equal(plain(StockSearch.search('高股息'))[0].code, '0056'); // 元大高股息字最少
+  assert.deepEqual(codes(StockSearch.search('00')).slice(0, 3), ['0050', '0051', '0052']); // 4 碼的排在 6 碼的前面
 });
 
 test('搜尋：自己記過的排最前面，用自己的寫法，不會重複', () => {

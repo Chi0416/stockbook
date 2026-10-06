@@ -12,7 +12,9 @@
 //   note:        依表單目前填的內容，顯示在欄位下方的提醒：note(values) 回傳文字，不用提醒時回傳空字串
 //                values 是各欄位填的內容（日期轉成 2025-06-05，看不懂時是空字串）
 //   caps:        手機鍵盤預設大寫（代號可能有英文字母，例如 00679B）
-//   suggest:     表單下方的快選按鈕（預設值 + 最近輸入過的值），只是提示，不限制
+//   suggest:     表單下方的快選按鈕（預設值 + 最近輸入過的值），只是提示，不限制；試算表的下拉選單也用這個
+//   toggle:      表單上改成左右切換的按鈕（有 toggle 時不顯示 suggest 的快選按鈕）：[{ value, label, tone, match }]
+//                value 是存的值；match 是認得的寫法（試算表手打的「融資買進」也算買進那一邊，沒點的話原本的字照舊）
 //   pair:        成對的快選按鈕：按下後同時填入本欄與 pair 指定的欄位（代號＋證券）
 //   suggestFrom: 快選按鈕另外參考哪些資料表
 //   period:      列表篩選與分組用的日期欄位；unit 為 month（年月）或 day（單日）
@@ -66,7 +68,9 @@ const SCHEMAS = {
           const snap = v.member && v.date ? Holdings.snapDate(v.member, U.today()) : null;
           return snap && v.date <= snap ? `已算在 ${U.fmtDate(snap)} 的庫存快照裡，總覽不會再加一次` : '';
         } },
-      { key: 'type',   label: '交易別',   type: 'text', suggest: ['普買', '普賣'] },
+      // 表單上是「買進｜賣出」左右切換（和股票軟體一樣），存的還是「普買」「普賣」；沒有預設，免得把賣出記成買進
+      { key: 'type',   label: '交易別',   type: 'text', suggest: ['普買', '普賣'],
+        toggle: [{ value: '普買', label: '買進', tone: 'buy', match: /買/ }, { value: '普賣', label: '賣出', tone: 'sell', match: /賣/ }] },
       { key: 'code',   label: '代號',     type: 'text', caps: true, pair: 'name', suggestFrom: ['snapshots'],
         hint: '要和庫存快照一致', note: codeNote },
       { key: 'name',   label: '證券',     type: 'text' },
