@@ -149,7 +149,42 @@ function createOverview() {
       ${holdings && holdings.missingCode
         ? `<p class="kpi-note">有 ${holdings.missingCode} 筆快照或交易沒填代號，沒有計入</p>` : ''}
       ${checkNote()}`;
+    fitNumbers();
   }
+
+  // 數字太長放不下時（例如損益八、九位數）把字縮小，不換行，才不會被拆成兩行
+  //   同一排的三格（損益試算、報酬率、總付出成本）縮成一樣大，看起來才整齊；放得下時維持原本的大小
+  //   總覽沒在畫面上時量不到寬度：切換過來、螢幕轉向時再調（ResizeObserver），標題字型載入後也再調一次
+  function fitNumbers() {
+    if (!kpisEl.offsetWidth) return;
+    const nums = [...kpisEl.querySelectorAll('.kpi b')];
+    nums.forEach(b => { b.style.fontSize = ''; });
+    const groups = new Map();
+    nums.forEach(b => {
+      const key = b.closest('.kpi-row') || b;
+      groups.set(key, [...(groups.get(key) || []), b]);
+    });
+    const tooWide = b => b.scrollWidth > b.clientWidth;
+    groups.forEach(group => {
+      // 寬度和字的大小成正比，照最擠的那一格算出比例；算完還放不下（四捨五入）就再縮一點
+      let scale = Math.min(...group.map(b => (tooWide(b) ? b.clientWidth / b.scrollWidth : 1)));
+      const base = group.map(b => parseFloat(getComputedStyle(b).fontSize));
+      for (let k = 0; scale < 1 && k < 4; k++) {
+        group.forEach((b, j) => { b.style.fontSize = `${Math.floor(base[j] * scale * 10) / 10}px`; });
+        if (!group.some(tooWide)) break;
+        scale *= 0.95;
+      }
+    });
+  }
+  let fittedWidth = 0;
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      if (kpisEl.offsetWidth === fittedWidth) return;
+      fittedWidth = kpisEl.offsetWidth;
+      fitNumbers();
+    }).observe(kpisEl);
+  }
+  document.fonts?.addEventListener?.('loadingdone', fitNumbers);
 
   // 庫存快照的股數和交易紀錄對不上時提醒（核對明細在庫存快照頁，算法見 holdings.js 的 check）
   // 瀏覽器快取到舊版 holdings.js（還沒有 check）時直接略過，不讓整個總覽壞掉

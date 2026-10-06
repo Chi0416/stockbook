@@ -481,7 +481,7 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   font-weight: 500;
   line-height: 1.3;
   font-variant-numeric: lining-nums;
-  overflow-wrap: anywhere;
+  white-space: nowrap; /* 數字不拆成兩行，放不下時縮小字（見 overview.js 的 fitNumbers） */
 }
 .kpi.hero b { font-size: 36px; }
 /* 庫存總市值下面一排三格：損益試算、報酬率、總付出成本 */
