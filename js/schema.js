@@ -10,6 +10,8 @@
 //   default:     新增時預先填入的值
 //   hint:        顯示在表單欄位下方的說明
 //   note:        依表單目前填的內容，顯示在欄位下方的提醒：note(values) 回傳文字，不用提醒時回傳空字串
+//   calc:        依表單目前填的內容先算好填上：calc(values) 回傳數字，算不出來時回傳 null
+//                欄位空白、或還是上次算的數字時才填，自己改過的不蓋掉（見 form.js）
 //                values 是各欄位填的內容（日期轉成 2025-06-05，看不懂時是空字串）
 //   caps:        手機鍵盤預設大寫（代號可能有英文字母，例如 00679B）
 //   suggest:     表單下方的快選按鈕（預設值 + 最近輸入過的值），只是提示，不限制；試算表的下拉選單也用這個
@@ -61,6 +63,17 @@ function toSettle(r) {
   return { ...rest, settle };
 }
 
+// 應收付金額的試算：成交數量 × 成交單價，買進加上手續費、賣出扣掉手續費和交易稅
+//   手續費、交易稅用使用者填的（折讓每個人不一樣，App 不算）；還沒選買進／賣出、沒填數量或單價時回傳 null
+function settleOf(v) {
+  const n = k => U.parseNum(String(v[k] ?? ''));
+  const shares = n('shares');
+  const price = n('price');
+  if (!shares || !price || !/[買賣]/.test(v.type ?? '')) return null;
+  const amount = Math.round(shares * price);
+  return /買/.test(v.type) ? amount + (n('fee') || 0) : amount - (n('fee') || 0) - (n('tax') || 0);
+}
+
 // 代號在股票清單（stocklist.js）和自己記過的資料裡都查不到時提醒；只是提醒，照樣可以儲存
 //   打到 4 碼才檢查，打字途中不提醒；瀏覽器還拿著舊版程式、沒有清單時不提醒
 function codeNote(v) {
@@ -97,7 +110,14 @@ const SCHEMAS = {
       { key: 'fee',    label: '手續費',     type: 'number', optional: true, hint: '可以空白' },
       { key: 'tax',    label: '交易稅',     type: 'number', optional: true, hint: '賣出才有，可以空白', was: ['證交稅款'] },
       { key: 'settle', label: '應收付金額', type: 'number', full: true, was: ['成交金額'],
-        hint: '照券商 App 填：買進是付出的錢（含手續費），賣出是拿回的錢' },
+        hint: '買進是付出的錢（含手續費），賣出是拿回的錢', calc: settleOf,
+        // 自動算的數字提醒要核對（成交單價四捨五入、手續費沒填都會有差）；自己改過、和算的不一樣時不提醒
+        note(v) {
+          const c = settleOf(v);
+          if (c === null || U.parseNum(v.settle ?? '') !== c) return '';
+          const how = /買/.test(v.type) ? '成交數量 × 成交單價 + 手續費' : '成交數量 × 成交單價 − 手續費 − 交易稅';
+          return `自動算的（${how}），請自行和券商 App 的應收付金額核對${v.fee ? '' : '；手續費還沒填'}`;
+        } },
     ],
     legacy: { 成交金額: 'amount' },
     migrate: r => toSettle(splitSecurity(r)),

@@ -10,8 +10,9 @@
 //     2（2026-10-06）：照券商 App 改成「成交數量、成交單價、手續費、交易稅、應收付金額」
 //        版本 1 的試算表同步時改標題、成交金額換算成應收付金額（見 schema.js 的 toSettle），寫好後記成版本 2
 //        只有版本 1 才換算：之後有人把標題改回「成交金額」，也只是改名，不會再加一次手續費
+//     3（2026-10-06）：交易明細的應收付金額搬到最後面（交易稅後面），和表單的順序一樣（見 settleMove）
 const Sheet = (() => {
-  const VERSION = 2;
+  const VERSION = 3;
   const ID = 'id';
   const MEMBERS = { title: '成員', sheetId: 1, headers: ['名稱', ID] };
   const META = { title: '_meta', sheetId: 99 };
@@ -253,6 +254,7 @@ const Sheet = (() => {
       ctx.headers[tab][at[f.key].col] = f.label;
       ctx.rewrites.push({ table: t, tab, row: 1, col: at[f.key].col, value: f.label });
     });
+    settleMove(t, tab, at, ctx);
     // 格式版本 1 的舊欄位：值讀進舊的 key，由 migrate 換算後寫回那一格
     const legacy = ctx.version < 2 ? SCHEMAS[t].legacy || {} : {};
     const converted = fields.filter(f => at[f.key] && legacy[at[f.key].label]);
@@ -285,6 +287,14 @@ const Sheet = (() => {
     return rows;
   }
 
+  // 格式版本 3：交易明細的應收付金額在手續費、交易稅前面時（版本 1、2 的位置），搬到它們後面
+  //   記在 moves（{ table, tab, from, to }，to 是搬之前的欄位位置）；資料依標題對應，搬不搬都讀得到
+  function settleMove(t, tab, at, ctx) {
+    if (ctx.version >= 3 || t !== 'trades' || !at.settle) return;
+    const last = Math.max(at.fee?.col ?? -1, at.tax?.col ?? -1);
+    if (at.settle.col < last) ctx.moves.push({ table: t, tab, from: at.settle.col, to: last + 1 });
+  }
+
   // _meta 分頁記的格式版本；沒有這個分頁（或讀不到）時當作版本 1
   function metaVersion(values) {
     const row = (values || []).find(r => String(r?.[0] ?? '').trim() === 'version');
@@ -298,11 +308,12 @@ const Sheet = (() => {
   //   rowOf[分頁][id] 是那一筆在第幾列；headers[分頁] 是標題列（補上 id 欄之後）
   //   broken 是缺分頁或缺欄位的資料表：讀到的資料不完整，同步時不要拿來取代 App 裡的資料
   //   version 是試算表目前的格式版本；rewrites 是舊格式要改寫的格子 [{ table, tab, row, col, value }]（改名的標題、換算過的金額）
+  //   moves 是舊格式要搬的欄（見 settleMove）
   // knownMembers：「成員」分頁讀不到時改用這份名單（App 裡現有的成員），名字才對得回原本的 id
   function fromValues(byTitle, knownMembers = []) {
     const ctx = {
       members: [], newMembers: [], problems: [], idFixes: [], addIdHeader: [], rowOf: {}, headers: {}, broken: [],
-      version: metaVersion(byTitle[META.title]), rewrites: [],
+      version: metaVersion(byTitle[META.title]), rewrites: [], moves: [],
     };
     readMembers(byTitle[MEMBERS.title], ctx);
     if (!ctx.members.length && knownMembers.length) {
@@ -313,8 +324,8 @@ const Sheet = (() => {
     TABLES.forEach(t => { data[t] = readTable(t, byTitle[TAB[t].title], ctx); });
     firstMember(ctx);
     data.members = ctx.members;
-    const { problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites } = ctx;
-    return { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites };
+    const { problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites, moves } = ctx;
+    return { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites, moves };
   }
 
   // 「交易明細第 12 列：成交日期看不懂（2026/13/01）」

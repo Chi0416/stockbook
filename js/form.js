@@ -17,6 +17,7 @@ const Form = (() => {
   let lastCode = [];  // 代號欄位上一次的值，用來判斷證券名稱是不是自動帶入的（見 autofillPair）
   let combos = [];    // 股票欄（代號和證券合成一格，見 buildCombo）
   let captions = [];  // 代號＋證券快選按鈕上方的那行小字
+  let calcked = [];   // 各欄位上次自動算出來的數字（schema 的 calc）；欄位還是這個數字時才跟著重算
   let hooks = { toast() {}, onChanged() {} };
 
   // 注音等輸入法選字時按的 Enter 不算
@@ -133,6 +134,11 @@ const Form = (() => {
       captions[i] = group.querySelector('.chips-caption');
       wraps[Math.max(i, fieldIndex(f.pair))].after(group);
       if (typeof StockSearch !== 'undefined') buildCombo(i); // 瀏覽器還拿著舊版程式時維持兩格
+    });
+    // 修改舊資料：存的數字和算出來的一樣，就當作是自動算的，改了數量、單價會跟著重算；不一樣的是自己填的，不動
+    calcked = fields.map(f => {
+      const c = f.calc ? f.calc(formValues()) : null;
+      return c !== null && U.parseNum(inputs[fieldIndex(f.key)].value) === c ? c : null;
     });
     renderAllChips();
     renderToggles();
@@ -328,13 +334,30 @@ const Form = (() => {
     (c ? c.text : toggle || inputs[k])?.focus();
   }
 
-  // 欄位下方的提醒，依目前填的內容重新產生（例如成交日期已經算在庫存快照裡）
+  // 各欄位目前填的內容（日期轉成 2025-06-05，看不懂時是空字串）
+  const formValues = () => Object.fromEntries(ctx.fields.map((f, i) => {
+    const raw = inputs[i].value.trim();
+    return [f.key, f.type === 'date' ? U.parseDate(raw) || '' : raw];
+  }));
+
+  // 自動算的欄位（例如應收付金額）：空白、或還是上次算的數字時，換成這次算的；算不出來時清掉上次算的
+  function recalc() {
+    ctx.fields.forEach((f, i) => {
+      if (!f.calc) return;
+      const c = f.calc(formValues());
+      const cur = inputs[i].value.trim();
+      if (cur && U.parseNum(cur) !== calcked[i]) return;
+      inputs[i].value = c === null ? '' : String(c);
+      calcked[i] = c;
+      if (c !== null) setError(i, '');
+    });
+  }
+
+  // 欄位下方的提醒，依目前填的內容重新產生（例如成交日期已經算在庫存快照裡）；自動算的欄位先算好
   function renderNotes() {
+    recalc();
     if (!noteEls.some(Boolean)) return;
-    const values = Object.fromEntries(ctx.fields.map((f, i) => {
-      const raw = inputs[i].value.trim();
-      return [f.key, f.type === 'date' ? U.parseDate(raw) || '' : raw];
-    }));
+    const values = formValues();
     noteEls.forEach((el, i) => { if (el) el.textContent = ctx.fields[i].note(values) || ''; });
   }
 
@@ -529,6 +552,7 @@ const Form = (() => {
       const f = ctx.fields[i];
       if (!f.keep) inp.value = defaultValue(f);
     });
+    calcked = ctx.fields.map(() => null);
     renderAllChips();
     renderNotes();
     initial = inputs.map(inp => inp.value);

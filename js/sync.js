@@ -259,14 +259,10 @@ const Sync = (() => {
     // 在 App 裡改好、這次整列寫回的資料，試算表上原本看不懂的地方已經不算問題了
     problems = problems.filter(p => !(p.row && overwritten.has(`${p.tab}:${p.row}`)));
 
-    // 舊格式的試算表：改名的標題、換算過的金額寫回那一格（這次整列寫回的不用另外寫）
-    //   和其他修改同一次寫入；有舊欄位的表都寫好了，才記成新的格式版本
+    // 舊格式的試算表：改名的標題、換算過的金額寫回那一格（這次整列寫回的不用另外寫），和其他修改同一次寫入
     parsed.rewrites
       .filter(c => handled(c.table) && !overwritten.has(`${c.tab}:${c.row}`))
       .forEach(c => writes.push({ range: a1(c.tab, `${Sheet.colLetter(c.col)}${c.row}`), values: [[c.value]] }));
-    if (parsed.version < Sheet.VERSION && TABLES.filter(t => SCHEMAS[t].legacy).every(t => done.includes(t))) {
-      writes.push({ range: a1(Sheet.META.title, 'A1'), values: Sheet.metaValues() });
-    }
 
     // 順序：先改既有的列（不影響列號）→ 由下往上刪（前面的列號才不會跑掉）→ 最後才新增
     if (writes.length) {
@@ -291,6 +287,27 @@ const Sync = (() => {
       await api(`${Google.SHEETS}/${meta.id}/values/${enc(a1(title, 'A1'))}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
         method: 'POST',
         body: { values: rows },
+      });
+    }
+    // 舊格式要搬的欄最後才搬（前面都是依搬之前的欄位位置寫入）；有舊欄位的表都改好了，才記成新的格式版本
+    const moves = parsed.moves.filter(m => handled(m.table));
+    if (moves.length) {
+      await api(`${Google.SHEETS}/${meta.id}:batchUpdate`, {
+        method: 'POST',
+        body: {
+          requests: moves.map(m => ({
+            moveDimension: {
+              source: { sheetId: meta.sheetIds[m.tab], dimension: 'COLUMNS', startIndex: m.from, endIndex: m.from + 1 },
+              destinationIndex: m.to,
+            },
+          })),
+        },
+      });
+    }
+    if (parsed.version < Sheet.VERSION && TABLES.filter(t => SCHEMAS[t].legacy).every(t => done.includes(t))) {
+      await api(`${Google.SHEETS}/${meta.id}/values:batchUpdate`, {
+        method: 'POST',
+        body: { valueInputOption: 'RAW', data: [{ range: a1(Sheet.META.title, 'A1'), values: Sheet.metaValues() }] },
       });
     }
     return done;

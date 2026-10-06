@@ -162,6 +162,7 @@ test('舊格式（版本 1）：標題改成券商 App 的名稱，成交金額�
     [1, 'F', '成交數量'], [1, 'G', '成交單價'], [1, 'J', '交易稅'], [1, 'H', '應收付金額'],
     [2, 'H', 96637], [3, 'H', 44513], [4, 'H', 35050],
   ]);
+  assert.deepEqual(r.moves, [{ table: 'trades', tab: '交易明細', from: 7, to: 10 }]); // 應收付金額搬到交易稅後面
 });
 
 test('版本 2 的試算表：有人把標題改回「成交金額」也只改名，不會再加一次手續費', () => {
@@ -174,7 +175,25 @@ test('版本 2 的試算表：有人把標題改回「成交金額」也只改�
   assert.equal(r.version, 2);
   assert.equal(r.data.trades[0].settle, 96637);
   assert.deepEqual(r.rewrites.map(c => [c.row, Sheet.colLetter(c.col), c.value]), [[1, 'J', '應收付金額']]);
-  assert.deepEqual(plain(Sheet.metaValues()), [['version', 2]]);
+  assert.deepEqual(r.moves, []); // 已經在最後面
+});
+
+test('版本 2 的試算表：應收付金額在手續費前面時搬到交易稅後面；版本 3 就不搬（長輩自己調的順序不動）', () => {
+  const rows = [
+    ['成員', '成交日期', '交易別', '代號', '證券', '成交數量', '成交單價', '應收付金額', '手續費', '交易稅', 'id'],
+    ['爸爸', Sheet.toSerial('2026-09-01'), '普買', '0050', '元大台灣50', 1000, 96.5, 96637, 137, 0, 't1'],
+  ];
+  const v2 = withTab('交易明細', rows);
+  v2._meta = [['version', 2]];
+  const r2 = plain(Sheet.fromValues(v2));
+  assert.deepEqual(r2.rewrites, []);
+  assert.deepEqual(r2.moves, [{ table: 'trades', tab: '交易明細', from: 7, to: 10 }]);
+  assert.equal(r2.data.trades[0].settle, 96637);
+
+  const v3 = withTab('交易明細', rows);
+  v3._meta = plain(Sheet.metaValues());
+  assert.deepEqual(v3._meta, [['version', 3]]);
+  assert.deepEqual(plain(Sheet.fromValues(v3)).moves, []);
 });
 
 test('基準日股數：各種寫法', () => {
