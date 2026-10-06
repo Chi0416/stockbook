@@ -1,4 +1,5 @@
 // 公告的除權息（js/dividendlist.js，由 tools/update-dividends.mjs 產生）：新增除權息時一鍵帶入（見 form.js 的 renderAnnounce）
+//   ETF 的金額常常除息前幾天才公告：還沒公告時 cash 是 null，表單上只帶入日期
 //   同一次除權息的判斷：代號相同、除權息日相差 7 天以內（日期填錯一兩天也認得出來，不會重複加入）
 //   瀏覽器還拿著舊版程式、沒有資料時什麼都不列
 const Announced = (() => {

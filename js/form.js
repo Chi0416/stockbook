@@ -416,8 +416,13 @@ const Form = (() => {
   const ANNOUNCE_KEYS = ['exDate', 'payDate', 'cash', 'stock'];
   // 今年的日期只寫月/日
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
-  const announceText = r => `${md(r.exDate)} ${r.stock ? '除權息' : '除息'}、${md(r.payDate)} 發放、每股 ${U.fmtNum(r.cash)}` +
-    (r.stock ? `、配股 ${U.fmtNum(r.stock)}` : '');
+  // 金額還沒公告（ETF 常常除息前幾天才公告）：只帶入日期，金額自己填
+  const pending = r => r.cash == null;
+  const announceText = r => (pending(r)
+    ? `${md(r.exDate)} 除息、${md(r.payDate)} 發放（金額待公告）`
+    : `${md(r.exDate)} ${r.stock ? '除權息' : '除息'}、${md(r.payDate)} 發放、每股 ${U.fmtNum(r.cash)}` +
+      (r.stock ? `、配股 ${U.fmtNum(r.stock)}` : ''));
+  const announceKeys = r => (pending(r) ? ['exDate', 'payDate'] : ANNOUNCE_KEYS);
 
   function renderAnnounce() {
     if (!announceEl) return;
@@ -426,7 +431,10 @@ const Form = (() => {
     announced = code ? Announced.forCode(code, Store.list('dividends', 'all')) : [];
     // 表單上的日期和金額剛好是這一筆時標起來
     const now = ANNOUNCE_KEYS.map(k => inputs[fieldIndex(k)]?.value.trim() ?? '');
-    const on = r => ANNOUNCE_KEYS.every((k, j) => (/Date$/.test(k) ? U.parseDate(now[j]) : U.parseNum(now[j])) === r[k]);
+    const on = r => announceKeys(r).every(k => {
+      const v = now[ANNOUNCE_KEYS.indexOf(k)];
+      return (/Date$/.test(k) ? U.parseDate(v) : U.parseNum(v)) === r[k];
+    });
     announceEl.querySelector('.chips').innerHTML = !code ? '<span class="announce-empty">先選股票</span>'
       : !all.length ? '<span class="announce-empty">公告裡沒有這檔，請照股利通知書填</span>'
       // 公告的都記過了（例如一年配一次的個股）：寫出最近一次，才不會以為公告裡沒有
@@ -640,7 +648,7 @@ const Form = (() => {
     const ann = e.target.closest('[data-announce]');
     if (ann) {
       const r = announced[+ann.dataset.announce];
-      ANNOUNCE_KEYS.forEach(k => {
+      announceKeys(r).forEach(k => {
         const i = fieldIndex(k);
         if (i < 0) return;
         inputs[i].value = String(r[k]);
@@ -648,6 +656,7 @@ const Form = (() => {
       });
       renderAllChips();
       renderNotes();
+      if (pending(r)) inputs[fieldIndex('cash')]?.focus(); // 金額待公告：接著填金額
       return;
     }
     // 左右切換（交易別）：已經是這一邊（例如試算表手打的「融資買進」）就保留原本的字

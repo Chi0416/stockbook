@@ -3,7 +3,8 @@
 //   個股：公開資訊觀測站「除權息公告」https://mopsov.twse.com.tw/mops/web/t108sb27（上市、上櫃，依公告的月份查）
 //   用法：node tools/update-dividends.mjs（大約 2 分鐘，公開資訊觀測站每次查詢之間要等一下）
 //   更新後要改 index.html 的版本號（見 tests/version.test.mjs），手機上才會重新下載
-//   不收：金額還沒公告的（ETF 常常先公告日期）、只配股沒有現金的（公告裡沒有發放日）
+//   ETF 常常先公告日期、除息前幾天才公告金額：還沒除息、金額待公告的也收（金額是 null，表單上只帶入日期）
+//   不收：只配股沒有現金的（公告裡沒有發放日）
 import { writeFileSync } from 'node:fs';
 
 const OUT = new URL('../js/dividendlist.js', import.meta.url);
@@ -47,8 +48,9 @@ async function etf() {
     // 證券代號、證券簡稱、除息交易日、收益分配基準日、收益分配發放日、收益分配金額、收益分配金標準、公告年度
     const c = cells(tr);
     if (c.length < 8 || !/^[0-9A-Z]{4,6}$/.test(c[0])) continue;
-    const cash = num(c[5]);
-    if (cash > 0) rows.push({ code: c[0], name: c[1], exDate: roc(c[2]), payDate: roc(c[4]), cash, stock: 0, at: '' });
+    // 金額空白是還沒公告（null）；0 的不收
+    const cash = c[5] === '' ? null : num(c[5]);
+    if (cash === null || cash > 0) rows.push({ code: c[0], name: c[1], exDate: roc(c[2]), payDate: roc(c[4]), cash, stock: 0, at: '' });
   }
   if (rows.length < 300) throw new Error(`ETF 配息只讀到 ${rows.length} 筆，網頁格式可能改了`);
   console.log(`ETF ${rows.length} 筆`);
@@ -93,6 +95,7 @@ async function stocks() {
 const byEvent = new Map();
 for (const r of [...await etf(), ...await stocks()]) {
   if (!r.exDate || !r.payDate || r.exDate < since) continue;
+  if (r.cash === null && r.exDate < today) continue; // 已經除息還沒有金額的不收
   const key = `${r.code} ${r.exDate}`;
   if (!byEvent.has(key) || r.at >= byEvent.get(key).at) byEvent.set(key, r);
 }
@@ -104,7 +107,7 @@ const list = [...byEvent.values()].sort((a, b) => (a.code < b.code ? -1 : a.code
 const lines = list.map(r => `    ${JSON.stringify([r.code, r.name, r.exDate, r.payDate, r.cash, r.stock])},`);
 writeFileSync(OUT, `// 公告的除權息：證交所 ETF 配息、公開資訊觀測站除權息公告（除權息日在 ${since} 以後）
 //   由 tools/update-dividends.mjs 產生，不要手動修改；新增除權息時一鍵帶入（見 announced.js）
-//   每一筆：[代號, 名稱, 除權息日, 發放日, 每股現金股利, 每股股票股利（元）]
+//   每一筆：[代號, 名稱, 除權息日, 發放日, 每股現金股利（還沒公告時是 null）, 每股股票股利（元）]
 const DIVIDEND_LIST = {
   updated: '${today}',
   rows: [
@@ -112,4 +115,4 @@ ${lines.join('\n')}
   ],
 };
 `);
-console.log(`共 ${list.length} 筆，已寫入 js/dividendlist.js`);
+console.log(`共 ${list.length} 筆（金額待公告 ${list.filter(r => r.cash === null).length} 筆），已寫入 js/dividendlist.js`);
