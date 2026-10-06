@@ -94,10 +94,11 @@ const SCHEMAS = {
       { key: 'type',        label: '交易別',       type: 'text', keep: true, suggest: ['現股'] },
       { key: 'code',        label: '代號',         type: 'text', caps: true, pair: 'name', note: codeNote },
       { key: 'name',        label: '證券',         type: 'text' },
-      { key: 'shares',      label: '庫存餘額',     type: 'number' },
-      { key: 'avgCost',     label: '平均成本價格', type: 'number', digits: 2 },
-      { key: 'totalCost',   label: '總投資成本',   type: 'number' },
-      { key: 'cumDividend', label: '累計配息',     type: 'number' },
+      // 計算只用到庫存餘額和總投資成本（見 holdings.js）；平均成本價格、累計配息只是顯示
+      { key: 'shares',      label: '庫存餘額',     type: 'number', hint: '股數，1 張 = 1,000 股' },
+      { key: 'avgCost',     label: '平均成本價格', type: 'number', digits: 2, hint: '不知道寫 0 沒關係' },
+      { key: 'totalCost',   label: '總投資成本',   type: 'number', hint: '照券商 App 的付出成本填' },
+      { key: 'cumDividend', label: '累計配息',     type: 'number', hint: '不知道寫 0 沒關係' },
     ],
     // 核對（見 holdings.js 的 check）：前一期快照（第一期從 0 開始）＋期間的買賣與配股，應該等於這一期的股數
     //   分組標題下方寫整期的結果；對不上的卡片寫出算式；快照裡沒有、但推算還有股數的另外列在分組說明
