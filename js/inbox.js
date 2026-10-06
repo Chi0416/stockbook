@@ -168,14 +168,18 @@ const Inbox = (() => {
     return day === U.today() ? `今天 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
   }
 
+  // 核對和股利算不出來的說明裡有股數，隱藏金額時（見 privacy.js）換成 ＊＊＊
+  const personal = m => /^(check|dividend):/.test(m.key);
+
   function msgHTML(m) {
     const go = m.action && !m.resolved;
     const tag = go ? 'button' : 'div';
+    const body = personal(m) ? Privacy.text(m.body) : m.body;
     return `
       <li>
         <${tag}${go ? ' type="button"' : ''} class="msg${m.read ? '' : ' unread'}${m.resolved ? ' resolved' : ''}" data-key="${U.esc(m.key)}">
           <span class="msg-head"><b>${U.esc(m.title)}</b><time>${timeText(m.at)}</time></span>
-          ${m.body ? `<span class="msg-body">${U.esc(m.body)}</span>` : ''}
+          ${body ? `<span class="msg-body">${U.esc(body)}</span>` : ''}
           ${m.resolved ? '<span class="msg-tag">已解決</span>' : ''}
           ${go ? '<span class="msg-go" aria-hidden="true">›</span>' : ''}
         </${tag}>

@@ -484,6 +484,24 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   overflow-wrap: anywhere;
 }
 .kpi.hero b { font-size: 36px; }
+/* 隱藏金額的眼睛：總投資成本卡片右上角（見 overview.js、privacy.js） */
+.kpi.hero { position: relative; }
+.eye-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.eye-btn:active { background: var(--chip-bg); }
+.eye-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .kpi-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 .kpi-sub.warn { color: var(--danger); }
 .kpi-note { grid-column: 1 / -1; margin: 0 4px; font-size: 12px; color: var(--danger); }
@@ -736,6 +754,49 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 /* ---------- 家庭成員與資料備份 ---------- */
 .section-head { margin: 28px 2px 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .section-head:first-child { margin-top: 0; }
+/* 設定選單的開關（隱藏金額） */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 16px;
+  border: .5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.switch-text { flex: 1; min-width: 0; }
+.switch-text b { display: block; font-weight: 600; }
+.switch-text small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.switch-row input {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 51px;
+  height: 31px;
+  margin: 0;
+  border-radius: 16px;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background .2s;
+}
+.switch-row input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+  transition: transform .2s;
+}
+.switch-row input:checked { background: var(--accent); }
+.switch-row input:checked::before { transform: translateX(20px); }
+.switch-row input:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 .member-list {
   margin: 0;
   padding: 0;

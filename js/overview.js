@@ -4,6 +4,7 @@
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
+//   總投資成本卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
 //   subtitle：標題後面的小字，顯示今天的日期
 const OVERVIEW = {
   title: '持股總覽',
@@ -33,8 +34,22 @@ function createOverview() {
   const listEl = el.querySelector('.list');
 
   keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; renderList(); });
+  // 切換後每一頁都會重畫（app.js），眼睛按鈕也換了一個，焦點放回新的按鈕
+  kpisEl.addEventListener('click', e => {
+    if (!e.target.closest('[data-act="privacy"]')) return;
+    Privacy.toggle();
+    kpisEl.querySelector('[data-act="privacy"]')?.focus({ preventScroll: true });
+  });
 
-  const money = n => U.fmtNum(Math.round(n));
+  // 金額、股數、平均成本：隱藏金額時顯示成 ＊＊＊
+  const money = n => Privacy.num(U.fmtNum(Math.round(n)));
+  const shares = n => Privacy.num(U.fmtNum(n));
+  // 眼睛：看得到金額時是睜開的（按了隱藏），隱藏時加一條斜線（按了顯示）
+  const eyeHTML = () => `
+    <button type="button" class="eye-btn" data-act="privacy" aria-pressed="${Privacy.hidden}"
+      aria-label="${Privacy.hidden ? '顯示金額' : '隱藏金額'}" title="${Privacy.hidden ? '顯示金額' : '隱藏金額'}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>${Privacy.hidden ? '<path d="M4 4l16 16"/>' : ''}</svg>
+    </button>`;
   const byPayDate = (a, b) => (a.payDate < b.payDate ? -1 : a.payDate > b.payDate ? 1 : 0);
   const sumNet = rows => rows.reduce((s, r) => s + (r.net ?? 0), 0);
   const missingNote = rows => {
@@ -89,7 +104,7 @@ function createOverview() {
     }
 
     kpisEl.innerHTML = `
-      <div class="kpi wide hero"><small>總投資成本</small>${cost}</div>
+      <div class="kpi wide hero"><small>總投資成本</small>${eyeHTML()}${cost}</div>
       <div class="kpi">
         <small>今年現金股利</small>
         <b>${money(sumNet(thisYear))}</b>
@@ -123,15 +138,15 @@ function createOverview() {
       const bad = p.parts.filter(x => x.shares < 0);
       if (bad.length) {
         return bad.map(x => `<span class="card-note warn">${U.esc(Store.memberName(x.member))}的股數算出來是負的` +
-          `（${U.esc(x.formula)}），請檢查資料</span>`).join('');
+          `（${U.esc(Privacy.text(x.formula))}），請檢查資料</span>`).join('');
       }
-      const each = p.parts.map(x => `${Store.memberName(x.member)} ${U.fmtNum(x.shares)} 股`).join(' · ');
+      const each = p.parts.map(x => `${Store.memberName(x.member)} ${shares(x.shares)} 股`).join(' · ');
       return `<span class="card-note">${U.esc(each)}</span>`;
     }
     const one = p.parts ? p.parts[0] : p;
     return one.shares < 0
-      ? `<span class="card-note warn">股數算出來是負的（${U.esc(one.formula)}），請檢查資料</span>`
-      : `<span class="card-note">${U.esc(one.changed ? `股數 = ${one.formula}` : `依 ${U.fmtDate(one.snapDate)} 庫存快照`)}</span>`;
+      ? `<span class="card-note warn">股數算出來是負的（${U.esc(Privacy.text(one.formula))}），請檢查資料</span>`
+      : `<span class="card-note">${U.esc(one.changed ? `股數 = ${Privacy.text(one.formula)}` : `依 ${U.fmtDate(one.snapDate)} 庫存快照`)}</span>`;
   }
 
   function cardHTML(p) {
@@ -143,8 +158,8 @@ function createOverview() {
           <span class="card-primary"><small>總投資成本</small><b>${money(p.cost)}</b></span>
         </span>
         <span class="card-grid">
-          <span class="cell"><small>股數</small><span>${U.fmtNum(p.shares)}</span></span>
-          <span class="cell"><small>平均成本</small><span>${avg === null ? '—' : U.fmtNum(avg, 2)}</span></span>
+          <span class="cell"><small>股數</small><span>${shares(p.shares)}</span></span>
+          <span class="cell"><small>平均成本</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
         </span>
         ${noteHTML(p)}
       </div>`;

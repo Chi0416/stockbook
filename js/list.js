@@ -27,7 +27,14 @@ function createList(tableKey, schema, { openForm }) {
   const matchKeyword = r =>
     `${code ? r[code] ?? '' : ''} ${r[title] ?? ''} ${r.member ? Store.memberName(r.member) : ''}`
       .toLowerCase().includes(state.keyword.trim().toLowerCase());
-  const show = (f, v) => U.esc(U.display(f, v)) || '—';
+  // 隱藏金額時（見 privacy.js）自己的數字顯示成 ＊＊＊；公開資訊（public 欄位，例如每股股利）照常
+  //   基準日股數這類每人一格的欄位，全部空白時顯示「自動計算」，不用藏
+  const personal = (f, v) => !f.public && (f.type === 'number'
+    || (f.type === 'perMember' && Object.values(v || {}).some(n => typeof n === 'number')));
+  const show = (f, v) => {
+    const s = U.display(f, v);
+    return U.esc(personal(f, v) ? Privacy.num(s) : s) || '—';
+  };
   // 交易別含「買」「賣」時標上顏色，方便一眼辨識
   const tone = v => /買/.test(v) ? 'buy' : /賣/.test(v) ? 'sell' : '';
   const showMember = () => Store.scope === 'all' && Store.members().length > 1;
@@ -36,9 +43,9 @@ function createList(tableKey, schema, { openForm }) {
   const isPending = r => !!statusOf(r)?.pending;
   // schema.annotate 的補充說明（例如庫存快照的核對結果）：分組標題下方一段、卡片最下方一行
   const groupNoteHTML = n => (n
-    ? `<p class="group-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}${(n.lines || []).map(l => `<span>${U.esc(l)}</span>`).join('')}</p>`
+    ? `<p class="group-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}${(n.lines || []).map(l => `<span>${U.esc(Privacy.text(l))}</span>`).join('')}</p>`
     : '');
-  const cardNoteHTML = n => (n ? `<span class="card-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}</span>` : '');
+  const cardNoteHTML = n => (n ? `<span class="card-note${n.warn ? ' warn' : ''}">${U.esc(Privacy.text(n.text))}</span>` : '');
   const introHTML = schema.intro ? `<p class="list-intro">${U.esc(schema.intro)}</p>` : '';
   // 統計用的欄位：金額是合計的欄位、日期是分組的欄位，代號和名稱同卡片
   const stats = schema.stats && { ...schema.stats, amount: schema.total.key, date: periodKey, code, name: title };
@@ -126,7 +133,7 @@ function createList(tableKey, schema, { openForm }) {
           <span class="card-primary"><small>${pf.label}</small><b>${show(pf, r[primary])}</b></span>
         </span>
         ${grid ? `<span class="card-grid">${grid}</span>` : ''}
-        ${note && r[note] ? `<span class="card-note${r.missing ? ' warn' : ''}">${U.esc(r[note])}</span>` : ''}
+        ${note && r[note] ? `<span class="card-note${r.missing ? ' warn' : ''}">${U.esc(Privacy.text(r[note]))}</span>` : ''}
         ${cardNoteHTML(extra)}
       </button>`;
   }
@@ -145,8 +152,8 @@ function createList(tableKey, schema, { openForm }) {
     return `
       <div class="summary">
         <small>${U.esc(scope)} ${label}合計</small>
-        <b>${U.fmtNum(total(counted))}${pending.length
-          ? `<span class="summary-sep"> / </span><span class="summary-pend">${U.fmtNum(total(pending))}</span>` : ''}</b>
+        <b>${Privacy.num(U.fmtNum(total(counted)))}${pending.length
+          ? `<span class="summary-sep"> / </span><span class="summary-pend">${Privacy.num(U.fmtNum(total(pending)))}</span>` : ''}</b>
         ${pending.length ? `<span class="summary-pending">已入帳 / 待入帳</span>` : ''}
         ${missing ? `<span class="summary-note">另有 ${missing} 筆算不出來，未計入</span>` : ''}
       </div>`;

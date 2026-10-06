@@ -7,12 +7,15 @@
 //   長條以最多的那一行（月份或股票）為滿格：股票多的時候每檔只佔幾 %，照佔比畫會短到看不出差別
 //   已入帳畫實心、待入帳畫淡色，佔比用兩者的合計算；算不出來（金額空白）的不計入，合計卡片上已經有提示
 //   點擊由 list.js 處理（data-act）：period 每月的某一行、code 排行的某一檔、more「其他 N 檔」，點了都留在統計
+//   隱藏金額時（見 privacy.js）金額和佔比都顯示成 ＊＊＊，長條圖照畫（沒有數字，只看得出相對大小）
 const Stats = (() => {
   const TOP = 10;
   const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d ?? ''));
   const codeKey = v => String(v ?? '').trim().toUpperCase();
   const money = n => U.fmtNum(Math.round(n));
   const sum = list => list.reduce((s, e) => s + e.total, 0);
+  // 畫面上的金額、佔比；測試時沒有載入 privacy.js，照常顯示
+  const hide = s => (typeof Privacy === 'undefined' ? s : Privacy.num(s));
 
   // 佔比：四捨五入到整數，不到 0.5% 寫成「<1%」
   function pct(v, total) {
@@ -100,7 +103,7 @@ const Stats = (() => {
       if (!(v > 0)) return `<div class="bar-row empty">${head}<span class="bar-track"></span><span class="bar-value">—</span></div>`;
       return `
         <button type="button" class="bar-row${b.key === selected ? ' on' : ''}" data-act="period" data-value="${U.esc(b.key)}">
-          ${head}<span class="bar-track">${barHTML(b.done, b.pending, (v / max) * 100)}</span><span class="bar-value">${money(v)}</span>
+          ${head}<span class="bar-track">${barHTML(b.done, b.pending, (v / max) * 100)}</span><span class="bar-value">${hide(money(v))}</span>
         </button>`;
     }).join('');
     const legend = t.buckets.some(b => b.pending > 0) ? LEGEND : '';
@@ -113,7 +116,7 @@ const Stats = (() => {
       <span class="rank-item${p.status?.pending ? ' pending' : ''}">
         <span class="ri-date">${U.esc(U.fmtDate(p.date))}</span>
         <span>${p.status ? `<span class="badge ${U.esc(p.status.cls)}">${U.esc(p.status.label)}</span>` : ''}</span>
-        <span class="ri-amount">${money(p.amount)}</span>
+        <span class="ri-amount">${hide(money(p.amount))}</span>
       </span>`).join('')}
     </span>`;
   }
@@ -130,13 +133,13 @@ const Stats = (() => {
     // 「其他 N 檔」是好幾檔加起來的，常常比第一名還多，只寫金額不畫長條，免得看起來像第一名
     const barRow = (e, bar = true) => `
       <span class="rank-bar">
-        <span class="bar-track">${bar ? barHTML(e.done, e.pending, (e.total / max) * 100) : ''}</span><span class="bar-value">${money(e.total)}</span>
+        <span class="bar-track">${bar ? barHTML(e.done, e.pending, (e.total / max) * 100) : ''}</span><span class="bar-value">${hide(money(e.total))}</span>
       </span>`;
     // 全家檢視時列出每人各領多少
     const note = e => {
       if (!showMembers || !e.members.length) return '';
       const each = e.members.slice().sort((a, b) => (order.get(a[0]) ?? 99) - (order.get(b[0]) ?? 99))
-        .map(([m, v]) => `${nameOf(m)} ${money(v)}`).join(' · ');
+        .map(([m, v]) => `${nameOf(m)} ${hide(money(v))}`).join(' · ');
       return `<span class="rank-note">${U.esc(each)}</span>`;
     };
     const rows = shown.map((e, i) => {
@@ -146,7 +149,7 @@ const Stats = (() => {
         <span class="rank-top">
           <span class="rank-no">${i + 1}</span>
           <span class="rank-name"><span class="card-code">${U.esc(e.code)}</span>${U.esc(e.name)}</span>
-          <span class="rank-pct">${pct(e.total, grand)}</span>${CHEVRON}
+          <span class="rank-pct">${hide(pct(e.total, grand))}</span>${CHEVRON}
         </span>
         ${barRow(e)}${note(e)}${isOpen ? payoutsHTML(details(e.code)) : ''}
       </button>`;
@@ -156,13 +159,13 @@ const Stats = (() => {
         <span class="rank-top">
           <span class="rank-no"></span>
           <span class="rank-name">其他 ${rest.length} 檔<small>點一下看全部</small></span>
-          <span class="rank-pct">${pct(sum(rest), grand)}</span>${CHEVRON}
+          <span class="rank-pct">${hide(pct(sum(rest), grand))}</span>${CHEVRON}
         </span>
         ${barRow({ total: sum(rest) }, false)}
       </button>` : '';
     // 選了年份或月份時寫在前面（點了某個月之後，看得出排行換成那個月的）
     const sub = (periodLabel ? `${periodLabel} · ` : '') +
-      (list.length > 3 ? `共 ${list.length} 檔，前 3 檔佔 ${pct(sum(list.slice(0, 3)), grand)}` : `共 ${list.length} 檔`);
+      (list.length > 3 ? `共 ${list.length} 檔，前 3 檔佔 ${hide(pct(sum(list.slice(0, 3)), grand))}` : `共 ${list.length} 檔`);
     return `
       <section class="stats-sec">
         <h3 class="stats-head">${U.esc(title)}</h3>

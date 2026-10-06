@@ -14,6 +14,7 @@ const Form = (() => {
   let chipBoxes = []; // 各欄位的快選按鈕容器（沒有快選的欄位為 null）
   let noteEls = [];   // 各欄位的提醒（schema 的 note；沒有的欄位為 null）
   let initial = [];   // 開啟或連續新增後的欄位值，用來判斷是否有未儲存的內容
+  let lastCode = [];  // 代號欄位上一次的值，用來判斷證券名稱是不是自動帶入的（見 autofillPair）
   let hooks = { toast() {}, onChanged() {} };
 
   // 注音等輸入法選字時按的 Enter 不算
@@ -116,6 +117,7 @@ const Form = (() => {
     renderAllChips();
     renderNotes();
     initial = inputs.map(inp => inp.value);
+    lastCode = inputs.map(inp => inp.value);
   }
 
   // 欄位下方的提醒，依目前填的內容重新產生（例如成交日期已經算在庫存快照裡）
@@ -192,18 +194,30 @@ const Form = (() => {
     inputs.forEach((_, i) => renderChips(i));
   }
 
-  // 輸入已知代號時，證券名稱還空著就自動帶入
+  // 代號對應的證券名稱：先找自己記過的（沿用自己的寫法），再找股票清單（stocklist.js）
+  //   瀏覽器還拿著舊版程式、沒有清單時只找自己記過的
+  function knownName(f, code) {
+    const c = U.toHalf(code).trim().toUpperCase();
+    if (!c) return '';
+    const own = pairSuggestions(f).find(p => p.code.toUpperCase() === c);
+    if (own?.name) return own.name;
+    return (typeof STOCK_LIST !== 'undefined' && STOCK_LIST.names[c]) || '';
+  }
+
+  // 輸入代號時帶入證券名稱：名稱空著，或還是上一個代號帶入的名稱時才換（代號改了，名稱跟著改）
+  //   自己打的名稱不會被蓋掉；lastCode 是各欄位上一次的代號
   function autofillPair(i) {
     const f = ctx.fields[i];
     if (!f.pair) return;
-    const nameInp = inputs[fieldIndex(f.pair)];
-    if (nameInp.value.trim()) return;
-    const code = inputs[i].value.trim().toUpperCase();
-    const hit = pairSuggestions(f).find(p => p.code.toUpperCase() === code);
-    if (hit) {
-      nameInp.value = hit.name;
-      setError(fieldIndex(f.pair), '');
-    }
+    const n = fieldIndex(f.pair);
+    const prev = knownName(f, lastCode[i] ?? '');
+    lastCode[i] = inputs[i].value;
+    const cur = inputs[n].value.trim();
+    if (cur && cur !== prev) return;
+    const name = knownName(f, inputs[i].value);
+    if (name === cur) return;
+    inputs[n].value = name;
+    setError(n, '');
   }
 
   // ---------- 讀取欄位：只擋空白（optional 除外）、非數字、日期格式 ----------
@@ -241,10 +255,12 @@ const Form = (() => {
   // 有多位成員時，加上這筆屬於誰
   const memberOf = rec => (rec.member && Store.members().length > 1 ? Store.memberName(rec.member) : '');
 
+  // 儲存後的提示；隱藏金額時（見 privacy.js）金額顯示成 ＊＊＊，表單裡的欄位照常顯示
   function summary(rec) {
     const { code, title, badge, primary } = ctx.schema.card;
     const pf = ctx.fields.find(f => f.key === primary);
-    return [memberOf(rec), badge && rec[badge], code && rec[code], rec[title], U.display(pf, rec[primary])]
+    const amount = U.display(pf, rec[primary]);
+    return [memberOf(rec), badge && rec[badge], code && rec[code], rec[title], pf.public ? amount : Privacy.num(amount)]
       .filter(Boolean).join(' ');
   }
 
@@ -278,6 +294,7 @@ const Form = (() => {
     renderAllChips();
     renderNotes();
     initial = inputs.map(inp => inp.value);
+    lastCode = inputs.map(inp => inp.value);
     closeBtn.textContent = '完成';
     statusEl.textContent = `已新增：${summary(saved)}（本次共 ${ctx.count} 筆）`;
     statusEl.hidden = false;
@@ -324,8 +341,10 @@ const Form = (() => {
     if (pair && chip.dataset.pair != null) {
       inputs[fieldIndex(pair)].value = chip.dataset.pair;
       setError(fieldIndex(pair), '');
+      lastCode[i] = chip.dataset.v;
     }
     renderAllChips();
+    renderNotes();
   });
 
   fieldsEl.addEventListener('input', e => {

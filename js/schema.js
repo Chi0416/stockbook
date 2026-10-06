@@ -2,6 +2,7 @@
 //   type:        date | text | number | member（家庭成員，表單上是下拉選單，只有一位成員時不顯示）
 //                perMember（每位成員各填一個數字，存成 { 成員 id: 數字 }）
 //   optional:    可以空白
+//   public:      公開資訊（例如每股股利），隱藏金額時照常顯示；其他數字欄位隱藏時顯示成 ＊＊＊（見 privacy.js）
 //   format:      列表卡片上的顯示方式
 //   digits:      數字顯示時最少的小數位數
 //   full:        表單中佔滿整列（預設半列）
@@ -42,6 +43,16 @@ function splitSecurity(r) {
   return m ? { ...r, code: m[1].toUpperCase(), name: m[2].trim() } : { ...r, code: '' };
 }
 
+// 代號在股票清單（stocklist.js）和自己記過的資料裡都查不到時提醒；只是提醒，照樣可以儲存
+//   打到 4 碼才檢查，打字途中不提醒；瀏覽器還拿著舊版程式、沒有清單時不提醒
+function codeNote(v) {
+  const key = c => U.toHalf(c ?? '').trim().toUpperCase();
+  const code = key(v.code);
+  if (code.length < 4 || typeof STOCK_LIST === 'undefined' || STOCK_LIST.names[code]) return '';
+  const known = Object.keys(SCHEMAS).some(t => Store.list(t, 'all').some(r => key(r.code) === code));
+  return known ? '' : '股票清單裡查不到這個代號，請確認有沒有打錯（剛上市的可能還沒收錄）';
+}
+
 const SCHEMAS = {
   trades: {
     title: '交易明細',
@@ -57,13 +68,15 @@ const SCHEMAS = {
         } },
       { key: 'type',   label: '交易別',   type: 'text', suggest: ['普買', '普賣'] },
       { key: 'code',   label: '代號',     type: 'text', caps: true, pair: 'name', suggestFrom: ['snapshots'],
-        hint: '要和庫存快照一致' },
+        hint: '要和庫存快照一致', note: codeNote },
       { key: 'name',   label: '證券',     type: 'text' },
-      { key: 'shares', label: '股數',     type: 'number' },
-      { key: 'price',  label: '單價',     type: 'number', digits: 2 },
-      { key: 'amount', label: '成交金額', type: 'number', full: true },
-      { key: 'fee',    label: '手續費',   type: 'number' },
-      { key: 'tax',    label: '證交稅款', type: 'number' },
+      // 計算只用到股數、成交金額和手續費（買進的成本 = 成交金額 + 手續費，見 holdings.js）；單價、證交稅款只是顯示
+      { key: 'shares', label: '股數',     type: 'number', hint: '1 張 = 1,000 股' },
+      { key: 'price',  label: '單價',     type: 'number', digits: 2, hint: '不知道寫 0 沒關係' },
+      { key: 'amount', label: '成交金額', type: 'number', full: true,
+        hint: '買進可以直接填券商 App 的「付出成本」（已含手續費），手續費就寫 0，才不會多算一次' },
+      { key: 'fee',    label: '手續費',   type: 'number', hint: '不知道寫 0 沒關係' },
+      { key: 'tax',    label: '證交稅款', type: 'number', hint: '不知道寫 0 沒關係' },
     ],
     migrate: splitSecurity,
   },
@@ -79,7 +92,7 @@ const SCHEMAS = {
       { key: 'member',      label: '成員',         type: 'member', keep: true, full: true },
       { key: 'date',        label: '快照日期',     type: 'date', keep: true },
       { key: 'type',        label: '交易別',       type: 'text', keep: true, suggest: ['現股'] },
-      { key: 'code',        label: '代號',         type: 'text', caps: true, pair: 'name' },
+      { key: 'code',        label: '代號',         type: 'text', caps: true, pair: 'name', note: codeNote },
       { key: 'name',        label: '證券',         type: 'text' },
       { key: 'shares',      label: '庫存餘額',     type: 'number' },
       { key: 'avgCost',     label: '平均成本價格', type: 'number', digits: 2 },
@@ -139,12 +152,12 @@ const SCHEMAS = {
     },
     fields: [
       { key: 'code',    label: '代號',     type: 'text', caps: true, pair: 'name', suggestFrom: ['snapshots'],
-        hint: '要和庫存快照一致' },
+        hint: '要和庫存快照一致', note: codeNote },
       { key: 'name',    label: '證券',     type: 'text' },
       { key: 'exDate',  label: '除權息日', type: 'date' },
       { key: 'payDate', label: '發放日',   type: 'date' },
-      { key: 'cash',    label: '現金股利', type: 'number', hint: '每股（元）' },
-      { key: 'stock',   label: '股票股利', type: 'number', default: 0, hint: '每股（元）' },
+      { key: 'cash',    label: '現金股利', type: 'number', public: true, hint: '每股（元）' },
+      { key: 'stock',   label: '股票股利', type: 'number', public: true, default: 0, hint: '每股（元）' },
       { key: 'baseShares', label: '基準日股數', type: 'perMember', optional: true, full: true,
         hint: '選填。照股利通知書填，有填就用這個股數；空白時依庫存快照與交易明細自動推算',
         // 只列出現有成員（成員刪除後，留在舊資料裡的數字不顯示）

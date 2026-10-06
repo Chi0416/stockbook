@@ -187,6 +187,18 @@
   menu.querySelector('[data-act="close"]').addEventListener('click', () => menu.close());
   menu.addEventListener('click', e => { if (e.target === menu) menu.close(); }); // 點背景關閉
 
+  // ---------- 隱藏金額（見 privacy.js）：設定選單的開關；總覽的眼睛在 overview.js ----------
+  const hideSwitch = $('hide-amounts');
+  if (hideSwitch) {
+    hideSwitch.checked = Privacy.hidden;
+    hideSwitch.addEventListener('change', () => Privacy.set(hideSwitch.checked));
+  }
+  Privacy.onChange(hidden => {
+    if (hideSwitch) hideSwitch.checked = hidden;
+    refreshAll();
+    toast(hidden ? '已隱藏金額' : '已顯示金額');
+  });
+
   function download(file) {
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
