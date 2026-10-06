@@ -15,6 +15,7 @@
 //                values 是各欄位填的內容（日期轉成 2025-06-05，看不懂時是空字串）
 //   caps:        手機鍵盤預設大寫（代號可能有英文字母，例如 00679B）
 //   suggest:     表單下方的快選按鈕（預設值 + 最近輸入過的值），只是提示，不限制；試算表的下拉選單也用這個
+//   announce:    （資料表）新增時，選好股票後列出公告的除權息，按一下帶入日期和金額（見 announced.js、form.js）
 //   toggle:      表單上改成左右切換的按鈕（有 toggle 時不顯示 suggest 的快選按鈕）：[{ value, label, tone, match }]
 //                value 是存的值；match 是認得的寫法（試算表手打的「融資買進」也算買進那一邊，沒點的話原本的字照舊）
 //   pair:        成對的快選按鈕：按下後同時填入本欄與 pair 指定的欄位（代號＋證券）
@@ -194,6 +195,7 @@ const SCHEMAS = {
   // 除權息是每檔證券的公告資料，全家共用一份，各成員的股利依各自持股計算
   dividends: {
     title: '除權息',
+    announce: true,
     period: { key: 'exDate', unit: 'month', label: '年月', groupSuffix: '除權息', futureSuffix: '預計除權息' },
     card: { code: 'code', title: 'name', primary: 'cash' },
     // 除權息日當天就算已除息（當天以後買的拿不到這次股利）；已除息還沒發放時金額已確定，不變淡

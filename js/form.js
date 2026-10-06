@@ -18,6 +18,8 @@ const Form = (() => {
   let combos = [];    // 股票欄（代號和證券合成一格，見 buildCombo）
   let captions = [];  // 代號＋證券快選按鈕上方的那行小字
   let calcked = [];   // 各欄位上次自動算出來的數字（schema 的 calc）；欄位還是這個數字時才跟著重算
+  let announceEl = null; // 公告的除權息（新增除權息時，見 renderAnnounce）
+  let announced = [];    // 目前列出的公告
   let hooks = { toast() {}, onChanged() {} };
 
   // 注音等輸入法選字時按的 Enter 不算
@@ -135,6 +137,19 @@ const Form = (() => {
       wraps[Math.max(i, fieldIndex(f.pair))].after(group);
       if (typeof StockSearch !== 'undefined') buildCombo(i); // 瀏覽器還拿著舊版程式時維持兩格
     });
+    // 新增除權息（schema 的 announce）：股票欄和除權息日之間列出公告的除權息
+    announceEl = null;
+    const p = fields.findIndex(f => f.pair);
+    const after = p >= 0 ? inputs[fieldIndex(fields[p].pair) + 1] : null;
+    if (ctx.schema.announce && !rec && after && typeof Announced !== 'undefined') {
+      const at = Announced.updated();
+      announceEl = document.createElement('div');
+      announceEl.className = 'field full announce';
+      announceEl.dataset.pair = p;
+      announceEl.innerHTML = `<div class="chips-caption">公告的除權息，按一下帶入日期和金額${at ? `（資料 ${U.fmtDate(at).slice(5)} 更新）` : ''}</div>` +
+        '<div class="chips"></div>';
+      after.parentElement.before(announceEl);
+    }
     // 修改舊資料：存的數字和算出來的一樣，就當作是自動算的，改了數量、單價會跟著重算；不一樣的是自己填的，不動
     calcked = fields.map(f => {
       const c = f.calc ? f.calc(formValues()) : null;
@@ -395,12 +410,35 @@ const Form = (() => {
     `<button type="button" class="chip${on ? ' on' : ''}" data-i="${i}" data-v="${U.esc(value)}"` +
     `${pairValue == null ? '' : ` data-pair="${U.esc(pairValue)}"`}>${U.esc(text)}</button>`;
 
+  // ---------- 公告的除權息（見 announced.js）：新增除權息時，選好股票就列出這一檔公告的除權息 ----------
+  //   按一下帶入除權息日、發放日、現金股利、股票股利，自己再按儲存；已經記過的那一次不列
+  //   固定一行（左右滑），還沒選股票、公告裡沒有時寫一句話，表單不會跟著變長變短
+  const ANNOUNCE_KEYS = ['exDate', 'payDate', 'cash', 'stock'];
+  // 今年的日期只寫月/日
+  const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
+  const announceText = r => `${md(r.exDate)} ${r.stock ? '除權息' : '除息'}、${md(r.payDate)} 發放、每股 ${U.fmtNum(r.cash)}` +
+    (r.stock ? `、配股 ${U.fmtNum(r.stock)}` : '');
+
+  function renderAnnounce() {
+    if (!announceEl) return;
+    const code = inputs[+announceEl.dataset.pair].value.trim();
+    announced = code ? Announced.forCode(code, Store.list('dividends', 'all')) : [];
+    // 表單上的日期和金額剛好是這一筆時標起來
+    const now = ANNOUNCE_KEYS.map(k => inputs[fieldIndex(k)]?.value.trim() ?? '');
+    const on = r => ANNOUNCE_KEYS.every((k, j) => (/Date$/.test(k) ? U.parseDate(now[j]) : U.parseNum(now[j])) === r[k]);
+    announceEl.querySelector('.chips').innerHTML = !code ? '<span class="announce-empty">先選股票</span>'
+      : !announced.length ? '<span class="announce-empty">公告裡沒有這檔，請照股利通知書填</span>'
+      : announced.slice(0, 6).map((r, k) =>
+        `<button type="button" class="chip${on(r) ? ' on' : ''}" data-announce="${k}">${U.esc(announceText(r))}</button>`).join('');
+  }
+
   function renderChips(i) {
     const f = ctx.fields[i];
     const box = chipBoxes[i];
     if (!box) return;
 
     if (f.pair) {
+      renderAnnounce(); // 股票換了，公告跟著換
       const code = inputs[i].value.trim();
       const name = inputs[fieldIndex(f.pair)].value.trim();
       const all = pairSuggestions(f);
@@ -595,6 +633,20 @@ const Form = (() => {
   dlg.addEventListener('cancel', e => { e.preventDefault(); requestClose(); });
 
   fieldsEl.addEventListener('click', e => {
+    // 公告的除權息：帶入日期和金額
+    const ann = e.target.closest('[data-announce]');
+    if (ann) {
+      const r = announced[+ann.dataset.announce];
+      ANNOUNCE_KEYS.forEach(k => {
+        const i = fieldIndex(k);
+        if (i < 0) return;
+        inputs[i].value = String(r[k]);
+        setError(i, '');
+      });
+      renderAllChips();
+      renderNotes();
+      return;
+    }
     // 左右切換（交易別）：已經是這一邊（例如試算表手打的「融資買進」）就保留原本的字
     const tog = e.target.closest('[data-toggle]');
     if (tog) {

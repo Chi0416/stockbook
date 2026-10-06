@@ -794,6 +794,9 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 .stock-clear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .stock-clear:active { background: var(--chip-bg); }
 .stock-field.picked .stock-clear { display: grid; }
+/* 公告的除權息（新增除權息時，見 form.js 的 renderAnnounce）：固定一行，左右滑；沒有按鈕時寫一句話 */
+.announce .chips { min-height: 34px; align-items: center; }
+.announce-empty { font-size: 13px; color: var(--muted); }
 /* 股票欄的下拉選單：蓋在下面的欄位上，表單不會跟著變長變短；一列一檔，代號對齊 */
 .stock-box { position: relative; }
 .stock-box .chips-group {
