@@ -139,7 +139,9 @@ const Inbox = (() => {
   }
 
   function checkAnnounced() {
-    if (typeof Announced === 'undefined') return; // 瀏覽器還拿著舊版程式時略過
+    // 瀏覽器還拿著舊版程式、公告資料還沒下載好時略過：已經有的訊息不動（不然每次打開 App 都會先標成已解決、再變回未讀）
+    //   下載好之後 app.js 會再核對一次
+    if (typeof Announced === 'undefined' || (Announced.ready && !Announced.ready())) return;
     const recorded = Store.list('dividends', 'all');
     reconcile('announce-diff:', Announced.diffs(recorded).map(x => ({
       key: `announce-${x.key}`,

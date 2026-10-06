@@ -1,0 +1,43 @@
+# 公告的除權息（shared/dividends.json）：每個工作天晚上抓證交所、公開資訊觀測站，有變才存進 repo，網站跟著更新
+#   抓資料的程式：tools/update-dividends.mjs；App 打開時自己下載新的（見 js/announced.js），不用改版本號
+#   要馬上更新：Actions →「更新除權息公告」→ Run workflow（或 gh workflow run update-dividends.yml）
+#   失敗時 GitHub 會寄信通知；App 照常用上一份資料
+name: 更新除權息公告
+on:
+  schedule:
+    - cron: '17 14 * * 1-5' # 台灣時間週一到週五 22:17（整點時 GitHub 比較忙，排程容易延後）
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: update-dividends
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: 抓公告
+        run: node tools/update-dividends.mjs
+      - name: 檢查格式
+        run: node --test tests/dividendlist.test.mjs
+      - name: 有變才存進 repo
+        run: |
+          if git diff --quiet -- shared/dividends.json; then
+            echo "公告資料沒有變"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add shared/dividends.json
+          git commit -q -m "更新除權息公告資料（$(TZ=Asia/Taipei date +%m/%d)）"
+          # 剛好有人也推了東西時，接在最新的後面再推（只改這一個檔案，不會衝突）
+          for i in 1 2 3; do
+            git push -q && exit 0
+            sleep 10
+            git pull -q --rebase
+          done
+          exit 1

@@ -23,15 +23,17 @@ const LIST = {
   ],
 };
 
-function app() {
-  const ls = {};
+//   ls：這台裝置的 localStorage（同一個 ls 再開一次＝重新打開 App）
+//   download：不直接放公告資料，改成打開 App 之後才下載（假的 fetch，下載到的是 LIST）
+function app({ ls = {}, download = false } = {}) {
   const ctx = vm.createContext({
     localStorage: { getItem: k => (k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); }, removeItem: k => { delete ls[k]; } },
     alert: () => {},
+    fetch: async () => ({ ok: true, text: async () => JSON.stringify(LIST) }),
   });
   const run = f => vm.runInContext(readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8'), ctx, { filename: `${f}.js` });
   ['util', 'schema', 'storage', 'holdings', 'views'].forEach(run);
-  vm.runInContext(`const DIVIDEND_LIST = ${JSON.stringify(LIST)};`, ctx);
+  if (!download) vm.runInContext(`const DIVIDEND_LIST = ${JSON.stringify(LIST)};`, ctx);
   ['announced', 'inbox'].forEach(run);
   return vm.runInContext('({ Store, Inbox, Announced })', ctx);
 }
@@ -40,8 +42,8 @@ const plain = v => JSON.parse(JSON.stringify(v));
 const open = (Inbox, prefix) => plain(Inbox.list()).filter(m => m.key.startsWith(prefix) && !m.resolved);
 
 // 一年前買了 0056 和 2480
-function family() {
-  const t = app();
+function family(opts) {
+  const t = app(opts);
   t.Store.add('trades', { member: 'me', date: day(-300), type: '普買', code: '0056', name: '元大高股息', shares: 1000, price: 1, fee: 0, tax: 0, settle: 1000 });
   t.Store.add('trades', { member: 'me', date: day(-300), type: '普買', code: '2480', name: '敦陽科', shares: 1000, price: 1, fee: 0, tax: 0, settle: 1000 });
   return t;
@@ -116,4 +118,22 @@ test('記的跟公告不一樣：保留我的之後不再問；金額待公告�
   Announced.keep(list[0].buttons[1].action.keys);
   Inbox.checkData();
   assert.equal(open(Inbox, 'announce-diff:').length, 0);
+});
+
+test('重新打開 App、公告資料還沒下載好時，已經有的訊息不動（不會先標成已解決、再變回未讀）', async () => {
+  const ls = {};
+  const first = family({ ls });
+  first.Inbox.checkData();
+  first.Inbox.markAllRead();
+  const announce = t => plain(t.Inbox.list()).filter(m => m.key.startsWith('announce-'));
+  const before = announce(first);
+  assert.equal(before.length, 1);
+
+  const again = app({ ls, download: true });
+  again.Inbox.checkData(); // 打開時先核對一次，這時公告資料還在下載
+  assert.deepEqual(announce(again), before);
+  await again.Announced.load();
+  again.Inbox.checkData(); // 下載好之後再核對一次（app.js 收到 onChange 時）
+  assert.deepEqual(announce(again), before);
+  assert.equal(again.Inbox.unread(), 0);
 });

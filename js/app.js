@@ -445,6 +445,17 @@
   Inbox.checkData();
   Store.onChange(() => Inbox.checkData());
 
+  // 公告的除權息（見 announced.js）：打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫、比對公告
+  if (typeof Announced !== 'undefined' && Announced.load) {
+    Announced.onChange(() => {
+      refreshAll();
+      Inbox.checkData();
+    });
+    Announced.load();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) Announced.refresh(); });
+    window.addEventListener('online', () => Announced.refresh());
+  }
+
   // 試算表的資料讀回來之後，全部重畫
   Sync.init({
     toast,

@@ -29,6 +29,10 @@ const Form = (() => {
 
   function init(h) {
     hooks = h;
+    // 公告資料下載好（或換了新的）時，表單開著就重列公告
+    if (typeof Announced !== 'undefined' && Announced.onChange) {
+      Announced.onChange(() => { if (dlg.open) renderAnnounce(); });
+    }
   }
 
   // perMember 欄位（例如基準日股數）展開成每位成員各一格數字欄位；
@@ -142,12 +146,10 @@ const Form = (() => {
     const p = fields.findIndex(f => f.pair);
     const after = p >= 0 ? inputs[fieldIndex(fields[p].pair) + 1] : null;
     if (ctx.schema.announce && !rec && after && typeof Announced !== 'undefined') {
-      const at = Announced.updated();
       announceEl = document.createElement('div');
       announceEl.className = 'field full announce';
       announceEl.dataset.pair = p;
-      announceEl.innerHTML = `<div class="chips-caption">公告的除權息，按一下帶入日期和金額${at ? `（資料 ${U.fmtDate(at).slice(5)} 更新）` : ''}</div>` +
-        '<div class="chips"></div>';
+      announceEl.innerHTML = '<div class="chips-caption"></div><div class="chips"></div>';
       after.parentElement.before(announceEl);
     }
     // 修改舊資料：存的數字和算出來的一樣，就當作是自動算的，改了數量、單價會跟著重算；不一樣的是自己填的，不動
@@ -413,6 +415,7 @@ const Form = (() => {
   // ---------- 公告的除權息（見 announced.js）：新增除權息時，選好股票就列出這一檔公告的除權息 ----------
   //   按一下帶入除權息日、發放日、現金股利、股票股利，自己再按儲存；已經記過的那一次不列
   //   固定一行（左右滑），還沒選股票、公告裡沒有、公告的都記過了時寫一句話，表單不會跟著變長變短
+  //   公告資料是 App 打開時才下載的：還沒下載好、下載失敗時也寫一句話，下載好了再重列（見 init）
   const ANNOUNCE_KEYS = ['exDate', 'payDate', 'cash', 'stock'];
   // 今年的日期只寫月/日
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
@@ -426,6 +429,17 @@ const Form = (() => {
 
   function renderAnnounce() {
     if (!announceEl) return;
+    const at = Announced.updated();
+    const state = Announced.state ? Announced.state() : 'ready'; // 瀏覽器還拿著舊版程式時一定有資料
+    announceEl.querySelector('.chips-caption').textContent =
+      `公告的除權息，按一下帶入日期和金額${at ? `（資料 ${U.fmtDate(at).slice(5)} 更新）` : ''}`;
+    if (state !== 'ready') {
+      announced = [];
+      announceEl.querySelector('.chips').innerHTML = state === 'loading'
+        ? '<span class="announce-empty">公告資料下載中…</span>'
+        : '<span class="announce-empty">公告資料下載不了，請確認網路；或照股利通知書填</span>';
+      return;
+    }
     const code = inputs[+announceEl.dataset.pair].value.trim();
     const all = code ? Announced.forCode(code) : [];
     announced = code ? Announced.forCode(code, Store.list('dividends', 'all')) : [];

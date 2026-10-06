@@ -1,13 +1,14 @@
-// 產生 js/dividendlist.js：公告的除權息（近 13 個月和之後已經公告的），新增除權息時一鍵帶入（見 announced.js）
+// 產生 shared/dividends.json：公告的除權息（近 13 個月和之後已經公告的），新增除權息時一鍵帶入（見 announced.js）
 //   ETF：證交所 ETF 配息 https://www.twse.com.tw/zh/ETFortune/dividendList（只有上市 ETF，網頁表格）
 //   個股：公開資訊觀測站「除權息公告」https://mopsov.twse.com.tw/mops/web/t108sb27（上市、上櫃，依公告的月份查）
-//   用法：node tools/update-dividends.mjs（大約 2 分鐘，公開資訊觀測站每次查詢之間要等一下）
-//   更新後要改 index.html 的版本號（見 tests/version.test.mjs），手機上才會重新下載
+//   GitHub 每個工作天晚上自動執行，有變才存進 repo（見 .github/workflows/update-dividends.yml）；App 打開時自己下載，不用改版本號
+//     要馬上更新：GitHub 的 Actions →「更新除權息公告」→ Run workflow（或 gh workflow run update-dividends.yml）
+//     本機也可以執行（node tools/update-dividends.mjs，大約 3 分鐘），但不要自己推這個檔案，免得和 GitHub 推的衝突
 //   ETF 常常先公告日期、除息前幾天才公告金額：還沒除息、金額待公告的也收（金額是 null，表單上只帶入日期）
 //   不收：只配股沒有現金的（公告裡沒有發放日）
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const OUT = new URL('../js/dividendlist.js', import.meta.url);
+const OUT = new URL('../shared/dividends.json', import.meta.url);
 const UA = { 'User-Agent': 'Mozilla/5.0' };
 const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
 const [y, m] = today.split('-').map(Number);
@@ -104,15 +105,26 @@ for (const code of ['0056', '2330']) {
 }
 
 const list = [...byEvent.values()].sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : a.exDate < b.exDate ? 1 : -1));
-const lines = list.map(r => `    ${JSON.stringify([r.code, r.name, r.exDate, r.payDate, r.cash, r.stock])},`);
-writeFileSync(OUT, `// 公告的除權息：證交所 ETF 配息、公開資訊觀測站除權息公告（除權息日在 ${since} 以後）
-//   由 tools/update-dividends.mjs 產生，不要手動修改；新增除權息時一鍵帶入（見 announced.js）
-//   每一筆：[代號, 名稱, 除權息日, 發放日, 每股現金股利（還沒公告時是 null）, 每股股票股利（元）]
-const DIVIDEND_LIST = {
-  updated: '${today}',
-  rows: [
-${lines.join('\n')}
-  ],
-};
+const rows = list.map(r => [r.code, r.name, r.exDate, r.payDate, r.cash, r.stock]);
+
+// 上一份：比這次多很多時不存（可能是網站出問題、只抓到一部分；平常一天只會少幾筆到幾十筆）
+//   公告沒變時日期也不改，GitHub 才不會每天存一份一樣的
+let prev = null;
+try { prev = JSON.parse(readFileSync(OUT, 'utf8')); } catch (_) {}
+if (prev?.rows?.length && rows.length < prev.rows.length * 0.9) {
+  throw new Error(`這次只有 ${rows.length} 筆，上一份有 ${prev.rows.length} 筆，少太多了，可能沒抓完整，先不存`);
+}
+const same = !!prev && JSON.stringify(prev.rows) === JSON.stringify(rows);
+const updated = same ? prev.updated : today;
+
+mkdirSync(new URL('./', OUT), { recursive: true });
+writeFileSync(OUT, `{
+  "note": "公告的除權息：證交所 ETF 配息、公開資訊觀測站除權息公告（除權息日在 13 個月內，和之後已經公告的）。由 tools/update-dividends.mjs 產生，GitHub 每個工作天晚上自動更新，不要手動修改。每一筆：[代號, 名稱, 除權息日, 發放日, 每股現金股利（還沒公告時是 null）, 每股股票股利（元）]",
+  "updated": "${updated}",
+  "rows": [
+${rows.map(r => `    ${JSON.stringify(r)}`).join(',\n')}
+  ]
+}
 `);
-console.log(`共 ${list.length} 筆（金額待公告 ${list.filter(r => r.cash === null).length} 筆），已寫入 js/dividendlist.js`);
+console.log(`共 ${rows.length} 筆（金額待公告 ${list.filter(r => r.cash === null).length} 筆），` +
+  (same ? `和上一份一樣（${updated} 更新）` : '已寫入 shared/dividends.json'));

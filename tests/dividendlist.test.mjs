@@ -1,12 +1,10 @@
-// 公告的除權息（js/dividendlist.js，由 tools/update-dividends.mjs 產生）的格式：node --test tests/*.test.mjs
+// 公告的除權息（shared/dividends.json，由 tools/update-dividends.mjs 產生）的格式：node --test tests/*.test.mjs
+//   GitHub 每天自動更新時也會先跑這個，格式不對就不存（見 .github/workflows/update-dividends.yml）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 
-const ctx = vm.createContext({});
-vm.runInContext(readFileSync(new URL('../js/dividendlist.js', import.meta.url), 'utf8'), ctx, { filename: 'dividendlist.js' });
-const { updated, rows } = JSON.parse(JSON.stringify(vm.runInContext('DIVIDEND_LIST', ctx)));
+const { updated, rows } = JSON.parse(readFileSync(new URL('../shared/dividends.json', import.meta.url), 'utf8'));
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 test('ETF 和個股都有，個股上市、上櫃都有', () => {
