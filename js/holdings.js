@@ -2,8 +2,9 @@
 //   還沒有快照時從 0 開始，加總全部的交易與配股（假設交易紀錄完整）
 //   股數：買進加、賣出減（交易別含「買」或「賣」）
 //         配股在發放日入帳，依除權息日前的持股計算：股票股利每股 X 元 = 每股配 X/10 股，不足一股不計
-//   成本：移動平均，和券商算法一致
+//   成本：移動平均，和券商 App 的付出成本算法一致
 //         買進加上應收付金額（已含手續費）；賣出依平均成本扣除（平均成本不變）；配股不增加成本
+//         除息日扣掉現金股利（除息日之前的持股 × 每股現金股利，元以下四捨五入，和累積現金股利一樣）
 //   各頁之間用代號對應（不分大小寫）
 //   每位成員分開推算（各自有自己的快照日期）；全家時再依代號合計
 const Holdings = (() => {
@@ -12,15 +13,20 @@ const Holdings = (() => {
   const byDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   const signed = t => (/買/.test(t.type) ? num(t.shares) : /賣/.test(t.type) ? -num(t.shares) : 0);
 
-  // 成員某代號在 inRange(日期) 範圍內的事件，依日期排序：交易（成交日）、配股入帳（發放日）
-  // 除權息日必須早於發放日，資料填反時略過（也避免無限遞迴）
+  // 成員某代號在 inRange(日期) 範圍內的事件，依日期排序：交易（成交日）、配股入帳（發放日）、除息（除權息日）
+  //   同一天的除息排最前面：除息日當天買的領不到、當天賣的領得到
+  // 除權息日必須早於發放日，資料填反時略過配股（也避免無限遞迴）
   function eventsFor(member, code, inRange) {
+    const dividends = Store.list('dividends').filter(d => codeOf(d) === code);
     return [
+      ...dividends
+        .filter(d => num(d.cash) > 0 && inRange(d.exDate))
+        .map(d => ({ date: d.exDate, cash: d })),
       ...Store.list('trades', member)
         .filter(t => codeOf(t) === code && inRange(t.date))
         .map(t => ({ date: t.date, trade: t })),
-      ...Store.list('dividends')
-        .filter(d => codeOf(d) === code && num(d.stock) > 0 && d.exDate < d.payDate && inRange(d.payDate))
+      ...dividends
+        .filter(d => num(d.stock) > 0 && d.exDate < d.payDate && inRange(d.payDate))
         .map(d => ({ date: d.payDate, stock: d })),
     ].sort(byDate);
   }
@@ -58,7 +64,12 @@ const Holdings = (() => {
     const events = eventsFor(member, code, inRange);
 
     events.forEach(e => {
-      if (e.trade) {
+      if (e.cash) {
+        // 除息：股數不變，付出成本扣掉這次的現金股利（基準日股數有手動填就用它）
+        const manual = e.cash.baseShares?.[member];
+        const held = typeof manual === 'number' ? manual : shares;
+        if (held > 0) cost -= Math.round(U.round(num(e.cash.cash) * held));
+      } else if (e.trade) {
         const t = e.trade;
         const n = num(t.shares);
         if (!name) name = t.name;
@@ -231,7 +242,8 @@ const Holdings = (() => {
         let sold = 0;
         let bonus = 0;
         eventsFor(member, code, inRange).forEach(e => {
-          if (!e.trade) bonus += bonusShares(member, code, e.stock);
+          if (e.stock) bonus += bonusShares(member, code, e.stock);
+          else if (!e.trade) return; // 除息不影響股數
           else if (signed(e.trade) > 0) bought += signed(e.trade);
           else sold -= signed(e.trade);
         });

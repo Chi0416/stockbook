@@ -238,7 +238,7 @@ test('連結：雲端沒有試算表時建立一份，寫入這台裝置的資�
   assert.deepEqual(fake.files[id].appProperties, { stockbook: '1' });
   assert.deepEqual(fake.values(id, '庫存快照')[1].slice(0, 5), ['我', d.Sheet.toSerial('2026-08-31'), '現股', '0056', '元大高股息']);
   assert.deepEqual(fake.values(id, '成員'), [['名稱', 'id'], ['我', 'me']]);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 3]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 4]]);
 });
 
 test('新增、修改、刪除都寫回試算表的同一列', async () => {
@@ -263,7 +263,7 @@ test('新增、修改、刪除都寫回試算表的同一列', async () => {
   assert.equal(d.Sync.state().pending, 0);
 });
 
-test('舊格式的試算表（版本 1）：同步一次改好標題、成交金額換算成應收付金額、搬到最後面，記成版本 3；再同步不會重複換算', async () => {
+test('舊格式的試算表（版本 1）：同步一次改好標題、成交金額換算成應收付金額、搬到最後面，記成新的格式版本；再同步不會重複換算', async () => {
   const { fake, d, id } = await linked();
   const old = ['成員', '成交日期', '交易別', '代號', '證券', '股數', '單價', '成交金額', '手續費', '證交稅款', 'id'];
   fake.sheet(id, '交易明細').grid = [
@@ -282,7 +282,7 @@ test('舊格式的試算表（版本 1）：同步一次改好標題、成交金
     ['我', d.Sheet.toSerial('2026-10-05'), '普賣', '2501', '國建', 6000, 20.4, 174, 367, 121859, 's1'],
   ];
   assert.deepEqual(fake.values(id, '交易明細'), expected);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 3]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 4]]);
   assert.deepEqual(plain(d.Store.list('trades', 'all')).map(t => [t.id, t.settle, 'amount' in t]), [['b1', 163933, false], ['s1', 121859, false]]);
 
   await d.Sync.syncNow();
@@ -306,7 +306,7 @@ test('版本 2 的試算表：應收付金額搬到交易稅後面；同一次�
     ['我', d.Sheet.toSerial('2026-08-03'), '普買', '00878', '國泰永續高股息', 5000, 32.74, 233, 0, 163933, 'b1'],
     ['我', d.Sheet.toSerial('2026-09-01'), '普買', '0050', '元大台灣50', 1000, 96.5, 137, 0, 96637, t.id],
   ]);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 3]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 4]]);
   assert.deepEqual(plain(d.Store.list('trades', 'all')).map(x => x.settle).sort(), [163933, 96637].sort());
 });
 
@@ -435,16 +435,16 @@ test('分頁被刪掉：補建回來並寫入這台裝置的資料', async () =>
 
 test('標題被改壞：App 的資料保留、修改留著，顯示要改回哪個標題', async () => {
   const { fake, d, id } = await linked();
-  fake.setCell(id, '庫存快照', 1, 5, '股數'); // 「庫存餘額」被改名
+  fake.setCell(id, '庫存快照', 1, 5, '股數'); // 「昨日餘額」被改名
   const s = d.Store.list('snapshots', 'all')[0];
   d.Store.update('snapshots', s.id, { shares: 1 });
   await d.Sync.syncNow();
   const st = d.Sync.state();
   assert.equal(st.pending, 1);
   assert.equal(d.Store.list('snapshots', 'all')[0].shares, 1);
-  assert.deepEqual(plain(st.problems).map(d.Sheet.problemText), ['庫存快照第 1 列：找不到「庫存餘額」欄，請把標題改回「庫存餘額」']);
+  assert.deepEqual(plain(st.problems).map(d.Sheet.problemText), ['庫存快照第 1 列：找不到「昨日餘額」欄，請把標題改回「昨日餘額」']);
   // 改回來之後就正常
-  fake.setCell(id, '庫存快照', 1, 5, '庫存餘額');
+  fake.setCell(id, '庫存快照', 1, 5, '昨日餘額');
   await d.Sync.syncNow();
   assert.equal(d.Sync.state().pending, 0);
   assert.deepEqual(plain(d.Sync.state().problems), []);
@@ -604,17 +604,17 @@ test('登出：沒有網路時不清資料，告訴使用者原因', async () =>
 
 test('登出：試算表的標題被改壞時不清資料（就算沒有待同步的修改），告訴使用者要改回哪個標題', async () => {
   const { fake, d, id } = await linked();
-  fake.setCell(id, '庫存快照', 1, 5, '股數'); // 「庫存餘額」被改名：這張表 App 的資料比試算表完整
+  fake.setCell(id, '庫存快照', 1, 5, '股數'); // 「昨日餘額」被改名：這張表 App 的資料比試算表完整
   await d.Sync.logout();
   assert.equal(d.Sync.state().pending, 0);
   assert.equal(d.alerts.length, 1);
   assert.match(d.alerts[0], /「庫存快照」的資料沒辦法寫回試算表/);
-  assert.match(d.alerts[0], /請把標題改回「庫存餘額」/);
+  assert.match(d.alerts[0], /請把標題改回「昨日餘額」/);
   assert.equal(d.loggedOut.count, 0);
   assert.equal(d.Store.list('snapshots', 'all')[0].shares, 42000);
 
   // 改回來之後就可以登出
-  fake.setCell(id, '庫存快照', 1, 5, '庫存餘額');
+  fake.setCell(id, '庫存快照', 1, 5, '昨日餘額');
   await d.Sync.logout();
   assert.equal(d.loggedOut.count, 1);
 });

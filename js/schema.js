@@ -75,6 +75,13 @@ function settleOf(v) {
   return /買/.test(v.type) ? amount + (n('fee') || 0) : amount - (n('fee') || 0) - (n('tax') || 0);
 }
 
+// 成本均價的試算：付出成本 ÷ 昨日餘額，取到小數第 2 位（和券商 App 的綜合損益一樣）
+function avgCostOf(v) {
+  const shares = U.parseNum(String(v.shares ?? ''));
+  const cost = U.parseNum(String(v.totalCost ?? ''));
+  return shares && cost !== null ? U.round(cost / shares, 2) : null;
+}
+
 // 代號在股票清單（stocklist.js）和自己記過的資料裡都查不到時提醒；只是提醒，照樣可以儲存
 //   打到 4 碼才檢查，打字途中不提醒；瀏覽器還拿著舊版程式、沒有清單時不提醒
 function codeNote(v) {
@@ -128,20 +135,25 @@ const SCHEMAS = {
     title: '庫存快照',
     period: { key: 'date', unit: 'day', label: '快照日期' },
     defaultLatest: true,
-    intro: '這裡是照券商抄的庫存，不會跟著交易明細改變。加上之後的買賣算出來的目前持股，請看「總覽」。',
-    empty: '還沒有庫存快照<br>點右上角「＋ 新增」，照券商 App 的庫存一檔填一筆<br>不填也可以，總覽會直接加總交易明細',
+    intro: '這裡是照券商 App「綜合損益」抄的庫存，不會跟著交易明細改變。加上之後的買賣、除息算出來的目前持股，請看「總覽」。',
+    empty: '還沒有庫存快照<br>點右上角「＋ 新增」，照券商 App 的「綜合損益」一檔填一筆<br>不填也可以，總覽會直接加總交易明細',
     card: { code: 'code', title: 'name', badge: 'type', primary: 'totalCost' },
     fields: [
       { key: 'member',      label: '成員',         type: 'member', keep: true, full: true },
-      { key: 'date',        label: '快照日期',     type: 'date', keep: true },
-      { key: 'type',        label: '交易別',       type: 'text', keep: true, suggest: ['現股'] },
-      { key: 'code',        label: '代號',         type: 'text', caps: true, pair: 'name', note: codeNote },
-      { key: 'name',        label: '證券',         type: 'text' },
-      // 計算只用到庫存餘額和總投資成本（見 holdings.js）；平均成本價格、累計配息只是顯示
-      { key: 'shares',      label: '庫存餘額',     type: 'number', hint: '股數，1 張 = 1,000 股' },
-      { key: 'avgCost',     label: '平均成本價格', type: 'number', digits: 2, hint: '不知道寫 0 沒關係' },
-      { key: 'totalCost',   label: '總投資成本',   type: 'number', hint: '照券商 App 的付出成本填' },
-      { key: 'cumDividend', label: '累計配息',     type: 'number', hint: '不知道寫 0 沒關係' },
+      // 「昨日餘額」是前一個交易日收盤後的股數：快照日期填前一個交易日，今天的買賣才不會被當成已經算在快照裡
+      { key: 'date',      label: '快照日期', type: 'date', keep: true, hint: '照「昨日餘額」抄的話，填前一個交易日' },
+      { key: 'type',      label: '類別',     type: 'text', keep: true, suggest: ['現股'], was: ['交易別'] },
+      { key: 'code',      label: '代號',     type: 'text', caps: true, pair: 'name', note: codeNote },
+      { key: 'name',      label: '證券',     type: 'text' },
+      // 名稱和順序照券商 App 的「綜合損益」；以前的「累計配息」拿掉了（券商的付出成本已經扣掉股利）
+      // 計算只用到昨日餘額和付出成本（見 holdings.js）；成本均價只是顯示
+      { key: 'shares',    label: '昨日餘額', type: 'number', hint: '股數，1 張 = 1,000 股', was: ['庫存餘額'] },
+      { key: 'totalCost', label: '付出成本', type: 'number', hint: '已含手續費、扣掉已除息的現金股利，照抄就好', was: ['總投資成本'] },
+      { key: 'avgCost',   label: '成本均價', type: 'number', digits: 2, optional: true, was: ['平均成本價格'], calc: avgCostOf,
+        note(v) {
+          const c = avgCostOf(v);
+          return c !== null && U.parseNum(v.avgCost ?? '') === c ? '自動算的（付出成本 ÷ 昨日餘額），請自行和券商 App 核對' : '';
+        } },
     ],
     // 核對（見 holdings.js 的 check）：前一期快照（第一期從 0 開始）＋期間的買賣與配股，應該等於這一期的股數
     //   分組標題下方寫整期的結果；對不上的卡片寫出算式；快照裡沒有、但推算還有股數的另外列在分組說明

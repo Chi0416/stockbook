@@ -289,7 +289,8 @@ const Sync = (() => {
         body: { values: rows },
       });
     }
-    // 舊格式要搬的欄最後才搬（前面都是依搬之前的欄位位置寫入）；有舊欄位的表都改好了，才記成新的格式版本
+    // 舊格式要搬的欄最後才搬（前面都是依搬之前的欄位位置寫入）；每張表都讀得到、改好了，才記成新的格式版本
+    //   沒記成新版本也沒關係：改過的標題下次照新標題讀、搬過的欄位置已經對了，不會重複換算或搬動
     const moves = parsed.moves.filter(m => handled(m.table));
     if (moves.length) {
       await api(`${Google.SHEETS}/${meta.id}:batchUpdate`, {
@@ -304,7 +305,7 @@ const Sync = (() => {
         },
       });
     }
-    if (parsed.version < Sheet.VERSION && TABLES.filter(t => SCHEMAS[t].legacy).every(t => done.includes(t))) {
+    if (parsed.version < Sheet.VERSION && TABLES.every(t => done.includes(t))) {
       await api(`${Google.SHEETS}/${meta.id}/values:batchUpdate`, {
         method: 'POST',
         body: { valueInputOption: 'RAW', data: [{ range: a1(Sheet.META.title, 'A1'), values: Sheet.metaValues() }] },

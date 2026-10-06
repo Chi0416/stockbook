@@ -10,9 +10,11 @@
 //     2（2026-10-06）：照券商 App 改成「成交數量、成交單價、手續費、交易稅、應收付金額」
 //        版本 1 的試算表同步時改標題、成交金額換算成應收付金額（見 schema.js 的 toSettle），寫好後記成版本 2
 //        只有版本 1 才換算：之後有人把標題改回「成交金額」，也只是改名，不會再加一次手續費
-//     3（2026-10-06）：交易明細的應收付金額搬到最後面（交易稅後面），和表單的順序一樣（見 settleMove）
+//     3（2026-10-06）：交易明細的應收付金額搬到最後面（交易稅後面），和表單的順序一樣（見 MOVES）
+//     4（2026-10-06）：庫存快照照券商 App 的「綜合損益」改名（交易別→類別、庫存餘額→昨日餘額、總投資成本→付出成本、
+//        平均成本價格→成本均價），成本均價搬到付出成本後面；「累計配息」拿掉了，舊的那一欄留著不動（App 不讀）
 const Sheet = (() => {
-  const VERSION = 3;
+  const VERSION = 4;
   const ID = 'id';
   const MEMBERS = { title: '成員', sheetId: 1, headers: ['名稱', ID] };
   const META = { title: '_meta', sheetId: 99 };
@@ -254,7 +256,7 @@ const Sheet = (() => {
       ctx.headers[tab][at[f.key].col] = f.label;
       ctx.rewrites.push({ table: t, tab, row: 1, col: at[f.key].col, value: f.label });
     });
-    settleMove(t, tab, at, ctx);
+    columnMoves(t, tab, at, ctx);
     // 格式版本 1 的舊欄位：值讀進舊的 key，由 migrate 換算後寫回那一格
     const legacy = ctx.version < 2 ? SCHEMAS[t].legacy || {} : {};
     const converted = fields.filter(f => at[f.key] && legacy[at[f.key].label]);
@@ -287,12 +289,20 @@ const Sheet = (() => {
     return rows;
   }
 
-  // 格式版本 3：交易明細的應收付金額在手續費、交易稅前面時（版本 1、2 的位置），搬到它們後面
-  //   記在 moves（{ table, tab, from, to }，to 是搬之前的欄位位置）；資料依標題對應，搬不搬都讀得到
-  function settleMove(t, tab, at, ctx) {
-    if (ctx.version >= 3 || t !== 'trades' || !at.settle) return;
-    const last = Math.max(at.fee?.col ?? -1, at.tax?.col ?? -1);
-    if (at.settle.col < last) ctx.moves.push({ table: t, tab, from: at.settle.col, to: last + 1 });
+  // 格式升級時要搬的欄，讓試算表的順序和表單一樣（資料依標題對應，搬不搬都讀得到）
+  //   版本比 before 舊的試算表：key 那一欄在 after 那幾欄前面時，搬到它們後面；之後長輩自己調的順序不動
+  //   每個分頁最多搬一欄（同一次搬兩欄時，第二欄的位置會跑掉）
+  const MOVES = [
+    { before: 3, table: 'trades', key: 'settle', after: ['fee', 'tax'] },     // 應收付金額搬到交易稅後面
+    { before: 4, table: 'snapshots', key: 'avgCost', after: ['totalCost'] },  // 成本均價搬到付出成本後面
+  ];
+
+  // 記在 moves（{ table, tab, from, to }，to 是搬之前的欄位位置）
+  function columnMoves(t, tab, at, ctx) {
+    MOVES.filter(m => m.table === t && ctx.version < m.before && at[m.key]).forEach(m => {
+      const last = Math.max(...m.after.map(k => at[k]?.col ?? -1));
+      if (at[m.key].col < last) ctx.moves.push({ table: t, tab, from: at[m.key].col, to: last + 1 });
+    });
   }
 
   // _meta 分頁記的格式版本；沒有這個分頁（或讀不到）時當作版本 1
@@ -308,7 +318,7 @@ const Sheet = (() => {
   //   rowOf[分頁][id] 是那一筆在第幾列；headers[分頁] 是標題列（補上 id 欄之後）
   //   broken 是缺分頁或缺欄位的資料表：讀到的資料不完整，同步時不要拿來取代 App 裡的資料
   //   version 是試算表目前的格式版本；rewrites 是舊格式要改寫的格子 [{ table, tab, row, col, value }]（改名的標題、換算過的金額）
-  //   moves 是舊格式要搬的欄（見 settleMove）
+  //   moves 是舊格式要搬的欄（見 MOVES）
   // knownMembers：「成員」分頁讀不到時改用這份名單（App 裡現有的成員），名字才對得回原本的 id
   function fromValues(byTitle, knownMembers = []) {
     const ctx = {

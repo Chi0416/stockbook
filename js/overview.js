@@ -1,7 +1,8 @@
 // 持股總覽：上方 KPI、下方目前每檔持股；全部由其他資料表推算，不另外儲存
 //   庫存總市值：每檔股數 × 現價（現價見下面），抓不到現價的那幾檔不算進去
 //     損益試算 = 市值 − 那幾檔的付出成本；報酬率 = 損益 ÷ 那幾檔的付出成本（沒有扣掉賣出的手續費和證交稅）
-//     總付出成本：目前持股的成本加總（持股與成本的算法見 holdings.js：最近一期快照＋之後的交易，沒有快照時加總全部交易）
+//     付出成本和券商 App 一樣已經扣掉除息的現金股利，所以損益包含領到的股利
+//     總付出成本：目前持股的成本加總（持股與成本的算法見 holdings.js：最近一期快照＋之後的交易和除息，沒有快照時加總全部交易）
 //   今年現金股利：今年已發放（發放日 ≤ 今天）的股息淨值加總
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
@@ -44,7 +45,7 @@ function createOverview() {
     kpisEl.querySelector('[data-act="privacy"]')?.focus({ preventScroll: true });
   });
 
-  // 金額、股數、平均成本：隱藏金額時顯示成 ＊＊＊
+  // 金額、股數、成本均價：隱藏金額時顯示成 ＊＊＊
   const money = n => Privacy.num(U.fmtNum(Math.round(n)));
   const shares = n => Privacy.num(U.fmtNum(n));
   // 眼睛：看得到金額時是睜開的（按了隱藏），隱藏時加一條斜線（按了顯示）
@@ -232,11 +233,11 @@ function createOverview() {
       <div class="card static">
         <span class="card-top">
           <span class="card-title"><span class="card-code">${U.esc(p.code)}</span>${U.esc(p.name)}</span>
-          <span class="card-primary"><small>總投資成本</small><b>${money(p.cost)}</b></span>
+          <span class="card-primary"><small>付出成本</small><b>${money(p.cost)}</b></span>
         </span>
         <span class="card-grid">
           <span class="cell"><small>股數</small><span>${shares(p.shares)}</span></span>
-          <span class="cell"><small>平均成本</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
+          <span class="cell"><small>成本均價</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
           ${q ? `<span class="cell"><small>現價</small><span>${typeof price === 'number' ? U.fmtNum(U.round(price, 2)) : '—'}</span></span>` : ''}
         </span>
         ${noteHTML(p)}

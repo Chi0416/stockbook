@@ -22,7 +22,7 @@ const sample = () => ({
     { id: 't2', member: 'm2', date: '2026-09-15', type: '普賣', code: '00878', name: '國泰永續高股息', shares: 2000, price: 22.31, fee: 63, tax: 44, settle: 44513 },
   ],
   snapshots: [
-    { id: 's1', member: 'm1', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, avgCost: 32.56, totalCost: 1367670, cumDividend: 434810 },
+    { id: 's1', member: 'm1', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, totalCost: 934800, avgCost: 22.26 },
   ],
   dividends: [
     { id: 'd1', code: '00919', name: '群益台灣精選高息', exDate: '2026-09-16', payDate: '2026-10-15', cash: 0.866, stock: 0 },
@@ -78,10 +78,10 @@ test('寫出的格式：中文標題、成員寫名字、日期是序號、代�
 
 test('手動輸入：空白列略過、沒有 id 的列補上 id', () => {
   const r = plain(Sheet.fromValues(withTab('庫存快照', [
-    ['成員', '快照日期', '交易別', '代號', '證券', '庫存餘額', '平均成本價格', '總投資成本', '累計配息', 'id'],
+    ['成員', '快照日期', '類別', '代號', '證券', '昨日餘額', '付出成本', '成本均價', 'id'],
     [],
     ['', '', ''],
-    ['媽媽', '2026/9/30', '現股', '00878', '國泰永續高股息', '1,000', '22.5', '22500', '0'],
+    ['媽媽', '2026/9/30', '現股', '00878', '國泰永續高股息', '1,000', '22500', '22.5'],
   ])));
   assert.deepEqual(r.problems, []);
   assert.equal(r.data.snapshots.length, 1);
@@ -91,7 +91,7 @@ test('手動輸入：空白列略過、沒有 id 的列補上 id', () => {
   assert.equal(s.shares, 1000);
   assert.equal(s.avgCost, 22.5);
   assert.equal(r.idFixes.length, 1);
-  assert.deepEqual({ ...r.idFixes[0], id: undefined }, { tab: '庫存快照', row: 4, col: 9, id: undefined });
+  assert.deepEqual({ ...r.idFixes[0], id: undefined }, { tab: '庫存快照', row: 4, col: 8, id: undefined });
   assert.equal(r.idFixes[0].id, s.id);
 });
 
@@ -191,9 +191,29 @@ test('版本 2 的試算表：應收付金額在手續費前面時搬到交易�
   assert.equal(r2.data.trades[0].settle, 96637);
 
   const v3 = withTab('交易明細', rows);
-  v3._meta = plain(Sheet.metaValues());
-  assert.deepEqual(v3._meta, [['version', 3]]);
+  v3._meta = [['version', 3]];
   assert.deepEqual(plain(Sheet.fromValues(v3)).moves, []);
+});
+
+test('舊的庫存快照（版本 4 以前）：標題改成券商 App「綜合損益」的名稱，成本均價搬到付出成本後面，累計配息那一欄不動', () => {
+  const v = withTab('庫存快照', [
+    ['成員', '快照日期', '交易別', '代號', '證券', '庫存餘額', '平均成本價格', '總投資成本', '累計配息', 'id'],
+    ['爸爸', Sheet.toSerial('2026-08-31'), '現股', '0056', '元大高股息', 42000, 32.56, 1367670, 434810, 's1'],
+  ]);
+  v._meta = [['version', 3]];
+  const r = plain(Sheet.fromValues(v));
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.broken, []);
+  const s = r.data.snapshots[0];
+  assert.deepEqual([s.type, s.shares, s.avgCost, s.totalCost, 'cumDividend' in s], ['現股', 42000, 32.56, 1367670, false]);
+  assert.deepEqual(r.rewrites.map(c => [c.row, Sheet.colLetter(c.col), c.value]), [
+    [1, 'C', '類別'], [1, 'F', '昨日餘額'], [1, 'H', '付出成本'], [1, 'G', '成本均價'],
+  ]);
+  assert.deepEqual(r.moves, [{ table: 'snapshots', tab: '庫存快照', from: 6, to: 8 }]);
+  // 寫回時依改名後的標題對應欄位，累計配息（App 不認得）不動
+  const row = plain(Sheet.encodeRow('snapshots', s, sample().members, r.headers['庫存快照']));
+  assert.deepEqual(row.slice(5), [42000, 32.56, 1367670, null, 's1']);
+  assert.deepEqual(plain(Sheet.metaValues()), [['version', 4]]);
 });
 
 test('基準日股數：各種寫法', () => {
@@ -245,10 +265,10 @@ test('股票股利空白時用預設值 0', () => {
 test('缺欄位、缺分頁、沒有 id 欄', () => {
   const v = asRead(plain(Sheet.toValues(sample())));
   delete v['除權息'];
-  v['庫存快照'] = [['成員', '快照日期', '代號', '證券', '庫存餘額', '平均成本價格', '總投資成本', '累計配息']];
+  v['庫存快照'] = [['成員', '快照日期', '代號', '證券', '昨日餘額', '付出成本', '成本均價', '累計配息']];
   const r = plain(Sheet.fromValues(v));
   assert.deepEqual(r.problems.map(Sheet.problemText), [
-    '庫存快照第 1 列：找不到「交易別」欄，請把標題改回「交易別」',
+    '庫存快照第 1 列：找不到「類別」欄，請把標題改回「類別」',
     '除權息：找不到「除權息」分頁或分頁是空的',
   ]);
   assert.deepEqual(r.addIdHeader, [{ tab: '庫存快照', col: 8 }]);
