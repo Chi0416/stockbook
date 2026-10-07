@@ -223,7 +223,7 @@ const Inbox = (() => {
     return day === U.today() ? `今天 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
   }
 
-  // 核對和股利算不出來的說明裡有股數，隱藏金額時（見 privacy.js）換成 ＊＊＊
+  // 核對和股利算不出來的說明裡有股數，隱藏金額時（見 privacy.js）換成 ***
   const personal = m => /^(check|dividend):/.test(m.key);
 
   // 勾選清單（還沒記的除權息）：預設全部勾選

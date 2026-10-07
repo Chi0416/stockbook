@@ -27,7 +27,7 @@ function createList(tableKey, schema, { openForm }) {
   const matchKeyword = r =>
     `${code ? r[code] ?? '' : ''} ${r[title] ?? ''} ${r.member ? Store.memberName(r.member) : ''}`
       .toLowerCase().includes(state.keyword.trim().toLowerCase());
-  // 隱藏金額時（見 privacy.js）自己的數字顯示成 ＊＊＊；公開資訊（public 欄位，例如每股股利）照常
+  // 隱藏金額時（見 privacy.js）自己的數字顯示成 ***；公開資訊（public 欄位，例如每股股利）照常
   //   基準日股數這類每人一格的欄位，全部空白時顯示「自動計算」，不用藏
   const personal = (f, v) => !f.public && (f.type === 'number'
     || (f.type === 'perMember' && Object.values(v || {}).some(n => typeof n === 'number')));

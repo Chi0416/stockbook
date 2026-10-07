@@ -46,7 +46,7 @@ function createOverview() {
     kpisEl.querySelector('[data-act="privacy"]')?.focus({ preventScroll: true });
   });
 
-  // 金額、股數、成本均價：隱藏金額時顯示成 ＊＊＊
+  // 金額、股數、成本均價：隱藏金額時顯示成 ***
   const money = n => Privacy.num(U.fmtNum(Math.round(n)));
   const shares = n => Privacy.num(U.fmtNum(n));
   // 眼睛：看得到金額時是睜開的（按了隱藏），隱藏時加一條斜線（按了顯示）
@@ -228,19 +228,22 @@ function createOverview() {
     return `<p class="list-intro">${U.esc(parts.join('；'))}</p>`;
   }
 
+  // 右上角是市值（股數 × 現價；沒連結 Google、抓不到現價時是「—」），付出成本放在下面一排，和券商 App 對帳用
   function cardHTML(p, q) {
     const avg = p.shares > 0 ? U.round(p.cost / p.shares, 2) : null;
     const price = q?.quotes[p.code];
+    const priced = typeof price === 'number' && p.shares > 0;
     return `
       <div class="card static">
         <span class="card-top">
           <span class="card-title"><span class="card-code">${U.esc(p.code)}</span>${U.esc(p.name)}</span>
-          <span class="card-primary"><small>付出成本</small><b>${money(p.cost)}</b></span>
+          <span class="card-primary"><small>市值</small><b>${priced ? money(p.shares * price) : '—'}</b></span>
         </span>
         <span class="card-grid">
           <span class="cell"><small>股數</small><span>${shares(p.shares)}</span></span>
           <span class="cell"><small>成本均價</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
           ${q ? `<span class="cell"><small>現價</small><span>${typeof price === 'number' ? U.fmtNum(U.round(price, 2)) : '—'}</span></span>` : ''}
+          <span class="cell"><small>付出成本</small><span>${money(p.cost)}</span></span>
         </span>
         ${noteHTML(p)}
       </div>`;

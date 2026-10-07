@@ -583,7 +583,7 @@ const Form = (() => {
   // 有多位成員時，加上這筆屬於誰
   const memberOf = rec => (rec.member && Store.members().length > 1 ? Store.memberName(rec.member) : '');
 
-  // 儲存後的提示；隱藏金額時（見 privacy.js）金額顯示成 ＊＊＊，表單裡的欄位照常顯示
+  // 儲存後的提示；隱藏金額時（見 privacy.js）金額顯示成 ***，表單裡的欄位照常顯示
   //   沒有主要數字的表（觀察清單）只寫代號和名稱
   function summary(rec) {
     const { code, title, badge, primary } = ctx.schema.card;
