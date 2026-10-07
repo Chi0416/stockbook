@@ -150,7 +150,7 @@ function createYield(mode) {
       cell('配息', info ? info.freq : '—'),
     ];
     if (!watch) cells.push(cell('成本殖利率', info?.count && r.avg > 0 ? Privacy.num(pct(info.sum / r.avg)) : '—'));
-    const tag = r.held ? '<span class="badge member">持有</span>' : '';
+    const tag = r.held ? '<span class="card-tags"><span class="badge member">持有</span></span>' : '';
     return `
       <div class="card yield-card${watch ? '' : ' static'}"${watch ? ` data-id="${U.esc(r.id)}"` : ''}>
         <span class="card-top">

@@ -123,13 +123,13 @@ function createList(tableKey, schema, { openForm }) {
     const tag = badge
       ? r[badge] && { label: r[badge], cls: tone(r[badge]) }
       : st;
-    // 標籤放在名稱開頭（同一段文字裡），名稱太長換行時標籤留在第一行
+    // 標籤自己一行放在名稱上面，和右邊的小字標題對齊；名稱有整行可以用
     const tags = (withMember && r.member ? `<span class="badge member">${U.esc(Store.memberName(r.member))}</span>` : '') +
       (tag ? `<span class="badge ${tag.cls}">${U.esc(tag.label)}</span>` : '');
     return `
       <button type="button" class="card${r.id === state.flashId ? ' flash' : ''}${st?.pending ? ' pending' : ''}" data-id="${U.esc(r.id)}">
         <span class="card-top">
-          <span class="card-title">${tags}${code && r[code] ? `<span class="card-code">${U.esc(r[code])}</span>` : ''}${U.esc(r[title])}</span>
+          <span class="card-title">${tags ? `<span class="card-tags">${tags}</span>` : ''}${code && r[code] ? `<span class="card-code">${U.esc(r[code])}</span>` : ''}${U.esc(r[title])}</span>
           <span class="card-primary"><small>${pf.label}</small><b>${show(pf, r[primary])}</b></span>
         </span>
         ${grid ? `<span class="card-grid">${grid}</span>` : ''}
