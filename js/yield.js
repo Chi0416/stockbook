@@ -8,6 +8,8 @@
 //   殖利率 = 近一年現金股利 ÷ 現價（大字）
 //   暴力年化 = 最近一次 × 一年配幾次 ÷ 現價（卡片右下那一格，深色字；年配的和殖利率一樣）
 //     比殖利率高，代表最近一次配得比近一年平均多；成本殖利率（÷ 成本均價）只是看起來高，2026-10-07 拿掉，換成這一格
+//     最近一次比近一年平均每次多：紅色，少：綠色（台股的習慣，和總覽的損益一樣）；一樣多、近一年只配一次（年配）：不上色
+//       和平均每次比，不直接比殖利率：剛上市、近一年次數不夠時，殖利率會少算，暴力年化一定比較高
 //   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js，持股和觀察清單的代號都抓）；沒連結時沒有現價，算不出殖利率
 const YIELD_PAGE = { title: '殖利率' };
 
@@ -38,6 +40,7 @@ const Yield = (() => {
   // 一檔的配息：公告和自己記的都沒有時回傳 null
   //   { per: 一年配幾次, freq: 月配…, recent: 近一年算進去的那幾次, count, sum: 合計,
   //     last: 最近一次（recent 的第一筆）, annual: 最近一次 × 一年配幾次（暴力年化 ÷ 現價之前）,
+  //     trend: 最近一次比近一年平均每次多是 1、少是 -1，一樣或近一年只有一次是 0,
   //     next: 下一次（除權息日在今天之後、最近的）,
   //     short: 近一年的次數比一年配的次數少（上市未滿一年、改了配息頻率）, announced: 公告資料裡有這一檔 }
   function info(code, { today = U.today(), own = Store.list('dividends', 'all') } = {}) {
@@ -58,6 +61,7 @@ const Yield = (() => {
       sum: U.round(recent.reduce((s, r) => s + r.cash, 0), 6),
       last: recent[0] || null,
       annual: recent.length ? U.round(recent[0].cash * per, 6) : null,
+      trend: recent.length > 1 ? Math.sign(U.round(recent[0].cash - recent.reduce((s, r) => s + r.cash, 0) / recent.length, 6)) : 0,
       next: upcoming[upcoming.length - 1] || null,
       short: recent.length < per,
       announced: Announced.forCode(code).length > 0,
@@ -154,7 +158,7 @@ function createYield(mode) {
       cell('現價', price ? U.fmtNum(price, 2) : '—'),
       cell('近一年股利', info?.count ? `${U.fmtNum(info.sum)} 元` : '—'),
       cell('配息', info ? info.freq : '—'),
-      cell('暴力年化', ya === null ? '—' : pct(ya), ' strong'),
+      cell('暴力年化', ya === null ? '—' : pct(ya), ` strong${ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`),
     ];
     const tag = r.held ? '<span class="card-tags"><span class="badge member">持有</span></span>' : '';
     return `
@@ -170,7 +174,7 @@ function createYield(mode) {
 
   // 列表上面的說明：怎麼算、現價和公告資料是什麼時候的
   function introHTML(q, all) {
-    const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，比殖利率高代表最近一次配得比近一年平均多。' +
+    const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。' +
       (watch ? '你也持有的標「持有」，點一檔可以移除。' : '');
     let price = '連結 Google 帳號後，會用 GOOGLEFINANCE 抓現價算殖利率';
     if (q) {

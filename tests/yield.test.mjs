@@ -55,6 +55,7 @@ test('季配：近一年取最近 4 次，下一次金額待公告', () => {
   // 暴力年化：最近一次 1.35 × 4
   assert.equal(r.last.exDate, '2026-07-21');
   assert.equal(r.annual, 5.4);
+  assert.equal(r.trend, 1); // 1.35 比近一年平均 1.0205 多：紅色
   assert.deepEqual(r.next, { exDate: '2026-10-22', payDate: '2026-11-11', cash: null, own: false });
   assert.equal(r.announced, true);
 });
@@ -86,6 +87,7 @@ test('年配：今年的還沒除息時，去年的（晚了幾天）還算得�
   assert.equal(r.count, 1);
   assert.equal(r.sum, 1.2);
   assert.equal(r.annual, 1.2); // 年配的暴力年化和近一年一樣
+  assert.equal(r.trend, 0);     // 近一年只有一次：不上色
   assert.equal(r.next.exDate, '2026-07-28');
   // 除息之後換成今年的
   assert.equal(info('2884', '2026-07-28').sum, 1.5);
@@ -98,6 +100,7 @@ test('月配：資料有 13 個月時只取最近 12 次', () => {
   assert.equal(r.recent.at(-1).exDate, '2025-10-17');
   assert.equal(r.sum, 1.2);
   assert.equal(r.annual, 1.2); // 0.1 × 12
+  assert.equal(r.trend, 0);    // 每個月一樣多：不上色
   assert.equal(r.short, false);
 });
 
@@ -108,6 +111,7 @@ test('剛上市的月配：近一年只有 1 次，標出次數不夠', () => {
   assert.equal(r.short, true);
   assert.equal(r.sum, 0.12);
   assert.equal(r.annual, 1.44); // 次數不夠時，暴力年化比較接近實際：0.12 × 12
+  assert.equal(r.trend, 0);      // 只配過一次：不上色
   assert.deepEqual(r.next, { exDate: '2026-10-08', payDate: '2026-11-05', cash: 0.12, own: false });
 });
 
@@ -126,6 +130,24 @@ test('公告資料裡沒有（上櫃 ETF）：用自己記的除權息算；都�
   assert.equal(r.sum, 1.48);
   assert.ok(r.recent.every(x => x.own));
   assert.equal(info('00679B', '2026-10-06'), null);
+});
+
+test('紅綠：和近一年平均每次比；剛上市次數不夠、每次一樣多時不會因為殖利率少算就變紅', () => {
+  const own = [
+    // 季配，越配越少：最近一次 0.5，近一年平均 0.825
+    { code: '1234', exDate: '2026-09-15', cash: 0.5 },
+    { code: '1234', exDate: '2026-06-15', cash: 0.8 },
+    { code: '1234', exDate: '2026-03-16', cash: 1 },
+    { code: '1234', exDate: '2025-12-15', cash: 1 },
+    // 剛上市的月配，配過兩次一樣多：暴力年化比殖利率高，但不是在成長
+    { code: '5678', exDate: '2026-09-20', cash: 0.12 },
+    { code: '5678', exDate: '2026-08-20', cash: 0.12 },
+  ];
+  assert.equal(info('1234', '2026-10-06', own).trend, -1);
+  const r = info('5678', '2026-10-06', own);
+  assert.equal(r.short, true);
+  assert.ok(r.annual > r.sum);
+  assert.equal(r.trend, 0);
 });
 
 test('近一年沒有配息：近一年和暴力年化都算不出來', () => {

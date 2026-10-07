@@ -321,6 +321,9 @@ body:has(dialog[open]) { overflow: hidden; }
 /* 暴力年化那一格：名稱和數字都用深色字，和旁邊幾格分得出來 */
 .yield-card .cell.strong small { color: var(--text-2); }
 .yield-card .cell.strong span { color: var(--text); font-weight: 600; }
+/* 最近一次比近一年平均多：紅色，少：綠色（台股的習慣，和總覽的損益一樣） */
+.yield-card .cell.strong.up span { color: var(--buy); }
+.yield-card .cell.strong.down span { color: var(--sell); }
 
 /* 推算頁面上方的合計：大號襯線數字 */
 .summary {
