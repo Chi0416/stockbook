@@ -52,6 +52,9 @@ test('季配：近一年取最近 4 次，下一次金額待公告', () => {
   assert.equal(r.count, 4);
   assert.equal(r.sum, 4.082);
   assert.equal(r.short, false);
+  // 暴力年化：最近一次 1.35 × 4
+  assert.equal(r.last.exDate, '2026-07-21');
+  assert.equal(r.annual, 5.4);
   assert.deepEqual(r.next, { exDate: '2026-10-22', payDate: '2026-11-11', cash: null, own: false });
   assert.equal(r.announced, true);
 });
@@ -82,6 +85,7 @@ test('年配：今年的還沒除息時，去年的（晚了幾天）還算得�
   assert.equal(r.freq, '年配');
   assert.equal(r.count, 1);
   assert.equal(r.sum, 1.2);
+  assert.equal(r.annual, 1.2); // 年配的暴力年化和近一年一樣
   assert.equal(r.next.exDate, '2026-07-28');
   // 除息之後換成今年的
   assert.equal(info('2884', '2026-07-28').sum, 1.5);
@@ -93,6 +97,7 @@ test('月配：資料有 13 個月時只取最近 12 次', () => {
   assert.equal(r.count, 12);
   assert.equal(r.recent.at(-1).exDate, '2025-10-17');
   assert.equal(r.sum, 1.2);
+  assert.equal(r.annual, 1.2); // 0.1 × 12
   assert.equal(r.short, false);
 });
 
@@ -102,6 +107,7 @@ test('剛上市的月配：近一年只有 1 次，標出次數不夠', () => {
   assert.equal(r.count, 1);
   assert.equal(r.short, true);
   assert.equal(r.sum, 0.12);
+  assert.equal(r.annual, 1.44); // 次數不夠時，暴力年化比較接近實際：0.12 × 12
   assert.deepEqual(r.next, { exDate: '2026-10-08', payDate: '2026-11-05', cash: 0.12, own: false });
 });
 
@@ -120,6 +126,13 @@ test('公告資料裡沒有（上櫃 ETF）：用自己記的除權息算；都�
   assert.equal(r.sum, 1.48);
   assert.ok(r.recent.every(x => x.own));
   assert.equal(info('00679B', '2026-10-06'), null);
+});
+
+test('近一年沒有配息：近一年和暴力年化都算不出來', () => {
+  const r = info('2884', '2027-09-01');
+  assert.equal(r.count, 0);
+  assert.equal(r.last, null);
+  assert.equal(r.annual, null);
 });
 
 test('只配股的不算現金股利', () => {

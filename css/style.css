@@ -318,6 +318,9 @@ body:has(dialog[open]) { overflow: hidden; }
 /* 殖利率卡片（見 yield.js）：右上角的殖利率大一點；下面的說明一行一句 */
 .card-primary b.yield-pct { font-size: 20px; }
 .yield-card .card-note + .card-note { margin-top: 3px; }
+/* 暴力年化那一格：名稱和數字都用深色字，和旁邊幾格分得出來 */
+.yield-card .cell.strong small { color: var(--text-2); }
+.yield-card .cell.strong span { color: var(--text); font-weight: 600; }
 
 /* 推算頁面上方的合計：大號襯線數字 */
 .summary {

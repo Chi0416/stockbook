@@ -1,13 +1,13 @@
 // 殖利率：底部「殖利率」一格裡的兩頁，上方切換「庫存｜觀察」，同一套欄位，預設殖利率由高到低
 //   庫存：目前的持股（跟著上面選的成員）；觀察：觀察清單（全家共用，見 schema.js 的 watch），你也持有的標「持有」
-//   排序：依殖利率（高的在前，算不出來的放最後）或依代號
+//   排序：依殖利率、依暴力年化（高的在前，算不出來的放最後）或依代號
 //   近一年現金股利：公告的除權息（shared/dividends.json，見 announced.js）加上自己記的除權息，照配息頻率取最近幾次（月配 12、季配 4、半年配 2、年配 1）
 //     公告的除權息是 App 打開時才下載的：還沒下載好、下載不了時，卡片寫出來，下載好之後整頁重畫（app.js）
 //     不直接抓 365 天：除息日每年差一兩天時，去年同一期還在範圍內，會多算一次
 //     同一次（代號相同、除權息日差 7 天內，見 announced.js）以公告為主；公告的金額還沒出來、或公告裡沒有的，用自己記的
 //   殖利率 = 近一年現金股利 ÷ 現價（大字）
-//   照最近一次換算一年 = 最近一次 × 一年配幾次 ÷ 現價（卡片下面的小字；年配的和殖利率一樣，不寫）
-//   成本殖利率 = 近一年現金股利 ÷ 成本均價（只有庫存有）；成本均價已經扣掉領過的股利（和券商一樣），所以會比用買價算的高
+//   暴力年化 = 最近一次 × 一年配幾次 ÷ 現價（卡片右下那一格，深色字；年配的和殖利率一樣）
+//     比殖利率高，代表最近一次配得比近一年平均多；成本殖利率（÷ 成本均價）只是看起來高，2026-10-07 拿掉，換成這一格
 //   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js，持股和觀察清單的代號都抓）；沒連結時沒有現價，算不出殖利率
 const YIELD_PAGE = { title: '殖利率' };
 
@@ -36,7 +36,9 @@ const Yield = (() => {
   }
 
   // 一檔的配息：公告和自己記的都沒有時回傳 null
-  //   { per: 一年配幾次, freq: 月配…, recent: 近一年算進去的那幾次, count, sum: 合計, next: 下一次（除權息日在今天之後、最近的）,
+  //   { per: 一年配幾次, freq: 月配…, recent: 近一年算進去的那幾次, count, sum: 合計,
+  //     last: 最近一次（recent 的第一筆）, annual: 最近一次 × 一年配幾次（暴力年化 ÷ 現價之前）,
+  //     next: 下一次（除權息日在今天之後、最近的）,
   //     short: 近一年的次數比一年配的次數少（上市未滿一年、改了配息頻率）, announced: 公告資料裡有這一檔 }
   function info(code, { today = U.today(), own = Store.list('dividends', 'all') } = {}) {
     const list = events(code, own);
@@ -54,6 +56,8 @@ const Yield = (() => {
       recent,
       count: recent.length,
       sum: U.round(recent.reduce((s, r) => s + r.cash, 0), 6),
+      last: recent[0] || null,
+      annual: recent.length ? U.round(recent[0].cash * per, 6) : null,
       next: upcoming[upcoming.length - 1] || null,
       short: recent.length < per,
       announced: Announced.forCode(code).length > 0,
@@ -76,6 +80,7 @@ function createYield(mode) {
     <div class="filterbar">
       <select class="f-sort" aria-label="排序">
         <option value="yield">依殖利率</option>
+        <option value="annual">依暴力年化</option>
         <option value="code">依代號</option>
       </select>
       <input class="f-keyword" type="search" placeholder="搜尋代號或證券" autocomplete="off" enterkeyhint="search">
@@ -104,7 +109,7 @@ function createYield(mode) {
   function rows() {
     const h = Holdings.all(U.today());
     const held = (h ? h.positions : []).filter(p => p.shares > 0);
-    if (!watch) return held.map(p => ({ code: p.code, name: p.name, avg: p.cost / p.shares }));
+    if (!watch) return held.map(p => ({ code: p.code, name: p.name }));
     const mine = new Set(held.map(p => p.code));
     return Store.list('watch').map(r => ({ id: r.id, code: key(r.code), name: r.name, held: mine.has(key(r.code)) }));
   }
@@ -113,14 +118,18 @@ function createYield(mode) {
     const info = Yield.info(r.code);
     const p = q?.quotes[r.code];
     const price = typeof p === 'number' && p > 0 ? p : null;
-    return { ...r, info, price, y: info?.count && price ? info.sum / price : null };
+    return {
+      ...r, info, price,
+      y: info?.count && price ? info.sum / price : null,    // 殖利率（近一年）
+      ya: info?.annual && price ? info.annual / price : null, // 暴力年化
+    };
   }
 
   // 公告的除權息還沒下載好（App 打開時才下載，見 announced.js）：不能說「公告資料裡沒有這檔」
   const waiting = () => (Announced.state() === 'failed' ? '下載不了公告的除權息（連上網路後會再試）' : '公告的除權息還在下載');
 
-  // 卡片下面的說明：資料從哪來、算不出來的原因、最近一次換算一年、下一次除息
-  function notes({ info, price }) {
+  // 卡片下面的說明：資料從哪來、算不出來的原因、最近一次和下一次除息
+  function notes({ info }) {
     const pub = Announced.ready();
     if (!info) return [pub ? '公告資料裡沒有這檔（上櫃 ETF、興櫃沒有資料）' : waiting()];
     const out = [];
@@ -129,10 +138,7 @@ function createYield(mode) {
     const own = info.recent.filter(r => r.own).length;
     if (!info.announced) out.push(pub ? '公告資料裡沒有這檔，用你記的除權息算' : `${waiting()}，先用你記的除權息算`);
     else if (own) out.push(`近一年有 ${own} 次公告還沒有金額，用你記的`);
-    const last = info.recent[0];
-    if (last && info.per > 1 && price) {
-      out.push(`最近一次 ${md(last.exDate)} 除息 ${U.fmtNum(last.cash)} 元，照這次換算一年 ${pct(last.cash * info.per / price)}`);
-    }
+    if (info.last) out.push(`最近一次 ${md(info.last.exDate)} 除息 ${U.fmtNum(info.last.cash)} 元`);
     const next = info.next;
     if (next) {
       const cash = typeof next.cash === 'number' ? ` ${U.fmtNum(next.cash)} 元${next.own ? '（你記的）' : ''}` : '（金額待公告）';
@@ -142,14 +148,14 @@ function createYield(mode) {
   }
 
   function cardHTML(r) {
-    const { info, price, y } = r;
-    const cell = (label, v) => `<span class="cell"><small>${label}</small><span>${v}</span></span>`;
+    const { info, price, y, ya } = r;
+    const cell = (label, v, cls = '') => `<span class="cell${cls}"><small>${label}</small><span>${v}</span></span>`;
     const cells = [
       cell('現價', price ? U.fmtNum(price, 2) : '—'),
       cell('近一年股利', info?.count ? `${U.fmtNum(info.sum)} 元` : '—'),
       cell('配息', info ? info.freq : '—'),
+      cell('暴力年化', ya === null ? '—' : pct(ya), ' strong'),
     ];
-    if (!watch) cells.push(cell('成本殖利率', info?.count && r.avg > 0 ? Privacy.num(pct(info.sum / r.avg)) : '—'));
     const tag = r.held ? '<span class="card-tags"><span class="badge member">持有</span></span>' : '';
     return `
       <div class="card yield-card${watch ? '' : ' static'}"${watch ? ` data-id="${U.esc(r.id)}"` : ''}>
@@ -164,9 +170,8 @@ function createYield(mode) {
 
   // 列表上面的說明：怎麼算、現價和公告資料是什麼時候的
   function introHTML(q, all) {
-    const how = watch
-      ? '殖利率 = 近一年現金股利 ÷ 現價。你也持有的標「持有」，點一檔可以移除。'
-      : '殖利率 = 近一年現金股利 ÷ 現價；成本殖利率用成本均價算（已扣掉領過的股利，和券商一樣，所以會比用買價算的高）。';
+    const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，比殖利率高代表最近一次配得比近一年平均多。' +
+      (watch ? '你也持有的標「持有」，點一檔可以移除。' : '');
     let price = '連結 Google 帳號後，會用 GOOGLEFINANCE 抓現價算殖利率';
     if (q) {
       const t = q.at ? U.fmtDateTime(q.at) : '';
@@ -184,7 +189,8 @@ function createYield(mode) {
     const kw = state.keyword.trim().toLowerCase();
     const shown = all.filter(r => !kw || `${r.code} ${r.name}`.toLowerCase().includes(kw));
     const byCode = (a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
-    shown.sort(state.sort === 'code' ? byCode : (a, b) => ((b.y ?? -1) - (a.y ?? -1)) || byCode(a, b));
+    const by = k => (a, b) => ((b[k] ?? -1) - (a[k] ?? -1)) || byCode(a, b);
+    shown.sort(state.sort === 'code' ? byCode : by(state.sort === 'annual' ? 'ya' : 'y'));
     countEl.textContent = shown.length === all.length ? `${all.length} 檔` : `${shown.length}／${all.length} 檔`;
     if (!all.length) {
       listEl.innerHTML = watch
