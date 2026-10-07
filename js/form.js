@@ -626,8 +626,8 @@ const Form = (() => {
       Store.update(ctx.tableKey, ctx.id, rec);
       dlg.close();
       hooks.onChanged(ctx.tableKey, { ...rec, id: ctx.id });
-      // 改到目前沒在看的成員時，這筆會從列表上消失，提示一下去了哪裡
-      const moved = rec.member && Store.scope !== 'all' && rec.member !== Store.scope;
+      // 改到目前沒勾選的成員時，這筆會從列表上消失，提示一下去了哪裡
+      const moved = rec.member && !Store.shown().includes(rec.member);
       hooks.toast(moved ? `已儲存到「${memberOf(rec)}」` : '已儲存');
       return;
     }

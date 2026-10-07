@@ -182,12 +182,13 @@ const Holdings = (() => {
     };
   }
 
-  // 目前檢視範圍的全部持股；全家時各成員分別推算後依代號合計，parts 為各成員的明細
-  // snapDate：推算的起點（全家的起點不一樣，或是從 0 開始加總交易時為 null）
-  // mixed：全家各成員的起點不一樣（快照日期不同，或有人沒有快照）
+  // 目前檢視範圍的全部持股；全家或勾了好幾位時各成員分別推算後依代號合計，parts 為各成員的明細
+  // snapDate：推算的起點（各成員的起點不一樣，或是從 0 開始加總交易時為 null）
+  // mixed：各成員的起點不一樣（快照日期不同，或有人沒有快照）
   function all(date) {
-    if (Store.scope !== 'all') return memberAll(Store.scope, date);
-    const each = Store.members().map(m => memberAll(m.id, date)).filter(Boolean);
+    const ids = Store.shown();
+    if (Store.scope !== 'all' && ids.length === 1) return memberAll(ids[0], date);
+    const each = ids.map(id => memberAll(id, date)).filter(Boolean);
     if (!each.length) return null;
 
     const merged = new Map();
@@ -263,11 +264,10 @@ const Holdings = (() => {
     });
   }
 
-  // 目前檢視範圍（單一成員或全家）的核對結果
+  // 目前檢視範圍（勾選的成員或全家）的核對結果
   // scope 預設是目前的檢視範圍；訊息匣用 'all' 檢查全家
   function check(scope = Store.scope) {
-    const ids = scope === 'all' ? Store.members().map(m => m.id) : [scope];
-    return ids.flatMap(checkMember);
+    return Store.shown(scope).flatMap(checkMember);
   }
 
   // 成員在 date（含當天）時用來推算持股的快照日期；沒有快照時為 null

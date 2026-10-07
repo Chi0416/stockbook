@@ -96,6 +96,19 @@ function codeNote(v) {
   return known ? '' : '股票清單裡查不到這個代號，請確認有沒有打錯（剛上市的可能還沒收錄）';
 }
 
+// 成員名字的規則，不合規則時回傳原因（App 裡新增、改名時擋下來；試算表裡打的列成看不懂的地方）
+//   最多 5 個字，英文、數字、半形符號算半個字
+//   不能叫「全家」：設定裡勾選全部成員的那一項就叫全家
+//   不能有頓號、逗號、分號：試算表的基準日股數用這些符號分隔每個人（「爸爸 30000、媽媽 5000」）
+const MEMBER_NAME_MAX = 5;
+function memberNameError(name) {
+  const width = [...name].reduce((w, c) => w + (/[\x20-\x7e｡-ﾟ]/.test(c) ? 0.5 : 1), 0);
+  if (width > MEMBER_NAME_MAX) return `名字最多 ${MEMBER_NAME_MAX} 個字（英文、數字最多 ${MEMBER_NAME_MAX * 2} 個）`;
+  if (name === '全家') return '「全家」是設定裡勾選全部成員用的，請換一個名字';
+  if (/[、,，;；\n]/.test(name)) return '名字不能有頓號、逗號、分號';
+  return '';
+}
+
 const SCHEMAS = {
   trades: {
     title: '交易明細',
@@ -166,7 +179,7 @@ const SCHEMAS = {
       if (typeof Holdings.check !== 'function') return null; // 瀏覽器快取到舊版 holdings.js 時略過
       const dates = new Set(rows.map(r => r.date));
       const results = Holdings.check().filter(c => dates.has(c.date));
-      const who = c => (Store.scope === 'all' && Store.members().length > 1 ? `${Store.memberName(c.member)} ` : '');
+      const who = c => (Store.shown().length > 1 ? `${Store.memberName(c.member)} ` : '');
       const groups = {};
       const cards = {};
       dates.forEach(date => {

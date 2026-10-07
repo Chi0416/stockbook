@@ -119,25 +119,29 @@ body:has(dialog[open]) { overflow: hidden; }
 
 .appbar-actions { display: flex; flex-shrink: 0; align-items: center; gap: 4px; }
 
-/* 檢視成員：圓角膠囊下拉選單 */
-.member-switch {
-  max-width: 40vw;
-  height: 36px;
-  padding: 0 30px 0 14px;
+/* 只勾了某幾位成員時，標題下面的提示（見 app.js）：一行寫不下時名字用…收起來 */
+.scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 10px 0 2px;
+  padding: 8px 10px 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font: inherit;
-  font-size: 16px; /* 小於 16px 時 iPhone 會自動放大畫面 */
-  font-weight: 500;
-  color: var(--text);
-  text-overflow: ellipsis;
-  background: var(--icon-chevron) right 8px center / 16px no-repeat, var(--surface);
-  border: .5px solid var(--border-strong);
-  border-radius: 999px;
-  box-shadow: var(--shadow);
-  -webkit-appearance: none;
-  appearance: none;
+  font-size: 14px;
+  text-align: left;
   cursor: pointer;
 }
-.member-switch:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.scope-bar[hidden] { display: none; }
+.scope-label { flex-shrink: 0; font-size: 13px; }
+.scope-names { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+.scope-go { flex-shrink: 0; font-size: 20px; line-height: 1; }
+.scope-bar:active { opacity: .8; }
+.scope-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .icon-btn {
   display: grid;
@@ -661,10 +665,6 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   stroke-linecap: round;
 }
 .add-btn:active { opacity: .85; }
-/* 按鈕上寫出新增什麼（新增交易、新增快照…）；手機上又有成員選單時放不下，只寫「新增」，標題才不會被擠掉 */
-@media (max-width: 599px) {
-  .appbar:has(.member-switch:not([hidden])) .add-what { display: none; }
-}
 
 /* ---------- 底部彈出的 sheet ---------- */
 dialog.sheet {
@@ -971,6 +971,10 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 }
 .member-list li { display: flex; align-items: center; gap: 2px; padding: 8px 6px 8px 16px; }
 .member-list li + li { border-top: .5px solid var(--border); }
+/* 勾選要顯示的成員：點名字也能勾（見 app.js） */
+.member-pick { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 36px; }
+.member-pick:has(input) { cursor: pointer; }
+.member-pick input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 .member-info { flex: 1; min-width: 0; }
 .member-info b { display: block; font-weight: 600; overflow-wrap: anywhere; }
 .member-info small { display: block; font-size: 12px; color: var(--muted); }

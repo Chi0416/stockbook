@@ -10,7 +10,7 @@ for (const f of ['util', 'schema', 'sheet']) {
   const src = readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8');
   vm.runInContext(src, ctx, { filename: `${f}.js` });
 }
-const { Sheet } = vm.runInContext('({ Sheet })', ctx);
+const { Sheet, memberNameError } = vm.runInContext('({ Sheet, memberNameError })', ctx);
 
 // vm 裡建立的物件和這裡的原型不同，比較前先轉成一般物件
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -123,6 +123,27 @@ test('手動輸入：新的成員名字自動新增', () => {
   assert.equal(r.newMembers[0].name, '阿姨');
   assert.equal(r.data.trades[0].member, r.newMembers[0].id);
   assert.equal(r.data.members.length, 3);
+});
+
+test('成員名字的規則：最多 5 個字（英文、數字算半個字），不能叫全家，不能有頓號、逗號、分號', () => {
+  for (const ok of ['我', '爸爸', '王小明', '爸爸永豐', '媽媽元大證', 'Christina', '小明2']) assert.equal(memberNameError(ok), '', ok);
+  assert.match(memberNameError('王小明的帳戶'), /最多 5 個字/);
+  assert.match(memberNameError('Christopher'), /最多 5 個字/); // 11 個英文字母 = 5.5 個字
+  assert.match(memberNameError('全家'), /全家/);
+  for (const bad of ['爸、媽', '爸,媽', '爸，媽', '爸;媽']) assert.match(memberNameError(bad), /頓號/, bad);
+});
+
+test('試算表裡的成員名字不合規則：照樣讀進來（資料才對得到人），列成看不懂的地方', () => {
+  const r = plain(Sheet.fromValues(withTab('成員', [['名稱', Sheet.ID], ['爸爸', 'm1'], ['媽媽', 'm2'], ['王小明的帳戶', 'm3']])));
+  assert.deepEqual(r.problems, [{ tab: '成員', row: 4, msg: '「王小明的帳戶」：名字最多 5 個字（英文、數字最多 10 個）' }]);
+  assert.equal(r.data.members.length, 3);
+  const t = plain(Sheet.fromValues(withTab('交易明細', [
+    Sheet.TAB.trades.headers,
+    ['全家', Sheet.toSerial('2026-09-02'), '普買', '2330', '台積電', 10, 1000, 20, 0, 10020, 'x1'],
+  ])));
+  assert.equal(t.problems.length, 1);
+  assert.match(t.problems[0].msg, /^成員「全家」：/);
+  assert.equal(t.data.trades[0].member, t.newMembers[0].id);
 });
 
 test('看不懂的值記成問題，其他資料照常讀進來', () => {

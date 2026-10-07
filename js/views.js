@@ -38,6 +38,7 @@ const VIEWS = {
     // scope 預設是目前的檢視範圍；訊息匣用 'all' 檢查全家
     rows(scope = Store.scope) {
       const members = Store.members();
+      const shown = Store.shown(scope);
       return Store.list('dividends')
         .filter(d => d.cash !== 0)
         .flatMap(d => {
@@ -52,7 +53,7 @@ const VIEWS = {
           // 每位成員的基準日股數（手動填寫 → 之前的快照往後推 → 之後的快照往回推 → 沒有快照時加總交易）
           const all = members.map(m => Holdings.entitled(m.id, code, d.exDate, d.baseShares?.[m.id]));
           const held = all.filter(e => e.found);
-          const mine = held.filter(e => scope === 'all' || e.member === scope);
+          const mine = held.filter(e => shown.includes(e.member));
           if (!mine.length) {
             if (held.length) return [];
             const snap = all.find(e => e.snapDate);

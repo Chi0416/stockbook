@@ -126,55 +126,88 @@
 
   const refreshAll = () => Object.values(lists).forEach(l => l.refresh());
 
-  // ---------- 切換檢視的成員（全家／單一成員） ----------
-  const memberSwitch = $('member-switch');
+  // ---------- 看哪些成員：在設定的「家庭成員」勾選（見 storage.js 的檢視範圍） ----------
+  //   沒有勾全家時，標題下面一條提示「只顯示 爸爸、小明 ›」，點一下打開設定的家庭成員
+  const scopeBar = $('scope-bar');
 
-  function renderMemberSwitch() {
-    const members = Store.members();
-    memberSwitch.hidden = members.length < 2;
-    memberSwitch.innerHTML = '<option value="all">全家</option>' +
-      members.map(m => `<option value="${U.esc(m.id)}">${U.esc(m.name)}</option>`).join('');
-    memberSwitch.value = Store.scope;
+  function renderScopeBar() {
+    scopeBar.hidden = Store.scope === 'all';
+    scopeBar.querySelector('.scope-names').textContent = Store.shown().map(id => Store.memberName(id)).join('、');
   }
 
-  memberSwitch.addEventListener('change', () => {
-    Store.setScope(memberSwitch.value);
-    refreshAll();
-    window.scrollTo(0, 0);
-  });
+  scopeBar.addEventListener('click', () => openMenu('members'));
 
   // ---------- 家庭成員管理 ----------
+  //   兩位以上成員時每一位前面有勾選框，最上面一列是「全家」；只有一位成員時不用勾
   const memberListEl = $('member-list');
 
   function renderMembers() {
     const members = Store.members();
-    memberListEl.innerHTML = members.map(m => {
+    const many = members.length > 1;
+    const shown = Store.shown();
+    const box = (id, on) => (many ? `<input type="checkbox" data-show="${U.esc(id)}"${on ? ' checked' : ''}>` : '');
+    const all = many ? `
+        <li>
+          <label class="member-pick">${box('all', Store.scope === 'all')}
+            <span class="member-info"><b>全家</b><small>打勾的成員才會顯示在各頁</small></span></label>
+        </li>` : '';
+    memberListEl.innerHTML = all + members.map(m => {
       const counts = Object.entries(Store.memberCounts(m.id))
         .map(([t, n]) => `${SCHEMAS[t].title} ${n}`).join(' · ');
       return `
         <li>
-          <span class="member-info"><b>${U.esc(m.name)}</b><small>${U.esc(counts)}</small></span>
+          <label class="member-pick">${box(m.id, shown.includes(m.id))}
+            <span class="member-info"><b>${U.esc(m.name)}</b><small>${U.esc(counts)}</small></span></label>
           <button type="button" class="text-btn" data-act="rename" data-id="${U.esc(m.id)}">改名</button>
-          ${members.length > 1
-            ? `<button type="button" class="text-btn danger" data-act="remove" data-id="${U.esc(m.id)}">刪除</button>` : ''}
+          ${many ? `<button type="button" class="text-btn danger" data-act="remove" data-id="${U.esc(m.id)}">刪除</button>` : ''}
         </li>`;
     }).join('');
   }
 
-  // 問名字：空白或和其他成員重複時回傳 null
-  function askName(message, current = '', exceptId = null) {
-    const name = (prompt(message, current) ?? '').trim();
-    if (!name) return null;
-    if (Store.members().some(m => m.name === name && m.id !== exceptId)) {
-      toast(`已經有「${name}」了`, 'error');
-      return null;
+  // 勾選：勾全家就每個人都勾；每個人都勾了自動變成全家（見 storage.js）；至少要留一位
+  memberListEl.addEventListener('change', e => {
+    const box = e.target.closest('[data-show]');
+    if (!box) return;
+    const id = box.dataset.show;
+    const ids = new Set(Store.shown());
+    if (id === 'all' && !box.checked) {
+      box.checked = true;
+      toast('要隱藏某位成員，取消勾選那一位就好');
+      return;
     }
-    return name;
+    if (id !== 'all') {
+      if (box.checked) ids.add(id);
+      else ids.delete(id);
+      if (!ids.size) {
+        box.checked = true;
+        toast('至少要勾一位成員', 'error');
+        return;
+      }
+    }
+    Store.setScope(id === 'all' ? 'all' : [...ids]);
+    renderMembers();
+    renderScopeBar();
+    refreshAll();
+  });
+
+  // 問名字：空白時回傳 null；和其他成員重複、不合規則（見 schema.js）時寫出原因再問一次
+  function askName(message, current = '', exceptId = null) {
+    let ask = message;
+    let value = current;
+    for (;;) {
+      const name = (prompt(ask, value) ?? '').trim();
+      if (!name) return null;
+      const error = memberNameError(name)
+        || (Store.members().some(m => m.name === name && m.id !== exceptId) ? `已經有「${name}」了` : '');
+      if (!error) return name;
+      ask = `${error}\n\n${message}`;
+      value = name;
+    }
   }
 
   function membersChanged() {
     renderMembers();
-    renderMemberSwitch();
+    renderScopeBar();
     renderBackupInfo();
     refreshAll();
   }
@@ -222,13 +255,15 @@
     $('last-export').textContent = t ? `上次匯出：${U.fmtDateTime(t)}` : '尚未匯出過備份';
   }
 
-  function openMenu() {
+  // section：打開後直接捲到哪一段（'members' 家庭成員）
+  function openMenu(section) {
     renderMembers();
     renderBackupInfo();
     if (!menu.open) menu.showModal();
+    if (section === 'members') $('members-head').scrollIntoView({ block: 'start' });
   }
 
-  $('btn-menu').addEventListener('click', openMenu);
+  $('btn-menu').addEventListener('click', () => openMenu());
   menu.querySelector('[data-act="close"]').addEventListener('click', () => menu.close());
   menu.addEventListener('click', e => { if (e.target === menu) menu.close(); }); // 點背景關閉
 
@@ -303,7 +338,7 @@
     if (!confirm(`匯入「${file.name}」會取代目前所有資料。\n\n${lines.join('\n')}\n\n確定匯入？`)) return;
 
     Store.replaceAll(parsed);
-    renderMemberSwitch();
+    renderScopeBar();
     Object.values(lists).forEach(l => l.reset());
     renderMembers();
     renderBackupInfo();
@@ -423,7 +458,7 @@
   // 請瀏覽器盡量不要自動清掉這個網站的資料
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
-  renderMemberSwitch();
+  renderScopeBar();
   refreshAll();
   // 換日後回到這個頁面（例如手機隔天從背景切回來）時全部重算：今天的日期、已入帳／待入帳都跟著變
   let renderedDay = U.today();
@@ -506,7 +541,7 @@
     toast,
     notify: Inbox.add,
     onData() {
-      renderMemberSwitch();
+      renderScopeBar();
       refreshAll();
       Inbox.checkData();
       if (menu.open) {

@@ -6,7 +6,7 @@ function createList(tableKey, schema, { openForm }) {
   const byKey = Object.fromEntries(fields.map(f => [f.key, f]));
   const periodKey = schema.period.key;
   const { code, title, badge, primary, note } = schema.card;
-  // 成員不放在卡片下方，全家檢視時改成卡片左上角的標籤
+  // 成員不放在卡片下方，看兩位以上成員時改成卡片名稱上面的標籤
   const gridFields = fields.filter(f => f.type !== 'member' && ![periodKey, code, title, badge, primary].includes(f.key));
   const getRows = schema.rows || (() => Store.list(tableKey));
   // mode：'list' 明細、'stats' 統計；statsAll：排行已經點開「其他 N 檔」；statsOpen：排行裡展開了每一次配息的代號
@@ -37,7 +37,7 @@ function createList(tableKey, schema, { openForm }) {
   };
   // 交易別含「買」「賣」時標上顏色，方便一眼辨識
   const tone = v => /買/.test(v) ? 'buy' : /賣/.test(v) ? 'sell' : '';
-  const showMember = () => Store.scope === 'all' && Store.members().length > 1;
+  const showMember = () => Store.shown().length > 1;
   // 狀態標籤（schema.status，例如「待除權息」「待發放」）；pending 的列金額變淡、合計另外列出
   const statusOf = r => (schema.status ? schema.status(r) : null);
   const isPending = r => !!statusOf(r)?.pending;
@@ -146,7 +146,7 @@ function createList(tableKey, schema, { openForm }) {
     const total = list => U.round(list.reduce((s, r) => s + r[key], 0));
     const counted = rows.filter(r => !isPending(r) && isNum(r));
     const pending = rows.filter(r => isPending(r) && isNum(r));
-    const who = Store.members().length < 2 ? '' : Store.scope === 'all' ? '全家' : Store.memberName(Store.scope);
+    const who = Store.scopeLabel();
     const scope = [who, state.period && periodLabel(state.period)].filter(Boolean).join(' · ') || '全部';
     const missing = rows.length - counted.length - pending.length;
     return `

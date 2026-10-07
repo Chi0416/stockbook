@@ -9,7 +9,7 @@ import vm from 'node:vm';
 const ROOT = new URL('../', import.meta.url);
 const FILES = ['util', 'schema', 'storage', 'holdings', 'views'];
 
-// data：成員、交易明細、庫存快照、除權息；scope：檢視哪位成員（預設全家）
+// data：成員、交易明細、庫存快照、除權息；scope：檢視哪些成員（預設全家；勾選的 id 陣列存成 JSON，舊版存一個 id）
 function app({ members = [{ id: 'me', name: '我' }], trades = [], snapshots = [], dividends = [] } = {}, scope = 'all') {
   const ls = {
     'stockbook.v1': JSON.stringify({ version: 1, members, trades, snapshots, dividends }),
@@ -23,7 +23,7 @@ function app({ members = [{ id: 'me', name: '我' }], trades = [], snapshots = [
     },
   });
   for (const f of FILES) vm.runInContext(readFileSync(new URL(`js/${f}.js`, ROOT), 'utf8'), ctx, { filename: `${f}.js` });
-  return vm.runInContext('({ Holdings, VIEWS, SCHEMAS })', ctx);
+  return vm.runInContext('({ Holdings, VIEWS, SCHEMAS, Store })', ctx);
 }
 
 // vm 裡建立的物件和這裡的原型不同，比較前先轉成一般物件
@@ -243,4 +243,56 @@ test('交易表單的提醒：成交日期在這位成員的快照當天或之�
   assert.equal(note({ member: 'mom', date: '2025-06-01' }), ''); // 媽媽沒有快照
   assert.equal(note({ member: '', date: '2025-06-01' }), '');    // 還沒選成員
   assert.equal(note({ member: 'dad', date: '' }), '');           // 日期看不懂
+});
+
+// 設定裡勾選要看哪些成員（見 storage.js 的檢視範圍）
+const family = {
+  members: [{ id: 'dad', name: '爸爸' }, { id: 'mom', name: '媽媽' }, { id: 'kid', name: '小明' }],
+  trades: [
+    trade('dad', '2026-03-02', '普買', '0050', 1000, 100000),
+    trade('mom', '2026-03-02', '普買', '0050', 2000, 200000),
+    trade('kid', '2026-03-02', '普買', '0056', 3000, 90000),
+  ],
+  dividends: [div('0050', '2026-07-16', '2026-08-08', 1)],
+};
+
+test('勾選兩位成員：持股、股利、核對只算這兩位，持股依代號合計並列出各人的明細', () => {
+  const { Holdings, VIEWS, Store } = app(family, JSON.stringify(['dad', 'mom']));
+  const [a, ...rest] = plain(Holdings.all('2026-10-04').positions);
+  assert.equal(rest.length, 0); // 小明的 0056 不算
+  assert.deepEqual([a.code, a.shares], ['0050', 3000]);
+  assert.deepEqual(a.parts.map(p => p.member), ['dad', 'mom']);
+  assert.deepEqual(cash(VIEWS).map(r => [r[1], r[3]]), [['dad', 1000], ['mom', 2000]]);
+  assert.equal(Store.list('trades').length, 2);
+  assert.equal(Store.scopeLabel(), '爸爸、媽媽');
+  assert.equal(Store.defaultMember(), ''); // 勾了兩位：新增時要自己選
+});
+
+test('只勾一位成員：和以前選單選一個人一樣；舊版存的一個 id 也讀得懂', () => {
+  for (const saved of [JSON.stringify(['kid']), 'kid']) {
+    const { Holdings, VIEWS, Store } = app(family, saved);
+    assert.deepEqual(positions(Holdings.all('2026-10-04')).map(p => p.slice(0, 2)), [['0056', 3000]]);
+    assert.deepEqual(cash(VIEWS), []);
+    assert.equal(Store.scopeLabel(), '小明');
+    assert.equal(Store.defaultMember(), 'kid');
+  }
+});
+
+test('勾選的整理：每個人都勾了變成全家，刪掉勾選中的成員就拿掉，沒有人勾了回到全家', () => {
+  const { Store } = app(family, JSON.stringify(['dad', 'mom', 'kid']));
+  assert.equal(Store.scope, 'all');
+  assert.equal(Store.scopeLabel(), '全家');
+  Store.setScope(['dad', 'gone']);
+  assert.deepEqual(plain(Store.scope), ['dad']); // 不存在的成員拿掉
+  Store.setScope(['dad', 'kid']);
+  Store.removeMember('kid');
+  assert.deepEqual(plain(Store.scope), ['dad']);
+  Store.removeMember('dad');
+  assert.equal(Store.scope, 'all');
+  // 勾了三位以上時寫人數
+  const big = app({ members: [...family.members, { id: 'g', name: '阿嬤' }] }, JSON.stringify(['dad', 'mom', 'kid']));
+  assert.equal(big.Store.scopeLabel(), '3 位成員');
+  // 只勾某幾位時新增的成員不會自動勾上；全家時會
+  big.Store.addMember('阿公');
+  assert.equal(big.Store.shown().length, 3);
 });

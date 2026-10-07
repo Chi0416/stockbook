@@ -1,6 +1,6 @@
 // 資料存放：瀏覽器 localStorage，另可匯出／匯入 data.json
 //   家庭成員：交易明細與庫存快照每筆記上成員 id（member 欄位），除權息全家共用
-//   檢視範圍（scope）：單一成員的 id，或 'all'（全家）；list() 預設只回傳目前範圍內的資料
+//   檢視範圍（scope）：'all'（全家）或勾選的成員 id 陣列（設定裡勾選）；list() 預設只回傳目前範圍內的資料
 //   連結 Google 試算表時（見 sync.js）：試算表是正本，這裡是副本
 //     每次修改都記在待同步清單（哪張表的哪一筆、新增修改或刪除），同步成功後清掉
 //     onChange() 註冊的函式在每次修改後立刻呼叫（還在使用者點擊的當下，可以跳出登入視窗）
@@ -114,25 +114,47 @@ const Store = (() => {
   const changed = () => listeners.forEach(fn => fn());
 
   // ---------- 檢視範圍 ----------
-  const validScope = s => s === 'all' || data.members.some(m => m.id === s);
+  //   'all' 是全家（之後新增的成員也算在內）；只勾某幾位時是 id 陣列，之後新增的成員不會自動勾上
+  //   整理：拿掉已經刪除的成員；沒勾任何人或每個人都勾了，都當成全家
+  //   這台裝置記住（不同步）；舊版存的是一個 id 字串，讀進來當成只勾那一位
+  function cleanScope(s) {
+    if (s === 'all') return 'all';
+    const ids = data.members.map(m => m.id);
+    const picked = ids.filter(id => (Array.isArray(s) ? s : [s]).includes(id));
+    return picked.length && picked.length < ids.length ? picked : 'all';
+  }
   let scope = 'all';
-  try { scope = localStorage.getItem(SCOPE_KEY) || 'all'; } catch (_) {}
-  if (!validScope(scope)) scope = 'all';
+  try {
+    const raw = localStorage.getItem(SCOPE_KEY) || 'all';
+    scope = cleanScope(raw.startsWith('[') ? JSON.parse(raw) : raw);
+  } catch (_) {}
 
   function setScope(s) {
-    scope = validScope(s) ? s : 'all';
-    try { localStorage.setItem(SCOPE_KEY, scope); } catch (_) {}
+    scope = cleanScope(s);
+    try { localStorage.setItem(SCOPE_KEY, scope === 'all' ? 'all' : JSON.stringify(scope)); } catch (_) {}
   }
+
+  // 檢視範圍裡的成員 id；s 可以是 'all'、一位成員的 id 或 id 陣列，省略時用目前的檢視範圍
+  const idsOf = (s = scope) => (s === 'all' ? data.members.map(m => m.id) : Array.isArray(s) ? s : [s]);
 
   return {
     get available() { return available; },
     get scope() { return scope; },
     setScope,
+    shown: idsOf,
 
-    // member 省略時用目前的檢視範圍；'all' 為全家；除權息等共用的表不分成員
+    // 合計卡片上的範圍說明：全家、一兩位寫名字（爸爸、小明）、三位以上寫人數；只有一位成員時不用寫
+    scopeLabel() {
+      if (data.members.length < 2) return '';
+      if (scope === 'all') return '全家';
+      return scope.length > 2 ? `${scope.length} 位成員` : scope.map(id => this.memberName(id)).join('、');
+    },
+
+    // member 省略時用目前的檢視範圍；可以是 'all'（全家）、一位成員的 id 或 id 陣列；除權息等共用的表不分成員
     list(table, member = scope) {
       if (member === 'all' || !MEMBER_TABLES.includes(table)) return data[table];
-      return data[table].filter(r => r.member === member);
+      const ids = idsOf(member);
+      return data[table].filter(r => ids.includes(r.member));
     },
 
     add(table, rec) {
@@ -174,10 +196,10 @@ const Store = (() => {
       return data.members.find(m => m.id === id)?.name ?? '';
     },
 
-    // 新增記錄時預設的成員：正在看某位成員就用那位；只有一位成員時直接用那位
+    // 新增記錄時預設的成員：只勾一位成員就用那位；只有一位成員時直接用那位
     defaultMember() {
-      if (scope !== 'all') return scope;
-      return data.members.length === 1 ? data.members[0].id : '';
+      const ids = idsOf();
+      return ids.length === 1 ? ids[0] : '';
     },
 
     // 各表屬於這位成員的筆數，例如 { trades: 3, snapshots: 8 }
@@ -213,7 +235,7 @@ const Store = (() => {
       data.members = data.members.filter(m => m.id !== id);
       MEMBER_TABLES.forEach(t => { data[t] = data[t].filter(r => r.member !== id); });
       persist();
-      if (scope === id) setScope('all');
+      setScope(scope); // 從勾選裡拿掉；沒有人勾了回到全家
       changed();
     },
 
@@ -258,7 +280,7 @@ const Store = (() => {
       data.lastExportAt = lastExportAt;
       sync = { pending: {}, v: sync.v, full: true };
       persist();
-      if (!validScope(scope)) setScope('all');
+      setScope(scope); // 拿掉已經不在的成員
       changed();
     },
 
@@ -320,7 +342,7 @@ const Store = (() => {
       out.lastExportAt = data.lastExportAt;
       data = normalize(out);
       persist();
-      if (!validScope(scope)) setScope('all');
+      setScope(scope); // 拿掉已經不在的成員
     },
 
     // 改用試算表的資料（連結時選了雲端那一份），這台裝置的修改全部放棄
@@ -330,7 +352,7 @@ const Store = (() => {
       data.lastExportAt = lastExportAt;
       sync = { pending: {}, v: sync.v, full: false };
       persist();
-      if (!validScope(scope)) setScope('all');
+      setScope(scope); // 拿掉已經不在的成員
     },
   };
 })();

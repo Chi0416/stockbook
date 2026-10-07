@@ -180,6 +180,9 @@ const Sheet = (() => {
     }
     let m = ctx.members.find(x => x.name === name);
     if (!m) {
+      // 名字不合規則（見 schema.js）還是照樣新增，資料才對得到人；列出來請使用者改
+      const bad = memberNameError(name);
+      if (bad) problem(ctx, tab, row, `成員「${name}」：${bad}`);
       m = { id: U.uid(), name };
       ctx.members.push(m);
       ctx.newMembers.push(m);
@@ -228,6 +231,8 @@ const Sheet = (() => {
       const name = blank(cells[idx.get('名稱')]) ? '' : String(cells[idx.get('名稱')]).trim();
       if (!name) { problem(ctx, tab, row, '名稱空白，略過這一列'); return; }
       if (ctx.members.some(m => m.name === name)) { problem(ctx, tab, row, `「${name}」重複了，只用上面那一列`); return; }
+      const bad = memberNameError(name);
+      if (bad) problem(ctx, tab, row, `「${name}」：${bad}`);
       ctx.members.push({ id: takeId(cells, idCol, tab, row, seen, ctx), name });
     });
   }
