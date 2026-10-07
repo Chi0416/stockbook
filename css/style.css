@@ -570,6 +570,21 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .kpi-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 .kpi-sub.warn { color: var(--danger); }
 .kpi-note { grid-column: 1 / -1; margin: 0 4px; font-size: 12px; color: var(--danger); }
+/* 即將除權息（見 upcoming.js）：每一筆兩行，左邊日期和股票、右邊每股股利和約佔現價幾 % */
+.up-list { margin: 8px 0 6px; padding: 0; list-style: none; }
+.up-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  padding: 8px 0;
+  border-top: .5px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.up-date { font-size: 14px; font-weight: 600; }
+.up-cash { font-size: 14px; font-weight: 600; text-align: right; }
+.up-name { min-width: 0; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+.up-name .badge { display: inline-block; margin-left: 4px; padding: 2px 6px; font-size: 11px; vertical-align: 1px; }
+.up-pct { font-size: 13px; color: var(--muted); text-align: right; }
 
 /* 不能點的卡片（持股總覽的每檔持股） */
 .card.static { cursor: default; }

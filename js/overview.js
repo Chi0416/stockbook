@@ -6,6 +6,7 @@
 //   今年現金股利：今年已發放（發放日 ≤ 今天）的股息淨值加總
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
+//   即將除權息：持股和觀察清單接下來 30 天要除權息的（見 upcoming.js）
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
 //   庫存總市值卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
 //   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js），持股列表上方註明更新時間；不是自己的資料，隱藏金額時照常顯示
@@ -147,6 +148,7 @@ function createOverview() {
         ${missingNote(last12)}
       </div>
       ${nextTile}
+      ${Upcoming.cardHTML(holdings, quotes())}
       ${holdings && holdings.missingCode
         ? `<p class="kpi-note">有 ${holdings.missingCode} 筆快照或交易沒填代號，沒有計入</p>` : ''}
       ${checkNote()}`;
