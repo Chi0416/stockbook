@@ -45,6 +45,13 @@ function createOverview() {
     Privacy.toggle();
     kpisEl.querySelector('[data-act="privacy"]')?.focus({ preventScroll: true });
   });
+  // 即將除權息的展開／收起（見 upcoming.js）：只重畫上面的卡片，焦點放回新的按鈕
+  kpisEl.addEventListener('click', e => {
+    if (!e.target.closest('[data-act="upcoming"]')) return;
+    Upcoming.toggle();
+    renderKpis(Holdings.all(U.today()));
+    kpisEl.querySelector('[data-act="upcoming"]')?.focus({ preventScroll: true });
+  });
 
   // 金額、股數、成本均價：隱藏金額時顯示成 ***
   const money = n => Privacy.num(U.fmtNum(Math.round(n)));

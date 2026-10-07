@@ -3,9 +3,19 @@
 //   資料：公告的除權息（announced.js）加上自己記的除權息；同一次（代號相同、除權息日差 7 天內）以公告為主，
 //         公告的金額還沒出來時用自己記的；百分比是每股現金股利 ÷ 現價（連結 Google 才有現價），參考價大約少這麼多
 //   持股跟著上面選的成員；觀察清單全家共用；兩邊都有的標「持有」
+//   可以摺疊：收起時只列最近的一筆，下面「還有 N 筆」點了展開；展開或收起記在這台裝置，預設收起
 const Upcoming = (() => {
   const DAYS = 30;
-  const MAX = 8; // 卡片上最多列幾筆，其他的寫「還有 N 筆」
+  const MAX = 8; // 展開時最多列幾筆，其他的寫「還有 N 筆沒有列出」
+  const OPEN_KEY = 'stockbook.upcomingOpen';
+  let open = false;
+  try { open = localStorage.getItem(OPEN_KEY) === '1'; } catch (_) {}
+
+  // 展開／收起（overview.js 點了按鈕之後呼叫，接著重畫卡片）
+  function toggle() {
+    open = !open;
+    try { localStorage.setItem(OPEN_KEY, open ? '1' : '0'); } catch (_) {}
+  }
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
   const num = v => (typeof v === 'number' ? v : null);
 
@@ -65,10 +75,14 @@ const Upcoming = (() => {
       body = `<span class="kpi-sub">${Announced.state() === 'failed' ? '下載不了公告的除權息（連上網路後會再試）' : '公告的除權息還在下載'}</span>`;
     } else if (!rows.length) body = `<span class="kpi-sub">接下來 ${DAYS} 天沒有已公告的除權息</span>`;
     else {
-      const more = rows.length - MAX;
-      body = `<ul class="up-list">${rows.slice(0, MAX).map(row).join('')}</ul>` +
-        (more > 0 ? `<span class="kpi-sub">還有 ${more} 筆</span>` : '') +
-        '<span class="kpi-sub">除權息日當天參考價會扣掉股利，大約少右邊的 %；想領這次股利，最晚前一個交易日買進</span>';
+      const shown = open ? rows.slice(0, MAX) : rows.slice(0, 1);
+      const chevron = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
+      body = `<ul class="up-list">${shown.map(row).join('')}</ul>` +
+        (open && rows.length > MAX ? `<span class="kpi-sub">還有 ${rows.length - MAX} 筆沒有列出</span>` : '') +
+        (open || rows.length === 1
+          ? '<span class="kpi-sub">除權息日當天參考價會扣掉股利，大約少右邊的 %；想領這次股利，最晚前一個交易日買進</span>' : '') +
+        (rows.length > 1 ? `<button type="button" class="up-more" data-act="upcoming" aria-expanded="${open}">` +
+          `${open ? '收起' : `還有 ${rows.length - 1} 筆`}${chevron}</button>` : '');
     }
     return `
       <div class="kpi wide upcoming">
@@ -78,5 +92,5 @@ const Upcoming = (() => {
       </div>`;
   }
 
-  return { list, cardHTML };
+  return { list, cardHTML, toggle };
 })();
