@@ -4,7 +4,7 @@
 //     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
 //       放在配息紀錄正上面：領到多少和每次配多少上下並排，好對照
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
-//     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年，算法見 eps.js
+//     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（新的在上面），算法見 eps.js
 //     殖利率：接在股利預估後面，和預估殖利率好比較
 //     配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前；一長串，放最下面才不會把 KD 擠到很下面
 //   和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
@@ -121,7 +121,8 @@ const Detail = (() => {
     if (!f.done && (f.payout === null || e.est <= 0 || f.cash === 0)) {
       return `${head}<p class="note muted">${U.esc(P.fcText(r))}</p>`;
     }
-    const rows = f.years.map(y => `
+    // 每一年一列，新的在上面
+    const rows = [...f.years].reverse().map(y => `
       <span>${y.year}</span><span>${fmt(y.eps)}</span><span>${P.money(y.cash)} 元</span><span>${U.fmtNum(Math.round(y.ratio * 100))}%</span>`).join('');
     const notes = [];
     if (f.done) {
