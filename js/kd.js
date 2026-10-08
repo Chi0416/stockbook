@@ -85,7 +85,7 @@ const KD_PAGE = (() => {
     const kz = KD.zone(m?.k);
     const dz = KD.zone(m?.d);
     const [crossCls, crossText] = crossCell(m);
-    const tags = [r.held ? '<span class="badge member">持有</span>' : r.watched ? '<span class="badge">觀察</span>' : ''];
+    const tags = [holdTagsHTML(r)];
     if (kz) tags.push(`<span class="badge ${ZONE[kz][0]}">${ZONE[kz][1]}</span>`);
     const cell = (label, v, cls = '') => `<span class="cell${cls ? ` ${cls}` : ''}"><small>${label}</small><span>${v}</span></span>`;
     return `

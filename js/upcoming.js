@@ -2,7 +2,7 @@
 //   除權息日當天參考價會扣掉股利，看起來變便宜，可以當作買進的時間點參考；想領這次股利，最晚前一個交易日買進
 //   資料：公告的除權息（announced.js）加上自己記的除權息；同一次（代號相同、除權息日差 7 天內）以公告為主，
 //         公告的金額還沒出來時用自己記的；百分比是每股現金股利 ÷ 現價（見 market.js），參考價大約少這麼多
-//   持股跟著上面選的成員；觀察清單全家共用；兩邊都有的標「持有」
+//   持股跟著上面選的成員；觀察清單全家共用；兩邊都有的「持有」「觀察」都標（和行情一樣）
 //   可以摺疊：收起時只列最近的一筆，下面「還有 N 筆」點了展開；展開或收起記在這台裝置，預設收起
 const Upcoming = (() => {
   const DAYS = 30;
@@ -59,7 +59,8 @@ const Upcoming = (() => {
       const cash = r.cash === null ? '金額待公告'
         : `${U.fmtNum(r.cash)} 元${r.stock ? `＋配股 ${U.fmtNum(r.stock)} 元` : ''}${r.own ? '（你記的）' : ''}`;
       const drop = r.cash !== null && typeof price === 'number' && price > 0 ? `約 ${pct(r.cash / price)}` : '';
-      const tag = held.has(r.code) ? '<span class="badge member">持有</span>' : '<span class="badge">觀察</span>';
+      const tag = (held.has(r.code) ? '<span class="badge member">持有</span>' : '') +
+        (watched.has(r.code) ? '<span class="badge">觀察</span>' : '');
       return `
         <li class="up-row">
           <span class="up-date">${md(r.exDate)} ${r.exDate === today ? '今天' : U.weekday(r.exDate)}</span>

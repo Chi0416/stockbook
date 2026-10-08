@@ -109,7 +109,7 @@ const Detail = (() => {
     const total = Stars.on().length;
 
     titleEl.textContent = `${code} ${name}`.trim();
-    const tag = r.held ? '<span class="badge member">持有</span>' : r.watched ? '<span class="badge">觀察</span>' : '';
+    const tag = holdTagsHTML(r);
     bodyEl.innerHTML = `
       <div class="detail-top">
         ${tag}

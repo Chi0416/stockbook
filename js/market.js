@@ -123,6 +123,12 @@ const Market = (() => {
 // 行情每一頁共用的「全部｜持有｜觀察｜全市場」：切換時每一頁一起重畫，換到別頁還是同一個範圍
 const MARKET_VIEW = { range: 'all', pages: [] };
 
+// 持有、觀察的標籤（行情的卡片、詳細頁）：兩邊都有就兩個都標
+//   「觀察」也會列出你持有的觀察清單股票，只標「持有」會看不懂它為什麼在這裡；也提醒買了之後可以從觀察清單移除
+function holdTagsHTML(r) {
+  return (r.held ? '<span class="badge member">持有</span>' : '') + (r.watched ? '<span class="badge">觀察</span>' : '');
+}
+
 // 行情的一頁：page 是 YIELD_PAGE、KD_PAGE、STARS_PAGE；和其他列表一樣有 el、refresh、reset、changed
 //   page.sorts：[[值, 選單上的字, 比較的函式]]，第一個是預設；一樣的時候依代號
 //   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片；page.introHTML(rows)：列表上面的說明

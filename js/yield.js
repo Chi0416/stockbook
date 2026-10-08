@@ -120,7 +120,7 @@ const YIELD_PAGE = (() => {
       cell('配息', info ? info.freq : '—'),
       cell(`暴力年化${Stars.mark(r, 'trend')}`, ya === null ? '—' : pct(ya), ` strong${ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`),
     ];
-    const tag = r.held ? '<span class="badge member">持有</span>' : r.watched ? '<span class="badge">觀察</span>' : '';
+    const tag = holdTagsHTML(r);
     return `
       <div class="card yield-card" data-code="${U.esc(r.code)}">
         <span class="card-top">

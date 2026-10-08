@@ -86,7 +86,7 @@ const STARS_PAGE = (() => {
   const starsText = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, Stars.on().length - n));
 
   function cardHTML(r) {
-    const tag = r.held ? '<span class="badge member">持有</span>' : r.watched ? '<span class="badge">觀察</span>' : '';
+    const tag = holdTagsHTML(r);
     const cell = (label, v, cls = '') => `<span class="cell${cls ? ` ${cls}` : ''}"><small>${label}</small><span>${v}</span></span>`;
     const kz = KD.zone(r.k);
     return `
