@@ -346,6 +346,24 @@ body:has(dialog[open]) { overflow: hidden; }
 /* 交叉右邊的灰色小字：在低檔、中間還是高檔交叉；和「黃金交叉」同一行，卡片不會變高（太窄時整個換到下一行，不拆開） */
 .cell > span > small { display: inline-block; margin-left: 4px; font-weight: 400; white-space: nowrap; }
 
+/* EPS 卡片（見 eps.js）：右上角的達成率，超前紅色、落後綠色；下面一條長條是達成率（超過 100% 畫滿），深色刻度是進度 */
+.card-primary b.eps-pct { font-size: 20px; }
+.card-primary b.eps-pct.up { color: var(--buy); }
+.card-primary b.eps-pct.down { color: var(--sell); }
+.eps-bar { position: relative; display: block; height: 8px; margin: 12px 0 2px; border-radius: 4px; background: var(--chip-bg); }
+.eps-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: var(--muted); }
+.eps-bar.up .eps-fill { background: var(--buy); }
+.eps-bar.down .eps-fill { background: var(--sell); }
+.eps-pace { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.eps-card .card-note + .card-note { margin-top: 3px; }
+/* 詳細頁：達成率那一格用深色粗字，超前紅、落後綠 */
+.eps-card .cell.strong > span { color: var(--text); font-weight: 600; }
+.eps-card .cell.strong.up > span { color: var(--buy); }
+.eps-card .cell.strong.down > span { color: var(--sell); }
+/* 詳細頁最下面一排近 5 年的 EPS：固定五格；還不到第 4 季的「到第幾季」寫在數字下面 */
+.card-grid.eps-years { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.eps-years .cell > span > small { display: block; margin-left: 0; font-size: 11px; color: var(--muted); white-space: normal; }
+
 /* 星星（見 stars.js）：達標的數字旁邊一顆金色 ★；在小標題裡跟著字走，不換行、不跟著數字變紅綠 */
 .star { color: var(--star); font-weight: 600; }
 .cell small .star,

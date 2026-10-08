@@ -18,7 +18,7 @@
 
   // ---------- 列表與表單 ----------
   // 持股總覽、資料表與推算頁面都有列表；推算頁面點卡片時開啟來源資料表的編輯表單
-  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yield: YIELD_PAGE, kd: KD_PAGE, stars: STARS_PAGE };
+  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yield: YIELD_PAGE, kd: KD_PAGE, eps: EPS_PAGE, stars: STARS_PAGE };
   const lists = {};
   let current = 'overview';
 
@@ -31,12 +31,13 @@
     $('panels').appendChild(lists[key].el);
   });
   // 行情：每個指標一頁，加上把星星加起來的★ 星星；點卡片打開那一檔的詳細頁（見 market.js、detail.js）
-  const MARKET = ['yield', 'kd', 'stars'];
+  const MARKET = ['yield', 'kd', 'eps', 'stars'];
   const openStock = code => Detail.open(code);
   lists.yield = createMarket(YIELD_PAGE, { openStock });
   lists.kd = createMarket(KD_PAGE, { openStock });
+  lists.eps = createMarket(EPS_PAGE, { openStock });
   lists.stars = createMarket(STARS_PAGE, { openStock });
-  $('panels').append(lists.yield.el, lists.kd.el, lists.stars.el);
+  $('panels').append(lists.yield.el, lists.kd.el, lists.eps.el, lists.stars.el);
   const refreshMarket = () => MARKET.forEach(k => lists[k].refresh());
 
   // 新增、修改、刪除之後（表單、詳細頁的加入觀察清單）：相關的頁面重畫
@@ -68,7 +69,7 @@
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
     { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息']] },
-    { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD'], ['stars', '★ 星星']] },
+    { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD'], ['eps', 'EPS'], ['stars', '★ 星星']] },
   ];
   // 以前的頁面（殖利率分成庫存、觀察兩頁）：記在這台裝置的上次那一頁換成新的
   const OLD = { yieldHeld: 'yield', yieldWatch: 'yield' };
@@ -77,7 +78,7 @@
   const ADD = {
     trades: ['trades', '交易'], snapshots: ['snapshots', '快照'],
     cashDividends: ['dividends', '除權息'], dividends: ['dividends', '除權息'],
-    yield: ['watch', '觀察'], kd: ['watch', '觀察'], stars: ['watch', '觀察'],
+    yield: ['watch', '觀察'], kd: ['watch', '觀察'], eps: ['watch', '觀察'], stars: ['watch', '觀察'],
   };
   const tabBtns = [...document.querySelectorAll('.tabbar [data-tab]')];
   const subtabsEl = $('subtabs');
@@ -303,17 +304,20 @@
   const starsSet = document.querySelector('.stars-set');
   const starYield = $('star-yield');
   const starCross = $('star-cross');
+  const starEps = $('star-eps');
   function renderStars() {
-    if (!starsSet || !starYield || !starCross) return; // 瀏覽器還拿著舊版 index.html
+    if (!starsSet || !starYield || !starCross || !starEps) return; // 瀏覽器還拿著舊版 index.html
     starsSet.querySelectorAll('[data-star]').forEach(box => { box.checked = Stars.isOn(box.dataset.star); });
     starYield.innerHTML = Stars.YIELDS.map(n => `<option value="${n}"${n === Stars.yieldMin ? ' selected' : ''}>${n}%</option>`).join('');
     starYield.disabled = !Stars.isOn('yield');
     starCross.innerHTML = Stars.CROSS_AT.map(([v, label]) => `<option value="${v}"${v === Stars.crossAt ? ' selected' : ''}>${label}</option>`).join('');
     starCross.disabled = !Stars.isOn('golden');
+    starEps.innerHTML = Stars.EPS_AHEADS.map(n => `<option value="${n}"${n === Stars.epsAhead ? ' selected' : ''}>${n ? `${n}% 以上` : '超過就算'}</option>`).join('');
+    starEps.disabled = !Stars.isOn('eps');
   }
   starsSet?.addEventListener('change', () => {
     const off = [...starsSet.querySelectorAll('[data-star]')].filter(box => !box.checked).map(box => box.dataset.star);
-    Stars.set({ off, yieldMin: +starYield.value, crossAt: starCross.value });
+    Stars.set({ off, yieldMin: +starYield.value, crossAt: starCross.value, epsAhead: +starEps.value });
   });
   Stars.onChange(() => {
     refreshMarket();
@@ -607,6 +611,15 @@
   Market.load();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Market.refresh(); });
   window.addEventListener('online', () => Market.refresh());
+
+  // EPS（見 eps.js）：和收盤價一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫行情（EPS 頁、星星）
+  Eps.onChange(() => {
+    refreshMarket();
+    Detail.refresh();
+  });
+  Eps.load();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) Eps.refresh(); });
+  window.addEventListener('online', () => Eps.refresh());
 
   // 試算表的資料讀回來之後，全部重畫
   Sync.init({

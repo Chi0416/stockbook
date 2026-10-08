@@ -1,11 +1,11 @@
-// 行情：底部「行情」一格，每個指標一頁（殖利率｜KD，之後的其他指標往後加，見 app.js 的 GROUPS）
+// 行情：底部「行情」一格，每個指標一頁（殖利率｜KD｜EPS，之後的其他指標往後加，見 app.js 的 GROUPS）
 //   每一頁上面切換「全部｜持有｜觀察｜全市場」（每一頁一起切換）：
 //     全部：持股和觀察清單，同一檔只列一次，標「持有」或「觀察」；持股跟著設定裡勾的成員，觀察清單全家共用一份
 //     持有、觀察：只看其中一邊（你也持有的觀察清單股票，兩邊都有）
 //     全市場：收盤資料裡的每一檔（上市、上櫃約 2,400 檔），照排序先列前 50 檔，下面「再顯示 50 檔」；搜尋時找全部
 //   觀察清單在右上角「新增觀察」裡新增、移除（見 form.js），詳細頁裡也可以加入、移除（見 detail.js）
 //   點卡片打開那一檔的詳細頁（見 detail.js）
-//   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）、STARS_PAGE（stars.js）
+//   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）、EPS_PAGE（eps.js）、STARS_PAGE（stars.js）
 //
 // Market：收盤價和日 KD（shared/prices.json，由 tools/update-prices.mjs 產生）
 //   GitHub 每個工作天收盤後自動更新這個檔案（見 .github/workflows/update-prices.yml），不用改版本號：
@@ -129,9 +129,10 @@ function holdTagsHTML(r) {
   return (r.held ? '<span class="badge member">持有</span>' : '') + (r.watched ? '<span class="badge">觀察</span>' : '');
 }
 
-// 行情的一頁：page 是 YIELD_PAGE、KD_PAGE、STARS_PAGE；和其他列表一樣有 el、refresh、reset、changed
+// 行情的一頁：page 是 YIELD_PAGE、KD_PAGE、EPS_PAGE、STARS_PAGE；和其他列表一樣有 el、refresh、reset、changed
 //   page.sorts：[[值, 選單上的字, 比較的函式]]，第一個是預設；一樣的時候依代號
-//   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片；page.introHTML(rows)：列表上面的說明
+//   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片；page.introHTML(rows, 全市場, 沒列出幾檔)：列表上面的說明
+//   page.keep(r)（可以沒有）：這一頁只列哪些（EPS 頁不列 ETF）；全部沒列出時用 page.skippedHTML(幾檔, 全市場) 那句話
 //   openStock(代號)：點卡片時打開詳細頁
 function createMarket(page, { openStock = () => {} } = {}) {
   const RANGES = [['all', '全部'], ['held', '持有'], ['watch', '觀察'], ['market', '全市場']];
@@ -220,7 +221,9 @@ function createMarket(page, { openStock = () => {} } = {}) {
     }
     const range = MARKET_VIEW.range;
     const base = wide ? market(my) : my.filter(r => range === 'all' || (range === 'held' ? r.held : r.watched));
-    const all = base.filter(match).map(page.enrich);
+    const enriched = base.filter(match).map(page.enrich);
+    const all = page.keep ? enriched.filter(page.keep) : enriched;
+    const skipped = enriched.length - all.length;
     const byCode = (a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
     const cmp = page.sorts.find(([v]) => v === state.sort)[2];
     all.sort((a, b) => (cmp ? cmp(a, b) : 0) || byCode(a, b));
@@ -231,7 +234,8 @@ function createMarket(page, { openStock = () => {} } = {}) {
     if (!all.length) {
       // 持股、觀察清單裡找不到，全市場有：給一個按鈕切過去
       const elsewhere = !wide && kw && Market.ready() ? Market.codes().filter(c => match({ code: c, name: names()[c] || '' })).length : 0;
-      empty = elsewhere ? `這裡沒有符合的股票<br><button type="button" class="link-btn" data-act="range" data-value="market">全市場有 ${elsewhere} 檔符合，看全市場</button>`
+      empty = skipped ? page.skippedHTML(skipped, wide)
+        : elsewhere ? `這裡沒有符合的股票<br><button type="button" class="link-btn" data-act="range" data-value="market">全市場有 ${elsewhere} 檔符合，看全市場</button>`
         : kw ? '沒有符合條件的股票'
         : range === 'held' ? '目前沒有持股<br>到「記帳」記一筆買進，或照券商的庫存填一期快照'
         : range === 'watch' ? '還沒有觀察的股票<br>點右上角「新增觀察」，打代號或名稱加進來<br>也可以在「全市場」點一檔，加入觀察清單'
@@ -239,7 +243,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
     }
     const more = wide && all.length > shown.length
       ? `<button type="button" class="wide-btn more-btn" data-act="more">再顯示 ${Math.min(STEP, all.length - shown.length)} 檔（還有 ${U.fmtNum(all.length - shown.length)} 檔）</button>` : '';
-    listEl.innerHTML = rangeHTML() + (all.length ? page.introHTML(all, wide) : '') +
+    listEl.innerHTML = rangeHTML() + (all.length ? page.introHTML(all, wide, skipped) : '') +
       (shown.length ? shown.map(page.cardHTML).join('') + more : `<p class="empty">${empty}</p>`);
   }
 

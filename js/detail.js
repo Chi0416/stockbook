@@ -1,7 +1,8 @@
 // 一檔股票的詳細資料：行情的卡片點了打開（從底部彈出，和新增表單一樣）
 //   最上面：持有或觀察、星星（達標的條件，見 stars.js）
 //   我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
-//   殖利率、KD：和行情頁同樣的算法（YIELD_PAGE、KD_PAGE），達到星星條件的數字旁邊標 ★
+//   殖利率、KD、EPS：和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
+//     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，不顯示這一段
 //   配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前
 //   最下面可以加入觀察清單、從觀察清單移除（觀察清單全家共用）
 const Detail = (() => {
@@ -79,6 +80,30 @@ const Detail = (() => {
     return html;
   }
 
+  // EPS：達成率、今年到第幾季、去年全年、照這速度全年，進度條和說明，最下面近 5 年每一年的 EPS
+  //   EPS 還沒下載好時寫原因；下載好了、這檔沒有 EPS（ETF、興櫃）時整段不顯示
+  function epsHTML(r) {
+    const { e } = r;
+    if (!e) {
+      const why = Eps.waiting();
+      return why ? `<h3 class="section-head">EPS</h3><p class="note muted">${U.esc(why)}</p>` : '';
+    }
+    const tone = EPS_PAGE.tone(e);
+    // 一排五年：上面年份、下面 EPS，還不到第 4 季的在數字下面寫到第幾季；虧損綠色
+    const years = e.years.map(y => cell(`${y.year}`, `${fmt(y.eps)}${y.q < 4 ? `<small>到第 ${y.q} 季</small>` : ''}`, y.eps < 0 ? 'down' : '')).join('');
+    return `
+      <h3 class="section-head">EPS</h3>
+      <div class="card static detail-card eps-card">
+        <span class="card-grid">
+          ${cell(`達成率${Stars.mark(r, 'eps')}`, e.pct === null ? '—' : `${e.pct}%`, `strong ${tone}`)}
+          ${EPS_PAGE.cellsHTML(e)}
+        </span>
+        ${EPS_PAGE.barHTML(e)}
+        ${notesHTML(EPS_PAGE.notes(e))}
+        <span class="card-grid eps-years">${years}</span>
+      </div>`;
+  }
+
   // 配息紀錄：公告的加上自己記的，新的在前；還沒除息的寫「預計」，金額還沒公告寫「待公告」
   function eventsHTML() {
     const today = U.today();
@@ -142,6 +167,7 @@ const Detail = (() => {
         </span>
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
+      ${epsHTML(r)}
 
       <h3 class="section-head">配息紀錄</h3>
       ${eventsHTML()}
