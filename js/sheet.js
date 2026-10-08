@@ -360,8 +360,8 @@ const Sheet = (() => {
     };
   }
 
-  // 每股金額（現金股利、股票股利）常有好幾位小數，用試算表的自動格式
-  const PER_SHARE = new Set(['cash', 'stock']);
+  // 每股金額（現金股利、股票股利）常有好幾位小數，現金單的手續費折數有 2.8 折這種，都用試算表的自動格式
+  const PER_SHARE = new Set(['cash', 'stock', 'discount']);
 
   function numberFormat(f) {
     if (f.type === 'date') return { type: 'DATE', pattern: 'yyyy/mm/dd' };

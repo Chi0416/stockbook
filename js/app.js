@@ -18,7 +18,7 @@
 
   // ---------- 列表與表單 ----------
   // 持股總覽、資料表與推算頁面都有列表；推算頁面點卡片時開啟來源資料表的編輯表單
-  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yield: YIELD_PAGE, kd: KD_PAGE, eps: EPS_PAGE, stars: STARS_PAGE };
+  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, cash: CASH_PAGE, yield: YIELD_PAGE, kd: KD_PAGE, eps: EPS_PAGE, stars: STARS_PAGE };
   const lists = {};
   let current = 'overview';
 
@@ -30,6 +30,10 @@
     lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id), onChanged: (k, rec) => onChanged(k, rec), toast });
     $('panels').appendChild(lists[key].el);
   });
+  // 現金單（股利的第三頁，見 cash.js）：點設定打開現金單的表單
+  lists.cash = createCash({ openForm: (id, preset) => Form.open('cashPools', id, preset) });
+  $('panels').appendChild(lists.cash.el);
+
   // 行情：每個指標一頁，加上把星星加起來的★ 星星；點卡片打開那一檔的詳細頁（見 market.js、detail.js）
   const MARKET = ['yield', 'kd', 'eps', 'stars'];
   const openStock = code => Detail.open(code);
@@ -50,6 +54,11 @@
       lists.dividends.refresh();
       return;
     }
+    // 現金單的設定：只有現金單頁用到
+    if (key === 'cashPools') {
+      lists.cash.changed(rec);
+      return;
+    }
     lists[key].changed(rec);
     // 持股變了，除權息頁最上面的即將除權息（持有的、預估領多少）跟著重算
     if (key !== 'dividends') lists.dividends.refresh();
@@ -61,6 +70,7 @@
       else lists[v].refresh();
     });
     lists.overview.refresh();
+    lists.cash.refresh();
   }
   Form.init({ toast, onChanged });
   Detail.init({ toast, onChanged });
@@ -71,7 +81,7 @@
   const GROUPS = [
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
-    { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息']] },
+    { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
     { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD'], ['eps', 'EPS'], ['stars', '★ 星星']] },
   ];
   // 以前的頁面（殖利率分成庫存、觀察兩頁）：記在這台裝置的上次那一頁換成新的
@@ -616,6 +626,7 @@
   Market.onChange(() => {
     lists.overview.refresh();
     lists.dividends.refresh();
+    lists.cash.refresh();
     refreshMarket();
     Detail.refresh();
   });
@@ -650,10 +661,11 @@
       renderCloud(st);
       Inbox.syncStatus(st);
     },
-    // 讀回新的股價：持股總覽、殖利率、EPS（預估殖利率）、星星（殖利率的星星）、除權息頁的即將除權息（約幾 %）重畫
+    // 讀回新的股價：持股總覽、殖利率、EPS（預估殖利率）、星星（殖利率的星星）、除權息頁的即將除權息（約幾 %）、現金單重畫
     //   KD 頁只用收盤價，不用重畫
     onPrices() {
       lists.overview.refresh();
+      lists.cash.refresh();
       lists.yield.refresh();
       lists.eps.refresh();
       lists.stars.refresh();

@@ -33,6 +33,8 @@
 //   （資料表）formTitle: 表單標題用的名稱（「新增觀察的股票」），沒有時用 title
 //   （資料表）noList:    不用一般的列表，畫面另外畫（觀察清單在行情的每一頁，見 market.js）
 //   （資料表）unique:    不能和其他筆重複的欄位（觀察清單的同一檔股票只能加一次），儲存時擋下來
+//   （資料表）uniqueMsg: 重複時的提醒：uniqueMsg(已經有的那一筆) 回傳文字；沒有時是「觀察清單裡已經有 0056 元大高股息 了」
+//   （資料表）closeOnAdd: 新增後關閉表單（預設不關，方便連續記好幾筆）
 //   （資料表）remove:    刪除按鈕的文字和刪除後的提示：{ label, done }，沒有時是「刪除這筆」「已刪除」
 //   migrate:     讀取舊格式資料時的轉換
 //   legacy:      試算表格式版本 1 的舊欄位：{ 舊標題: 舊的 key }，讀進舊的 key 再由 migrate 換算（見 sheet.js）
@@ -282,6 +284,32 @@ const SCHEMAS = {
     fields: [
       { key: 'code', label: '代號', type: 'text', caps: true, pair: 'name', suggestFrom: ['dividends', 'snapshots', 'trades'], note: codeNote },
       { key: 'name', label: '證券', type: 'text' },
+    ],
+  },
+
+  // 現金單：把一檔股票（例如 0050）當成資金池，要用錢時算要賣幾股、實拿多少（畫面在股利的「現金單」，見 cash.js）
+  //   每位成員各自一筆：哪一檔，和自己券商的手續費（每個人的券商、折扣不一樣）
+  //   目前一人一檔（unique 是成員）；以後要好幾檔時改成成員＋代號
+  cashPools: {
+    title: '現金單',
+    noList: true,
+    unique: ['member'],
+    uniqueMsg: dup => `${Store.memberName(dup.member)}已經有現金單了（${[dup.code, dup.name].filter(Boolean).join(' ')}）`,
+    closeOnAdd: true,
+    remove: { label: '刪除這個現金單', done: '已刪除' },
+    card: { code: 'code', title: 'name' },
+    fields: [
+      { key: 'member',    label: '成員',   type: 'member', full: true },
+      { key: 'code',      label: '代號',   type: 'text', caps: true, pair: 'name', suggestFrom: ['snapshots', 'trades'],
+        hint: '當資金池的股票，例如 0050', note: codeNote },
+      { key: 'name',      label: '證券',   type: 'text' },
+      // 手續費 = 成交金額 × 0.1425% × 折數；月退是成交時先收原價、下個月才退，提領當下實拿的錢用原價算
+      { key: 'discount',  label: '手續費折數', type: 'number', default: 6, hint: '6 折填 6、2.8 折填 2.8，沒有折扣填 10' },
+      { key: 'rebate',    label: '折扣方式', type: 'text', default: '當日折', suggest: ['當日折', '月退'],
+        toggle: [{ value: '當日折', label: '當日折', tone: '', match: /日/ }, { value: '月退', label: '月退', tone: '', match: /月/ }],
+        hint: '月退是先收原價、下個月才退，提領時用原價算' },
+      { key: 'minFee',    label: '整股最低手續費', type: 'number', default: 20, hint: '一張以上，元' },
+      { key: 'oddMinFee', label: '零股最低手續費', type: 'number', default: 1, hint: '不到一張，元' },
     ],
   },
 };

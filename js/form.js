@@ -55,7 +55,8 @@ const Form = (() => {
     }))));
   }
 
-  function open(tableKey, id) {
+  // preset：新增時先帶入的值（{ 欄位: 值 }，例如現金單的「幫媽媽設定」先選好媽媽）
+  function open(tableKey, id, preset = {}) {
     const schema = SCHEMAS[tableKey];
     const rec = id ? Store.list(tableKey, 'all').find(r => r.id === id) : null;
     if (id && !rec) return;
@@ -66,7 +67,7 @@ const Form = (() => {
     delBtn.hidden = !id;
     dlg.dataset.table = tableKey; // 只有股票一格的表單（觀察清單）要留位置給下拉選單（見 style.css）
     statusEl.hidden = true;
-    buildFields(rec);
+    buildFields(rec, preset);
     renderManage();
     dlg.showModal();
     bodyEl.scrollTop = 0;
@@ -74,7 +75,7 @@ const Form = (() => {
 
   const fieldIndex = key => ctx.fields.findIndex(f => f.key === key);
 
-  function buildFields(rec) {
+  function buildFields(rec, preset = {}) {
     const fields = ctx.fields;
     fieldsEl.innerHTML = '';
     chipBoxes = fields.map(() => null);
@@ -98,7 +99,8 @@ const Form = (() => {
       } else if (Store.members().length < 2) {
         wrap.hidden = true; // 只有一位成員時不用選
       }
-      inp.value = rec ? editValue(f.group ? rec[f.group]?.[f.memberId] : rec[f.key]) : defaultValue(f);
+      inp.value = rec ? editValue(f.group ? rec[f.group]?.[f.memberId] : rec[f.key])
+        : f.key in preset ? editValue(preset[f.key]) : defaultValue(f);
 
       const label = document.createElement('label');
       label.htmlFor = inp.id;
@@ -621,7 +623,7 @@ const Form = (() => {
     if (dup) {
       const i = fieldIndex(ctx.schema.unique[0]);
       const c = comboOf(i);
-      const msg = `${ctx.schema.title}裡已經有 ${[dup.code, dup.name].filter(Boolean).join(' ')} 了`;
+      const msg = ctx.schema.uniqueMsg?.(dup) || `${ctx.schema.title}裡已經有 ${[dup.code, dup.name].filter(Boolean).join(' ')} 了`;
       if (c) setComboError(c, msg);
       else setError(i, msg);
       document.activeElement?.blur(); // 不把焦點放回股票欄：下拉選單會打開，蓋住這句提醒
@@ -638,10 +640,15 @@ const Form = (() => {
       return;
     }
 
-    // 新增後表單不關閉，保留 keep 欄位，方便連續輸入整個月的明細
+    // 新增後表單不關閉，保留 keep 欄位，方便連續輸入整個月的明細；只設定一次的（現金單）存好就關
     const saved = Store.add(ctx.tableKey, rec);
     ctx.count++;
     hooks.onChanged(ctx.tableKey, saved);
+    if (ctx.schema.closeOnAdd) {
+      dlg.close();
+      hooks.toast('已儲存');
+      return;
+    }
     inputs.forEach((inp, i) => {
       const f = ctx.fields[i];
       if (!f.keep) inp.value = defaultValue(f);

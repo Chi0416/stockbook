@@ -48,6 +48,9 @@ const Holdings = (() => {
 
   // 成員某代號在 date 之前（inclusive 時含當天）的持股
   //   之前有快照就從最近一期快照往後推；沒有就從 0 開始累加（snapDate 為 null）
+  //   另外從同一個起點算進出的錢（現金單用，見 cash.js）：
+  //     paid 投入 = 快照的付出成本 + 之後買進的應收付金額；got 已提領 = 之後賣出拿回的應收付金額
+  //     divs 股利 = 之後除息的現金股利（和付出成本扣掉的一樣）
   function position(member, code, date, inclusive = false) {
     const snapDate = snapDateBefore(member, date, inclusive);
     const inRange = d => (!snapDate || d > snapDate) && (inclusive ? d <= date : d < date);
@@ -60,6 +63,9 @@ const Holdings = (() => {
     let bought = 0;
     let sold = 0;
     let bonus = 0;
+    let paid = cost;
+    let got = 0;
+    let divs = 0;
 
     const events = eventsFor(member, code, inRange);
 
@@ -68,7 +74,11 @@ const Holdings = (() => {
         // 除息：股數不變，付出成本扣掉這次的現金股利（基準日股數有手動填就用它）
         const manual = e.cash.baseShares?.[member];
         const held = typeof manual === 'number' ? manual : shares;
-        if (held > 0) cost -= Math.round(U.round(num(e.cash.cash) * held));
+        if (held > 0) {
+          const cash = Math.round(U.round(num(e.cash.cash) * held));
+          cost -= cash;
+          divs += cash;
+        }
       } else if (e.trade) {
         const t = e.trade;
         const n = num(t.shares);
@@ -77,10 +87,12 @@ const Holdings = (() => {
           shares += n;
           bought += n;
           cost += num(t.settle);
+          paid += num(t.settle);
         } else if (/賣/.test(t.type)) {
           cost = shares > 0 ? Math.round(cost * Math.max(shares - n, 0) / shares) : 0;
           shares -= n;
           sold += n;
+          got += num(t.settle);
         }
       } else {
         const add = bonusShares(member, code, e.stock);
@@ -95,7 +107,7 @@ const Holdings = (() => {
       (sold ? ` − 賣出 ${U.fmtNum(sold)}` : '') +
       (bonus ? ` + 配股 ${U.fmtNum(bonus)}` : '');
 
-    return { member, code, name, shares, cost, snapDate, found: rows.length > 0 || changed, changed, formula };
+    return { member, code, name, shares, cost, paid, got, divs, snapDate, found: rows.length > 0 || changed, changed, formula };
   }
 
   // 除權息日之前沒有快照時，用除權息日當天或之後最近一期快照往回推：
