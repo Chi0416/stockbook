@@ -70,7 +70,7 @@ test('達成率 = 今年累計 ÷ 去年全年；進度每季 25%；超前 = 達
     { year: 2026, q: 1, now: 4, last: 10, pct: 40, pace: 25, ahead: 15, est: 16 });
 });
 
-test('台積電：上半年 49.33 ÷ 去年全年 66.26 = 74%，進度 50%，超前 24%；照這速度全年 98.66', () => {
+test('台積電：上半年 49.33 ÷ 去年全年 66.26 = 74%，進度 50%，超前 24%；預估全年 EPS 98.66', () => {
   const e = Eps.info('2330');
   assert.deepEqual(pick(e, ['q', 'pct', 'pace', 'ahead', 'est', 'same']), { q: 2, pct: 74, pace: 50, ahead: 24, est: 98.66, same: 29.31 });
   assert.equal(Math.round(e.growth * 100), 68); // 比去年同期多 68%
@@ -153,7 +153,7 @@ test('這一頁只列有 EPS 的；說明寫出進度、超前或落後、去年
 // ---------- 股利預估 ----------
 const round = (v, n = 4) => Math.round(v * 10 ** n) / 10 ** n;
 
-test('中華電：配息率 = 近 3 年現金股利加起來 ÷ EPS 加起來，預估配 = 照這速度全年 × 配息率', () => {
+test('中華電：配息率 = 近 3 年現金股利加起來 ÷ EPS 加起來，預估配 = 預估全年 EPS × 配息率', () => {
   const f = Eps.info('2412').fc;
   assert.deepEqual([...f.years.map(y => y.year)], [2023, 2024, 2025]); // 2022 太舊，只取最近 3 年
   assert.equal(round(f.payout), round((4.758 + 5 + 5.2) / (4.76 + 4.8 + 4.99)));

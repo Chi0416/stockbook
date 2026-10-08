@@ -363,19 +363,23 @@ body:has(dialog[open]) { overflow: hidden; }
 /* 詳細頁最下面一排近 5 年的 EPS：固定五格；還不到第 4 季的「到第幾季」寫在數字下面 */
 .card-grid.eps-years { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .eps-years .cell > span > small { display: block; margin-left: 0; font-size: 11px; color: var(--muted); white-space: normal; }
+/* 近 5 年的 EPS 也是參考資料：和股利預估的歷年表一樣，小一號、灰色（虧損照樣綠色） */
+.eps-years .cell > span { font-size: 13px; color: var(--muted); }
+.card-grid.eps-years { margin-top: 10px; padding-top: 10px; }
 
 /* 股利預估（見 eps.js）：卡片最下面那一行用深一點的字，和上面 EPS 的說明分得出來 */
 .eps-card .card-note.fc { color: var(--text-2); }
-/* 詳細頁的股利預估：每一年 EPS、配多少、配息率，一列一年，數字靠右對齊 */
+/* 詳細頁的股利預估：每一年 EPS、配多少、配息率，一列一年，數字靠右對齊
+   這是算法的依據（參考資料），比上面四格的結果小一號、灰色，一眼分得出哪個是答案 */
 .fc-years {
   display: grid;
   grid-template-columns: auto 1fr 1fr 1fr;
-  gap: 6px 12px;
+  gap: 3px 12px;
   margin-top: 12px;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: .5px solid var(--border);
-  font-size: 14px;
-  color: var(--text-2);
+  font-size: 13px;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .fc-years > :nth-child(4n + 2), .fc-years > :nth-child(4n + 3), .fc-years > :nth-child(4n + 4) { text-align: right; }
@@ -406,10 +410,15 @@ body:has(dialog[open]) { overflow: hidden; }
 .detail-card .card-grid:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .detail-card .cell.up > span { color: var(--buy); }
 .detail-card .cell.down > span { color: var(--sell); }
-.member-list.detail-events li { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 14px; padding: 10px 16px; font-variant-numeric: tabular-nums; }
-.detail-events small { display: block; font-size: 11px; color: var(--muted); }
-.ev-pay { font-size: 13px; color: var(--muted); }
-.ev-cash { text-align: right; font-weight: 600; }
+/* 配息紀錄：一次一行的表（除權息日｜發放｜現金｜配股｜合計），金額靠右對齊、上下對齊好比較；合計用粗體 */
+.ev-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ev-table th { padding: 0 0 8px; font-size: 11px; font-weight: 400; color: var(--muted); text-align: left; }
+.ev-table td { padding: 9px 0; border-top: .5px solid var(--border); color: var(--text-2); vertical-align: baseline; }
+.ev-table th + th, .ev-table td + td { padding-left: 10px; }
+.ev-table .num { text-align: right; }
+.ev-table .total { font-weight: 600; color: var(--text); }
+.ev-table .ev-pay { font-size: 13px; color: var(--muted); }
+.ev-table small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
 .detail-watch { margin-top: 28px; }
 
 /* 推算頁面上方的合計：大號襯線數字 */

@@ -84,7 +84,7 @@ const Detail = (() => {
     return html;
   }
 
-  // EPS：達成率、今年到第幾季、去年全年、照這速度全年，進度條和說明，最下面近 5 年每一年的 EPS
+  // EPS：達成率、今年到第幾季、去年全年、預估全年 EPS，進度條和說明，最下面近 5 年每一年的 EPS（新的在左邊）
   //   EPS 還沒下載好時寫原因；下載好了、這檔沒有 EPS（ETF、興櫃）時整段不顯示
   function epsHTML(r) {
     const { e } = r;
@@ -93,8 +93,8 @@ const Detail = (() => {
       return why ? `<h3 class="section-head">EPS</h3><p class="note muted">${U.esc(why)}</p>` : '';
     }
     const tone = EPS_PAGE.tone(e);
-    // 一排五年：上面年份、下面 EPS，還不到第 4 季的在數字下面寫到第幾季；虧損綠色
-    const years = e.years.map(y => cell(`${y.year}`, `${fmt(y.eps)}${y.q < 4 ? `<small>到第 ${y.q} 季</small>` : ''}`, y.eps < 0 ? 'down' : '')).join('');
+    // 一排五年：上面年份、下面 EPS，新的在左邊；還不到第 4 季的在數字下面寫到第幾季；虧損綠色
+    const years = [...e.years].reverse().map(y => cell(`${y.year}`, `${fmt(y.eps)}${y.q < 4 ? `<small>到第 ${y.q} 季</small>` : ''}`, y.eps < 0 ? 'down' : '')).join('');
     return `
       <h3 class="section-head">EPS</h3>
       <div class="card static detail-card eps-card">
@@ -108,7 +108,7 @@ const Detail = (() => {
       </div>`;
   }
 
-  // 股利預估：上面四格（預估配、預估殖利率、配息率、用哪個 EPS 估），中間每一年怎麼算的，下面說明
+  // 股利預估：上面四格照計算的順序：預估全年 EPS × 配息率 = 預估配，÷ 現價 = 預估殖利率；中間每一年怎麼算的，下面說明
   //   今年整年都決議了：寫已決議配多少，不用估；估不出來時只寫原因
   function fcHTML(r) {
     const { e } = r;
@@ -130,7 +130,7 @@ const Detail = (() => {
     } else if (f.wild) {
       notes.push(P.fcText(r));
     } else {
-      notes.push(`預估配 = ${e.q === 4 ? '全年' : '照這速度全年'} ${fmt(f.base)} × 配息率 ${U.fmtNum(Math.round(f.payout * 100))}% ≈ ${P.money(f.cash)} 元`);
+      notes.push(`預估配 = ${e.q === 4 ? '全年 EPS' : '預估全年 EPS'} ${fmt(f.base)} × 配息率 ${U.fmtNum(Math.round(f.payout * 100))}% ≈ ${P.money(f.cash)} 元`);
       if (f.decided !== null) notes.push(`已經決議 ${P.money(f.decided)} 元（${f.decidedQ === 2 ? '上半年' : `到第 ${f.decidedQ} 季`}），預估的是全年`);
       if (P.fcWarn(r)) notes.push(P.fcWarn(r));
     }
@@ -140,28 +140,45 @@ const Detail = (() => {
       ${head}
       <div class="card static detail-card eps-card">
         <span class="card-grid">
+          ${cell(e.q === 4 ? `${name}全年 EPS` : '預估全年 EPS', fmt(f.base))}
+          ${f.payout === null ? '' : cell('配息率', `${U.fmtNum(Math.round(f.payout * 100))}%`)}
           ${cell(f.done ? '已決議配' : '預估配', f.done ? `${P.money(f.decided)} 元` : f.cash === null ? '—' : `${P.money(f.cash)} 元`, 'strong')}
           ${cell(f.done ? '殖利率' : '預估殖利率', r.fy === null ? '—' : P.pct(r.fy), 'strong')}
-          ${f.payout === null ? '' : cell('配息率', `${U.fmtNum(Math.round(f.payout * 100))}%`)}
-          ${cell(e.q === 4 ? `${name}全年 EPS` : '照這速度全年', fmt(f.base))}
         </span>
         ${rows ? `<span class="fc-years"><small>年度</small><small>EPS</small><small>配現金</small><small>配息率</small>${rows}</span>` : ''}
         ${notesHTML(notes)}
       </div>`;
   }
 
-  // 配息紀錄：公告的加上自己記的，新的在前；還沒除息的寫「預計」，金額還沒公告寫「待公告」
-  //   金額是每股的現金股利（寫「現金」，免得以為是領到的合計）；同一次另外配股的，下面一行小字「＋配股 0.2 元」
+  // 配息紀錄：公告的加上自己記的，新的在前；一張表，一次一行：除權息日｜發放｜現金｜配股｜合計（都是每股、元）
+  //   合計 = 現金 + 配股（配股是照面額算的價值，不是現金）；沒配股的配股欄寫「—」
+  //   還沒除息的在日期下面寫「預計」，金額還沒公告的現金寫「待公告」、合計「—」，金額用自己記的在現金下面寫「你記的」
+  //   發放日只寫月/日，手機上才放得下
+  //   表格下面一行小字：公告資料只抓近 13 個月（年配的只會有一行，免得以為只配過一次），更早的只列自己記過的
   function eventsHTML() {
     const today = U.today();
     const list = Yield.events(code, Store.list('dividends', 'all'));
     if (!list.length) return '<p class="note muted">公告資料裡沒有這檔的配息，也還沒有記過</p>';
-    return `<ul class="member-list detail-events">${list.map(r => `
-      <li>
-        <span class="ev-date">${U.esc(U.fmtDate(r.exDate))}${r.exDate > today ? '<small>預計</small>' : ''}</span>
-        <span class="ev-pay">${r.payDate ? `發放 ${U.esc(md(r.payDate))}` : ''}</span>
-        <span class="ev-cash">${typeof r.cash === 'number' ? `現金 ${U.fmtNum(r.cash)} 元` : '待公告'}${r.stock ? `<small>＋配股 ${U.fmtNum(r.stock)} 元</small>` : ''}${r.own ? '<small>你記的</small>' : ''}</span>
-      </li>`).join('')}</ul>`;
+    const num = v => (v ? U.fmtNum(v) : '—');
+    const rows = list.map(r => {
+      const cash = typeof r.cash === 'number';
+      return `
+        <tr>
+          <td>${U.esc(U.fmtDate(r.exDate))}${r.exDate > today ? '<small>預計</small>' : ''}</td>
+          <td class="ev-pay">${r.payDate ? U.esc(U.fmtDate(r.payDate).slice(5)) : '—'}</td>
+          <td class="num">${cash ? U.fmtNum(r.cash) : '待公告'}${r.own ? '<small>你記的</small>' : ''}</td>
+          <td class="num">${num(r.stock)}</td>
+          <td class="num total">${cash ? U.fmtNum(U.round(r.cash + (r.stock || 0), 4)) : '—'}</td>
+        </tr>`;
+    }).join('');
+    return `
+      <div class="card static detail-card">
+        <table class="ev-table">
+          <thead><tr><th>除權息日</th><th>發放</th><th class="num">現金</th><th class="num">配股</th><th class="num">合計</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <span class="card-note">公告資料只有近 13 個月，更早的只列你記過的</span>
+      </div>`;
   }
 
   function render() {
@@ -218,7 +235,7 @@ const Detail = (() => {
       <h3 class="section-head">我的</h3>
       <div class="card static detail-card">${mineHTML(pos, r.price)}</div>
 
-      <h3 class="section-head">配息紀錄</h3>
+      <h3 class="section-head">配息紀錄（每股，元）</h3>
       ${eventsHTML()}
 
       ${watchRec
