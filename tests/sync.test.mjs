@@ -170,6 +170,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true, clock 
   const ticks = []; // setInterval 的計時器（盤中自動更新現價），測試裡直接呼叫
   const toasts = [];
   const notes = []; // 送進訊息匣的標題
+  const inbox = []; // 送進訊息匣的整則訊息（{ title, body, action }）
   const asked = { answer: confirmAnswer, messages: [] };
   const alerts = [];
   const loggedOut = { count: 0 };
@@ -220,12 +221,12 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true, clock 
   const app = vm.runInContext('({ Store, Sync, Sheet })', ctx);
   app.Sync.init({
     toast: (msg, kind) => toasts.push(kind ? `${kind}:${msg}` : msg),
-    notify: m => notes.push(m.title),
+    notify: m => { notes.push(m.title); inbox.push(m); },
     onLogout: () => { loggedOut.count++; },
     onPrices: () => { priced.count++; },
   });
   const fire = type => (events[type] || []).forEach(fn => fn());
-  return { ...app, ls, toasts, asked, notes, alerts, loggedOut, priced, ticks, doc: ctx.document, nav, fire, popups };
+  return { ...app, ls, toasts, asked, notes, inbox, alerts, loggedOut, priced, ticks, doc: ctx.document, nav, fire, popups };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -353,6 +354,36 @@ test('長輩在試算表刪掉一列，App 也跟著刪除（少量刪除不詢�
   await d.Sync.syncNow();
   assert.equal(d.Store.list('snapshots', 'all').length, 0);
   assert.deepEqual(d.asked.messages, []);
+  // 訊息匣留一則，列出是哪一筆（不寫金額），點了打開試算表
+  const m = d.inbox.at(-1);
+  assert.equal(m.title, '試算表刪了 1 筆，這台也跟著刪了');
+  assert.match(m.body, /庫存快照：2026\/08\/31 現股 0056 元大高股息/);
+  assert.match(m.body, /檔案 → 版本記錄/);
+  assert.doesNotMatch(m.body, /1,?367,?670/);
+  assert.equal(m.action.type, 'sheet');
+  // 再同步一次不會再留
+  await d.Sync.syncNow();
+  assert.equal(d.inbox.filter(x => x.title.startsWith('試算表刪了')).length, 1);
+});
+
+test('在這台裝置自己刪的、試算表裡新增或修改的，都不會留「試算表刪了」的訊息', async () => {
+  const { fake, d, id } = await linked();
+  const t = d.Store.add('trades', TRADE);
+  await d.Sync.syncNow();
+  d.Store.remove('trades', t.id);
+  fake.setCell(id, '庫存快照', 2, 5, 43000);
+  fake.appendRow(id, '交易明細', ['我', '2026/9/10', '普買', '00878', '國泰永續高股息', 1000, 22.5, 22500, 32, 0]);
+  await d.Sync.syncNow();
+  assert.equal(d.inbox.filter(x => /刪了|少了/.test(x.title)).length, 0);
+});
+
+test('有多位成員時，刪掉的那筆寫上是誰的', async () => {
+  const { fake, d, id } = await linked();
+  d.Store.addMember('媽媽');
+  await d.Sync.syncNow();
+  fake.sheet(id, '庫存快照').grid.splice(1, 1);
+  await d.Sync.syncNow();
+  assert.match(d.inbox.at(-1).body, /庫存快照：我 2026\/08\/31 現股 0056/);
 });
 
 // 連結後再加 5 筆交易並同步，回傳試算表 id
@@ -375,6 +406,8 @@ test('試算表一次少了 5 筆以上：先詢問，選「取消」就保留�
   assert.equal(fake.values(id, '交易明細').length, 6);
   assert.equal(d.Sync.state().pending, 0);
   assert.ok(d.notes.includes('試算表裡少了 5 筆資料'));
+  assert.match(d.inbox.at(-1).body, /保留，並寫回試算表/);
+  assert.doesNotMatch(d.inbox.at(-1).body, /版本記錄/);
   // 再同步一次不會重複寫入，也不會再問
   await d.Sync.syncNow();
   assert.equal(fake.values(id, '交易明細').length, 6);
@@ -388,6 +421,21 @@ test('試算表一次少了 5 筆以上：選「確定」就跟著刪除', async
   await d.Sync.syncNow();
   assert.equal(d.asked.messages.length, 1);
   assert.equal(d.Store.list('trades', 'all').length, 0);
+  const m = d.inbox.at(-1);
+  assert.equal(m.title, '試算表裡少了 5 筆資料');
+  assert.equal(m.body.split('\n').filter(l => l.startsWith('交易明細：')).length, 5);
+  assert.match(m.body, /版本記錄/);
+  assert.equal(m.action.type, 'sheet');
+});
+
+test('試算表一次少了 10 筆以上：訊息匣最多列 10 筆，其餘寫「等幾筆」', async () => {
+  const { fake, d, id } = await withTrades(12);
+  fake.sheet(id, '交易明細').grid.splice(1, 12);
+  d.asked.answer = true;
+  await d.Sync.syncNow();
+  const body = d.inbox.at(-1).body;
+  assert.equal(body.split('\n').filter(l => l.startsWith('交易明細：')).length, 10);
+  assert.match(body, /…等 12 筆/);
 });
 
 test('沒有網路：顯示會自動同步，不算失敗；網路恢復後正常同步', async () => {

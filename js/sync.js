@@ -12,6 +12,7 @@ const Sync = (() => {
   const CLOUD_KEY = 'stockbook.cloud';
   const MARK = 'stockbook'; // 試算表上的標記（雲端硬碟的 appProperties），用來找回這份試算表
   const MASS_DELETE = 5; // 試算表裡一次少了這麼多筆時，先問使用者再跟著刪除
+  const LIST_MAX = 10;   // 跟著刪除時，訊息匣最多列出幾筆
   const TABLES = Object.keys(SCHEMAS);
   const api = Google.api;
   const enc = encodeURIComponent;
@@ -176,7 +177,18 @@ const Sync = (() => {
   }
 
   // ---------- 讀回、合併、寫回 ----------
-  // 試算表裡一次少了很多筆（可能是不小心選取一大片刪掉）：先問要跟著刪除，還是保留並寫回試算表
+  // 一筆資料的簡短說明（訊息匣用），例如「交易明細：爸爸 2026/09/01 普買 0050 元大台灣50」
+  //   不寫金額：隱藏金額時也不會露出來
+  function describe(t, r) {
+    const { code, title, badge } = SCHEMAS[t].card || {};
+    const date = SCHEMAS[t].fields.find(f => f.type === 'date');
+    const who = r.member && Store.members().length > 1 ? Store.memberName(r.member) : '';
+    const text = [who, date && U.fmtDate(r[date.key]), badge && r[badge], code && r[code], title && r[title]].filter(Boolean).join(' ');
+    return `${SCHEMAS[t].title}：${text}`;
+  }
+
+  // 試算表裡少了的資料（在試算表或其他裝置上刪掉了）：這台也跟著刪除，在訊息匣留一則，列出是哪幾筆
+  //   一次少了很多筆（可能是不小心選取一大片刪掉）：先問要跟著刪除，還是保留並寫回試算表
   //   選保留時，這幾筆標成待同步並加進這次的快照，接下來和其他修改一起寫回去
   function keepOrDelete(parsed, skip, snap) {
     const pending = new Set(snap.items.map(i => `${i.table}:${i.id}`));
@@ -184,16 +196,28 @@ const Sync = (() => {
       const remote = new Set(parsed.data[t].map(r => r.id));
       return Store.list(t, 'all')
         .filter(r => !remote.has(r.id) && !pending.has(`${t}:${r.id}`))
-        .map(r => ({ table: t, id: r.id }));
+        .map(r => ({ table: t, id: r.id, text: describe(t, r) }));
     });
-    if (gone.length < MASS_DELETE) return;
+    if (!gone.length) return;
+    const shown = gone.slice(0, LIST_MAX).map(g => g.text);
+    if (gone.length > LIST_MAX) shown.push(`…等 ${gone.length} 筆`);
+    const undo = '不小心刪的話，可以在試算表的「檔案 → 版本記錄」找回來，下次同步就會回來。';
+    if (gone.length < MASS_DELETE) {
+      hooks.notify({
+        title: `試算表刪了 ${gone.length} 筆，這台也跟著刪了`,
+        body: `在試算表或其他裝置上刪掉的：\n${shown.join('\n')}\n${undo}`,
+        action: { type: 'sheet' },
+      });
+      return;
+    }
     const lines = TABLES.map(t => [t, gone.filter(g => g.table === t).length])
       .filter(([, n]) => n).map(([t, n]) => `${SCHEMAS[t].title} ${n} 筆`).join('、');
     const del = confirm(`試算表裡少了 ${gone.length} 筆資料（${lines}），可能是在試算表或其他裝置上刪除了。\n\n`
       + '按「確定」：這台裝置也跟著刪除。\n按「取消」：保留這些資料，並寫回試算表。');
     hooks.notify({
       title: `試算表裡少了 ${gone.length} 筆資料`,
-      body: `${lines}。你選擇：${del ? '這台裝置也跟著刪除' : '保留，並寫回試算表'}。`,
+      body: `${lines}。你選擇：${del ? '這台裝置也跟著刪除' : '保留，並寫回試算表'}。\n${shown.join('\n')}${del ? `\n${undo}` : ''}`,
+      action: del ? { type: 'sheet' } : null,
     });
     if (del) return;
     Store.markPending(gone);
