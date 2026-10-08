@@ -20,8 +20,9 @@ const Yield = (() => {
   const days = (a, b) => (Date.parse(a) - Date.parse(b)) / DAY;
   const byExDesc = (a, b) => (a.exDate < b.exDate ? 1 : a.exDate > b.exDate ? -1 : 0);
 
-  // 這一檔每一次的現金股利，除權息日新的在前：[{ exDate, payDate, cash, own }]
+  // 這一檔每一次的現金股利，除權息日新的在前：[{ exDate, payDate, cash, stock, own }]
   //   cash 是 null：公告了日期、金額還沒公告，自己也還沒記；own：金額用的是自己記的
+  //   stock：同一次另外配的股票股利（元，沒有是 0；詳細頁的配息紀錄寫出來，殖利率不算）
   //   own（參數）：自己記的除權息
   function events(code, own) {
     const c = key(code);
@@ -30,10 +31,10 @@ const Yield = (() => {
     const pub = Announced.forCode(c).filter(r => r.cash !== 0); // 只配股的不算
     const list = pub.map(r => {
       const m = r.cash == null ? mine.find(d => Announced.sameEvent(d, r)) : null;
-      return { exDate: r.exDate, payDate: r.payDate, cash: m ? m.cash : r.cash, own: !!m };
+      return { exDate: r.exDate, payDate: r.payDate, cash: m ? m.cash : r.cash, stock: r.stock || 0, own: !!m };
     });
     mine.filter(d => !pub.some(r => Announced.sameEvent(d, r)))
-      .forEach(d => list.push({ exDate: d.exDate, payDate: d.payDate || '', cash: d.cash, own: true }));
+      .forEach(d => list.push({ exDate: d.exDate, payDate: d.payDate || '', cash: d.cash, stock: d.stock || 0, own: true }));
     return list.sort(byExDesc);
   }
 

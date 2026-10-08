@@ -151,6 +151,7 @@ const Detail = (() => {
   }
 
   // 配息紀錄：公告的加上自己記的，新的在前；還沒除息的寫「預計」，金額還沒公告寫「待公告」
+  //   金額是每股的現金股利（寫「現金」，免得以為是領到的合計）；同一次另外配股的，下面一行小字「＋配股 0.2 元」
   function eventsHTML() {
     const today = U.today();
     const list = Yield.events(code, Store.list('dividends', 'all'));
@@ -159,7 +160,7 @@ const Detail = (() => {
       <li>
         <span class="ev-date">${U.esc(U.fmtDate(r.exDate))}${r.exDate > today ? '<small>預計</small>' : ''}</span>
         <span class="ev-pay">${r.payDate ? `發放 ${U.esc(md(r.payDate))}` : ''}</span>
-        <span class="ev-cash">${typeof r.cash === 'number' ? `${U.fmtNum(r.cash)} 元` : '待公告'}${r.own ? '<small>你記的</small>' : ''}</span>
+        <span class="ev-cash">${typeof r.cash === 'number' ? `現金 ${U.fmtNum(r.cash)} 元` : '待公告'}${r.stock ? `<small>＋配股 ${U.fmtNum(r.stock)} 元</small>` : ''}${r.own ? '<small>你記的</small>' : ''}</span>
       </li>`).join('')}</ul>`;
   }
 

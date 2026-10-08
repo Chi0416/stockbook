@@ -26,6 +26,8 @@ const DIVIDEND_LIST = {
     ['2884', '玉山金', '2025-07-15', '2025-08-08', 1.2, 0],
     ...monthly,
     ['00929', '復華台灣科技優息', '2026-10-21', '2026-11-16', null, 0],
+    // 金融股：現金加配股（永豐金，實際的數字）
+    ['2890', '永豐金', '2026-07-23', '2026-08-24', 1.1, 0.2],
     // 剛上市的月配：只配過一次，下一次已公告金額
     ['00400A', '主動國泰動能高息', '2026-10-08', '2026-11-05', 0.12, 0],
     ['00400A', '主動國泰動能高息', '2026-09-07', '2026-10-05', 0.12, 0],
@@ -56,7 +58,7 @@ test('季配：近一年取最近 4 次，下一次金額待公告', () => {
   assert.equal(r.last.exDate, '2026-07-21');
   assert.equal(r.annual, 5.4);
   assert.equal(r.trend, 1); // 1.35 比近一年平均 1.0205 多：紅色
-  assert.deepEqual(r.next, { exDate: '2026-10-22', payDate: '2026-11-11', cash: null, own: false });
+  assert.deepEqual(r.next, { exDate: '2026-10-22', payDate: '2026-11-11', cash: null, stock: 0, own: false });
   assert.equal(r.announced, true);
 });
 
@@ -74,7 +76,7 @@ test('公告的金額還沒出來：用自己記的，標出是自己記的；�
     { code: '0056', exDate: '2026-07-21', cash: 1.3 },    // 公告已經有金額，用公告的 1.35
   ];
   const before = info('0056', '2026-10-06', own);
-  assert.deepEqual(before.next, { exDate: '2026-10-22', payDate: '2026-11-11', cash: 1.72, own: true });
+  assert.deepEqual(before.next, { exDate: '2026-10-22', payDate: '2026-11-11', cash: 1.72, stock: 0, own: true });
   assert.equal(before.sum, 4.082);
   const after = info('0056', '2026-10-23', own);
   assert.equal(after.recent[0].own, true);
@@ -112,7 +114,7 @@ test('剛上市的月配：近一年只有 1 次，標出次數不夠', () => {
   assert.equal(r.sum, 0.12);
   assert.equal(r.annual, 1.44); // 次數不夠時，暴力年化比較接近實際：0.12 × 12
   assert.equal(r.trend, 0);      // 只配過一次：不上色
-  assert.deepEqual(r.next, { exDate: '2026-10-08', payDate: '2026-11-05', cash: 0.12, own: false });
+  assert.deepEqual(r.next, { exDate: '2026-10-08', payDate: '2026-11-05', cash: 0.12, stock: 0, own: false });
 });
 
 test('公告資料裡沒有（上櫃 ETF）：用自己記的除權息算；都沒有時是 null', () => {
@@ -159,4 +161,14 @@ test('近一年沒有配息：近一年和暴力年化都算不出來', () => {
 
 test('只配股的不算現金股利', () => {
   assert.equal(info('9999', '2026-10-06'), null);
+});
+
+test('每一次配息帶著同一次的配股（元，詳細頁的配息紀錄用）；只配現金的是 0', () => {
+  const plain = v => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(plain(Yield.events('2890', [])),
+    [{ exDate: '2026-07-23', payDate: '2026-08-24', cash: 1.1, stock: 0.2, own: false }]);
+  // 公告裡沒有、自己記的：用自己記的配股
+  const own = [{ code: '9999', exDate: '2026-08-01', payDate: '2026-08-20', cash: 0.5, stock: 0.3 }];
+  assert.deepEqual(plain(Yield.events('9999', own)),
+    [{ exDate: '2026-08-01', payDate: '2026-08-20', cash: 0.5, stock: 0.3, own: true }]);
 });
