@@ -246,7 +246,7 @@ function createOverview() {
         <span class="card-grid">
           <span class="cell"><small>股數</small><span>${shares(p.shares)}</span></span>
           <span class="cell"><small>成本均價</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
-          <span class="cell"><small>現價</small><span>${price !== null ? U.fmtNum(U.round(price, 2)) : '—'}</span></span>
+          <span class="cell"><small>現價</small><span>${price !== null ? U.fmtNum(U.round(price, 2), 2) : '—'}</span></span>
           <span class="cell"><small>付出成本</small><span>${money(p.cost)}</span></span>
         </span>
         ${noteHTML(p)}

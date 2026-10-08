@@ -126,11 +126,12 @@ const Detail = (() => {
       <span>${y.year}</span><span>${fmt(y.eps)}</span><span>${P.money(y.cash)} 元</span><span>${U.fmtNum(Math.round(y.ratio * 100))}%</span>`).join('');
     const notes = [];
     if (f.done) {
-      notes.push(`${name}賺的錢已經決議配 ${P.money(f.decided)} 元，不用估了`);
+      notes.push(`${name}賺的錢已經決議每股配 ${P.money(f.decided)} 元，不用估了`);
     } else if (f.wild) {
       notes.push(P.fcText(r));
     } else {
-      notes.push(`預估配 = ${e.q === 4 ? '全年 EPS' : '預估全年 EPS'} ${fmt(f.base)} × 配息率 ${U.fmtNum(Math.round(f.payout * 100))}% ≈ ${P.money(f.cash)} 元`);
+      // 上面四格已經照順序寫了預估全年 EPS、配息率、預估每股配，算式只寫數字，一行放得下
+      notes.push(`預估每股配 = ${fmt(f.base)} × ${U.fmtNum(Math.round(f.payout * 100))}% ≈ ${P.money(f.cash)} 元`);
       if (f.decided !== null) notes.push(`已經決議 ${P.money(f.decided)} 元（${f.decidedQ === 2 ? '上半年' : `到第 ${f.decidedQ} 季`}），預估的是全年`);
       if (P.fcWarn(r)) notes.push(P.fcWarn(r));
     }
@@ -142,10 +143,10 @@ const Detail = (() => {
         <span class="card-grid">
           ${cell(e.q === 4 ? `${name}全年 EPS` : '預估全年 EPS', fmt(f.base))}
           ${f.payout === null ? '' : cell('配息率', `${U.fmtNum(Math.round(f.payout * 100))}%`)}
-          ${cell(f.done ? '已決議配' : '預估配', f.done ? `${P.money(f.decided)} 元` : f.cash === null ? '—' : `${P.money(f.cash)} 元`, 'strong')}
+          ${cell(f.done ? '已決議每股配' : '預估每股配', f.done ? `${P.money(f.decided)} 元` : f.cash === null ? '—' : `${P.money(f.cash)} 元`, 'strong')}
           ${cell(f.done ? '殖利率' : '預估殖利率', r.fy === null ? '—' : P.pct(r.fy), 'strong')}
         </span>
-        ${rows ? `<span class="fc-years"><small>年度</small><small>EPS</small><small>配現金</small><small>配息率</small>${rows}</span>` : ''}
+        ${rows ? `<span class="fc-years"><small>年度</small><small>EPS</small><small>每股配現金</small><small>配息率</small>${rows}</span>` : ''}
         ${notesHTML(notes)}
       </div>`;
   }
@@ -215,7 +216,7 @@ const Detail = (() => {
           ${cell('現價', r.price ? U.fmtNum(r.price, 2) : '—')}
           ${cell(`殖利率${Stars.mark(r, 'yield')}`, pct(r.y), 'strong')}
           ${cell(`暴力年化${Stars.mark(r, 'trend')}`, pct(r.ya), `strong${r.ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`)}
-          ${cell('近一年股利', info?.count ? `${U.fmtNum(info.sum)} 元` : '—')}
+          ${cell('近一年每股', info?.count ? `${U.fmtNum(U.round(info.sum, 3))} 元` : '—')}
           ${cell('配息', info ? info.freq : '—')}
         </span>
         ${priceFrom ? `<span class="card-note">現價：${U.esc(priceFrom)}</span>` : ''}

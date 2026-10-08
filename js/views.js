@@ -24,7 +24,7 @@ const VIEWS = {
     fields: [
       { key: 'code',    label: '代號',       type: 'text' },
       { key: 'name',    label: '證券',       type: 'text' },
-      { key: 'cash',    label: '現金股利',   type: 'number', public: true },
+      { key: 'cash',    label: '現金股利',   cardLabel: '每股現金', type: 'number', public: true },
       { key: 'shares',  label: '基準日股數', type: 'number' },
       { key: 'exDate',  label: '除權息日',   type: 'date' },
       { key: 'net',     label: '股息淨值',   type: 'number' },

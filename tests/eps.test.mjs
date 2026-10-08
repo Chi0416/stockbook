@@ -153,7 +153,7 @@ test('這一頁只列有 EPS 的；說明寫出進度、超前或落後、去年
 // ---------- 股利預估 ----------
 const round = (v, n = 4) => Math.round(v * 10 ** n) / 10 ** n;
 
-test('中華電：配息率 = 近 3 年現金股利加起來 ÷ EPS 加起來，預估配 = 預估全年 EPS × 配息率', () => {
+test('中華電：配息率 = 近 3 年現金股利加起來 ÷ EPS 加起來，預估每股配 = 預估全年 EPS × 配息率', () => {
   const f = Eps.info('2412').fc;
   assert.deepEqual([...f.years.map(y => y.year)], [2023, 2024, 2025]); // 2022 太舊，只取最近 3 年
   assert.equal(round(f.payout), round((4.758 + 5 + 5.2) / (4.76 + 4.8 + 4.99)));
@@ -162,7 +162,7 @@ test('中華電：配息率 = 近 3 年現金股利加起來 ÷ EPS 加起來，
   assert.deepEqual({ decided: f.decided, done: f.done }, { decided: null, done: false });
   const r = EPS_PAGE.enrich({ code: '2412' });
   assert.equal(round(r.fy), round(5.51 / 133));
-  assert.equal(EPS_PAGE.fcText(r), '預估配 5.51 元・預估殖利率 4.14%');
+  assert.equal(EPS_PAGE.fcText(r), '預估每股配 5.51 元・預估殖利率 4.14%');
 });
 
 test('台積電（季配）：今年已決議一部分，寫出來，預估的還是全年', () => {
@@ -170,7 +170,7 @@ test('台積電（季配）：今年已決議一部分，寫出來，預估的�
   assert.equal(round(f.payout), round(52 / (32.34 + 45.25 + 66.26)));
   assert.equal(f.cash, 35.66);
   assert.deepEqual({ decided: f.decided, decidedQ: f.decidedQ, done: f.done }, { decided: 14, decidedQ: 2, done: false });
-  assert.equal(EPS_PAGE.fcText(EPS_PAGE.enrich({ code: '2330' })), '預估全年配 35.66 元（已決議 14 元）・預估殖利率 2.38%');
+  assert.equal(EPS_PAGE.fcText(EPS_PAGE.enrich({ code: '2330' })), '預估每股配 35.66 元（已決議 14 元）・預估殖利率 2.38%');
 });
 
 test('全年財報公布了、股利也整年決議了：不用估，殖利率用決議的算', () => {
@@ -178,7 +178,7 @@ test('全年財報公布了、股利也整年決議了：不用估，殖利率�
   assert.equal(r.e.fc.done, true);
   assert.equal(r.e.fc.decided, 3.5);
   assert.equal(round(r.fy), 0.035);
-  assert.match(EPS_PAGE.fcText(r), /賺的已決議配 3\.5 元・殖利率 3\.50%（以現價算）$/);
+  assert.match(EPS_PAGE.fcText(r), /賺的已決議每股配 3\.5 元・殖利率 3\.50%（以現價算）$/);
 });
 
 test('配息率不算的年：去年虧損（台泥用 2022～2024）、還沒決議的（往前找，不夠 3 年用有的）', () => {

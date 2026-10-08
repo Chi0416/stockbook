@@ -242,8 +242,8 @@ const SCHEMAS = {
       { key: 'name',    label: '證券',     type: 'text' },
       { key: 'exDate',  label: '除權息日', type: 'date' },
       { key: 'payDate', label: '發放日',   type: 'date' },
-      { key: 'cash',    label: '現金股利', type: 'number', public: true, hint: '每股（元）' },
-      { key: 'stock',   label: '股票股利', type: 'number', public: true, default: 0, hint: '每股（元）' },
+      { key: 'cash',    label: '現金股利', cardLabel: '每股現金', type: 'number', public: true, hint: '每股（元）' },
+      { key: 'stock',   label: '股票股利', cardLabel: '每股配股', type: 'number', public: true, default: 0, hint: '每股（元）' },
       { key: 'baseShares', label: '基準日股數', type: 'perMember', optional: true, full: true,
         hint: '選填。照股利通知書填，有填就用這個股數；空白時依庫存快照與交易明細自動推算',
         // 只列出現有成員（成員刪除後，留在舊資料裡的數字不顯示）

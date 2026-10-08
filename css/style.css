@@ -719,6 +719,8 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 /* 每一筆三行：日期｜每股股利、股票｜約幾 %、發放日和預估領多少｜記下來 */
 .up-item { row-gap: 3px; padding: 10px 0; }
 .up-meta { grid-column: 1; font-size: 12px; color: var(--muted); }
+/* 放不下時整段換行（「發放 10/30」「2,000 股，預估領 11,600 元」），不會把「元」拆到下一行 */
+.up-meta > span { white-space: nowrap; }
 .up-act { grid-column: 2; grid-row: 3; align-self: center; text-align: right; }
 .up-stock { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .up-add {

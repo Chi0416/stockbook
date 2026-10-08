@@ -69,7 +69,7 @@ const Upcoming = (() => {
     const row = r => {
       const { price } = Market.quote(r.code);
       const cash = r.cash === null ? '金額待公告'
-        : `${U.fmtNum(r.cash)} 元${r.stock ? `＋配股 ${U.fmtNum(r.stock)} 元` : ''}${r.own ? '（你記的）' : ''}`;
+        : `每股 ${U.fmtNum(r.cash)} 元${r.stock ? `＋配股 ${U.fmtNum(r.stock)} 元` : ''}${r.own ? '（你記的）' : ''}`;
       const drop = r.cash !== null && typeof price === 'number' && price > 0 ? `約 ${pct(r.cash / price)}` : '';
       const tag = (held.has(r.code) ? '<span class="badge member">持有</span>' : '') +
         (watched.has(r.code) ? '<span class="badge">觀察</span>' : '');
@@ -152,7 +152,7 @@ const Upcoming = (() => {
       const pos = held.get(r.code);
       const { price } = Market.quote(r.code);
       const cash = r.cash === null ? '金額待公告'
-        : `${U.fmtNum(r.cash)} 元${r.stock ? `＋配股 ${U.fmtNum(r.stock)} 元` : ''}${r.own ? '（你記的）' : ''}`;
+        : `每股 ${U.fmtNum(r.cash)} 元${r.stock ? `＋配股 ${U.fmtNum(r.stock)} 元` : ''}${r.own ? '（你記的）' : ''}`;
       const tags = (pos ? '<span class="badge member">持有</span>' : '') + (watched.has(r.code) ? '<span class="badge">觀察</span>' : '');
       const meta = [r.payDate ? `發放 ${md(r.payDate)}` : '發放日待公告'];
       let act = '';
@@ -171,7 +171,7 @@ const Upcoming = (() => {
           <span class="up-cash">${U.esc(cash)}</span>
           <span class="up-name"><button type="button" class="up-stock" data-act="up-stock" data-value="${U.esc(r.code)}"><span class="card-code">${U.esc(r.code)}</span>${U.esc(nameOf(r.code))}</button> ${tags}</span>
           <span class="up-pct">${r.cash !== null && price > 0 ? `約 ${pct(r.cash / price)}` : ''}</span>
-          <span class="up-meta">${U.esc(meta.join(' · '))}</span>
+          <span class="up-meta">${meta.map(m => `<span>${U.esc(m)}</span>`).join(' · ')}</span>
           ${act ? `<span class="up-act">${act}</span>` : ''}
         </li>`;
     };

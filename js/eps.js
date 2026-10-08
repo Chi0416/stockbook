@@ -205,19 +205,20 @@ const EPS_PAGE = (() => {
   const fcWarn = r => (r.fy >= HIGH_YIELD && !r.e?.fc?.done
     ? '預估殖利率特別高：多半是今年 EPS 衝很高（可能有一次性的收入），參考就好' : '');
 
-  // 股利預估那一行（卡片最下面、詳細頁）：「預估配 5.51 元・預估殖利率 4.80%」；估不出來時寫原因
+  // 股利預估那一行（卡片最下面、詳細頁）：「預估每股配 5.51 元・預估殖利率 4.80%」；估不出來時寫原因
+  //   一定寫「每股」：持有的人會以為是自己領到的合計
   function fcText(r) {
     const f = r.e?.fc;
     if (!f) return '';
     const name = yearName(r.e.year);
     const yld = r.fy === null ? '' : `・${f.done ? '殖利率' : '預估殖利率'} ${pct(r.fy)}${f.done ? '（以現價算）' : ''}`;
     const part = f.decided === null ? '' : `已決議 ${money(f.decided)} 元`;
-    if (f.done) return `${name}賺的已決議配 ${money(f.decided)} 元${yld}`;
+    if (f.done) return `${name}賺的已決議每股配 ${money(f.decided)} 元${yld}`;
     if (f.payout === null) return `估不出股利（近幾年沒有賺錢又決議配息的資料）${part ? `；${part}` : ''}`;
     if (f.wild) return `近 ${f.years.length} 年配的比賺的多很多（配息率 ${U.fmtNum(Math.round(f.payout * 100))}%，多半是拿公積來配），估不準，不估${part ? `；${part}` : ''}`;
     if (r.e.est <= 0) return `${name}到目前虧損，照這樣估不會配現金${part ? `；${part}` : ''}`;
     if (!f.cash) return `近 ${f.years.length} 年都沒配現金股利`;
-    return `預估${part ? '全年' : ''}配 ${money(f.cash)} 元${part ? `（${part}）` : ''}${yld}`;
+    return `預估每股配 ${money(f.cash)} 元${part ? `（${part}）` : ''}${yld}`;
   }
 
   // 這一頁只列有 EPS 的（EPS 還沒下載好時先全部列，卡片上寫還在下載）
@@ -285,7 +286,7 @@ const EPS_PAGE = (() => {
   //   skipped：持股和觀察清單裡沒有 EPS 的（ETF、興櫃）；全市場不一檔一檔數
   function introHTML(all, wide, skipped = 0) {
     const how = '達成率 = 今年累計 EPS ÷ 去年全年 EPS，超過進度（每季 25%，長條上的刻度）紅色、落後綠色。' +
-      '預估配 = 預估全年 EPS × 近 3 年配息率，點一檔看怎麼算的。';
+      '預估每股配 = 預估全年 EPS × 近 3 年配息率，點一檔看怎麼算的。';
     const parts = [];
     const l = Eps.latest();
     if (!Eps.ready()) parts.push(Eps.waiting());

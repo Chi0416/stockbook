@@ -37,6 +37,8 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
     const s = U.display(f, v);
     return U.esc(personal(f, v) ? Privacy.num(s) : s) || '—';
   };
+  // 卡片上寫的欄位名稱：有 cardLabel 用 cardLabel（例如「每股現金」，看得出不是合計）；試算表的欄位名稱照 label，不能改
+  const cardLabel = f => f.cardLabel || f.label;
   // 交易別含「買」「賣」時標上顏色，方便一眼辨識
   const tone = v => /買/.test(v) ? 'buy' : /賣/.test(v) ? 'sell' : '';
   const showMember = () => Store.shown().length > 1;
@@ -126,7 +128,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   function cardHTML(r, withMember, extra) {
     const pf = byKey[primary];
     const grid = gridFields.map(f =>
-      `<span class="cell"><small>${f.label}</small><span>${show(f, r[f.key])}</span></span>`).join('');
+      `<span class="cell"><small>${cardLabel(f)}</small><span>${show(f, r[f.key])}</span></span>`).join('');
     // 標籤：有 badge 欄位用欄位的值；沒有時用狀態標籤（例如「待除權息」虛線、「待發放」實心）
     const st = statusOf(r);
     const tag = badge
@@ -139,7 +141,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
       <button type="button" class="card${r.id === state.flashId ? ' flash' : ''}${st?.pending ? ' pending' : ''}" data-id="${U.esc(r.id)}">
         <span class="card-top">
           <span class="card-title">${tags ? `<span class="card-tags">${tags}</span>` : ''}${code && r[code] ? `<span class="card-code">${U.esc(r[code])}</span>` : ''}${U.esc(r[title])}</span>
-          <span class="card-primary"><small>${pf.label}</small><b>${show(pf, r[primary])}</b></span>
+          <span class="card-primary"><small>${cardLabel(pf)}</small><b>${show(pf, r[primary])}</b></span>
         </span>
         ${grid ? `<span class="card-grid">${grid}</span>` : ''}
         ${note && r[note] ? `<span class="card-note${r.missing ? ' warn' : ''}">${U.esc(Privacy.text(r[note]))}</span>` : ''}

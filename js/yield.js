@@ -117,7 +117,7 @@ const YIELD_PAGE = (() => {
     const cell = (label, v, cls = '') => `<span class="cell${cls}"><small>${label}</small><span>${v}</span></span>`;
     const cells = [
       cell('現價', price ? U.fmtNum(price, 2) : '—'),
-      cell('近一年股利', info?.count ? `${U.fmtNum(info.sum)} 元` : '—'),
+      cell('近一年每股', info?.count ? `${U.fmtNum(U.round(info.sum, 3))} 元` : '—'),
       cell('配息', info ? info.freq : '—'),
       cell(`暴力年化${Stars.mark(r, 'trend')}`, ya === null ? '—' : pct(ya), ` strong${ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`),
     ];
@@ -136,7 +136,7 @@ const YIELD_PAGE = (() => {
   // 列表上面的說明：怎麼算、現價和公告資料是什麼時候的
   //   全市場：持股和觀察清單以外都是收盤價，不一檔一檔數
   function introHTML(all, wide) {
-    const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。';
+    const how = '殖利率 = 近一年每股現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。';
     const price = wide ? `價格是 ${md(Market.date())} 收盤價（持股和觀察清單連結 Google 時用即時價格）`
       : Market.priceNote(all.map(r => r.code));
     const updated = Announced.updated();
