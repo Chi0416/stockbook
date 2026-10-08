@@ -2,6 +2,7 @@
 //   底部 4 格：總覽｜記帳｜股利｜行情；記帳、股利、行情一格裡有好幾頁，在標題下面左右切換（見 GROUPS）
 (() => {
   const TAB_KEY = 'stockbook.tab';
+  const PAGES_KEY = 'stockbook.pages'; // 股利、行情各自上次看的那一頁：{ income: 'cash', market: 'kd' }
   const LOGOUT_KEY = 'stockbook.loggedOut'; // 登出後重新載入頁面時顯示「已登出」（sessionStorage，登出清資料時不會被清掉）
   const $ = id => document.getElementById(id);
 
@@ -77,13 +78,16 @@
 
   // ---------- 分頁 ----------
   // 底部的每一格（key）和裡面的頁（pages：[頁面, 上方切換的名稱]）；只有一頁的不顯示上方切換
-  //   點底部的另一格時一律先顯示第一頁（記帳先顯示交易明細，免得把交易記成快照）；點目前這一格只捲回最上面
+  //   點底部的另一格時：remember 的格子（股利、行情）回到上次看的那一頁（這台裝置記住，關掉再打開也一樣）
+  //     其他的先顯示第一頁（記帳先顯示交易明細，免得把交易記成快照）；點目前這一格只捲回最上面
   const GROUPS = [
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
-    { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
-    { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD'], ['eps', 'EPS'], ['stars', '★ 星星']] },
+    { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
+    { key: 'market', label: '行情', remember: true, pages: [['yield', '殖利率'], ['kd', 'KD'], ['eps', 'EPS'], ['stars', '★ 星星']] },
   ];
+  let lastPages = {};
+  try { lastPages = JSON.parse(localStorage.getItem(PAGES_KEY)) || {}; } catch (_) {}
   // 以前的頁面（殖利率分成庫存、觀察兩頁）：記在這台裝置的上次那一頁換成新的
   const OLD = { yieldHeld: 'yield', yieldWatch: 'yield' };
   const groupOf = key => GROUPS.find(g => g.key === key || g.pages.some(([k]) => k === key));
@@ -112,9 +116,14 @@
   function showTab(key) {
     key = OLD[key] || key;
     const group = groupOf(key) || GROUPS[0];
-    if (group.key === key) key = group.pages[0][0];
+    if (group.key === key) {
+      // 記住的那一頁改名或拿掉了，就回到第一頁
+      const last = group.remember && lastPages[group.key];
+      key = group.pages.some(([k]) => k === last) ? last : group.pages[0][0];
+    }
     if (!lists[key]) key = 'overview';
     current = key;
+    if (group.remember) lastPages[group.key] = key;
     $('page-title').textContent = group.pages.length > 1 ? group.label : PAGES[key].title;
     renderSubtitle();
     if (subtabsEl) { // 瀏覽器還拿著舊版 index.html 時沒有這一塊
@@ -130,7 +139,10 @@
     }
     tabBtns.forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === group.key)));
     Object.entries(lists).forEach(([k, l]) => { l.el.hidden = k !== key; });
-    try { localStorage.setItem(TAB_KEY, key); } catch (_) {}
+    try {
+      localStorage.setItem(TAB_KEY, key);
+      localStorage.setItem(PAGES_KEY, JSON.stringify(lastPages));
+    } catch (_) {}
   }
 
   tabBtns.forEach(b => b.addEventListener('click', () => {
