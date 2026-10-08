@@ -1,10 +1,13 @@
 // 一檔股票的詳細資料：行情的卡片點了打開（從底部彈出，和新增表單一樣）
 //   最上面：持有或觀察、星星（達標的條件，見 stars.js）
-//   我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
-//   殖利率、KD、EPS：和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
-//     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，不顯示這一段
-//   股利預估：預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（EPS、配多少、配息率），算法見 eps.js
-//   配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前
+//   下面分四大類（大標題），順序：我的 → 基本面 → 技術面 → 配息紀錄
+//     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
+//     基本面：EPS → 股利預估（用 EPS 算的，接在後面）→ 殖利率（和預估殖利率放在一起好比較）
+//       EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
+//       股利預估：預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（EPS、配多少、配息率），算法見 eps.js
+//     技術面：KD
+//     配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前；一長串，放最下面才不會把技術面擠到很下面
+//   和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
 //   最下面可以加入觀察清單、從觀察清單移除（觀察清單全家共用）
 const Detail = (() => {
   const dlg = document.getElementById('stock-sheet');
@@ -87,13 +90,13 @@ const Detail = (() => {
     const { e } = r;
     if (!e) {
       const why = Eps.waiting();
-      return why ? `<h3 class="section-head">EPS</h3><p class="note muted">${U.esc(why)}</p>` : '';
+      return why ? `<h4 class="section-head">EPS</h4><p class="note muted">${U.esc(why)}</p>` : '';
     }
     const tone = EPS_PAGE.tone(e);
     // 一排五年：上面年份、下面 EPS，還不到第 4 季的在數字下面寫到第幾季；虧損綠色
     const years = e.years.map(y => cell(`${y.year}`, `${fmt(y.eps)}${y.q < 4 ? `<small>到第 ${y.q} 季</small>` : ''}`, y.eps < 0 ? 'down' : '')).join('');
     return `
-      <h3 class="section-head">EPS</h3>
+      <h4 class="section-head">EPS</h4>
       <div class="card static detail-card eps-card">
         <span class="card-grid">
           ${cell(`達成率${Stars.mark(r, 'eps')}`, e.pct === null ? '—' : `${e.pct}%`, `strong ${tone}`)}
@@ -113,7 +116,7 @@ const Detail = (() => {
     if (!f) return '';
     const P = EPS_PAGE;
     const name = P.yearName(e.year);
-    const head = '<h3 class="section-head">股利預估</h3>';
+    const head = '<h4 class="section-head">股利預估</h4>';
     // 估不出來、今年虧損、從來不配：只寫原因；配息率太高不估的，照樣列出每一年，看得到為什麼
     if (!f.done && (f.payout === null || e.est <= 0 || f.cash === 0)) {
       return `${head}<p class="note muted">${U.esc(P.fcText(r))}</p>`;
@@ -184,10 +187,14 @@ const Detail = (() => {
         <span class="detail-met">${!total ? '星星條件都沒有打勾' : r.n ? `達標：${r.stars.map(x => x.short).join('、')}` : '沒有達標的條件'}</span>
       </div>
 
-      <h3 class="section-head">我的</h3>
+      <h3 class="detail-group">我的</h3>
       <div class="card static detail-card">${mineHTML(pos, r.price)}</div>
 
-      <h3 class="section-head">殖利率</h3>
+      <h3 class="detail-group">基本面<small>公司賺多少、配多少</small></h3>
+      ${epsHTML(r)}
+      ${fcHTML(r)}
+
+      <h4 class="section-head">殖利率</h4>
       <div class="card static detail-card yield-card">
         <span class="card-grid">
           ${cell('現價', r.price ? U.fmtNum(r.price, 2) : '—')}
@@ -200,7 +207,8 @@ const Detail = (() => {
         ${notesHTML(YIELD_PAGE.notes(r))}
       </div>
 
-      <h3 class="section-head">KD（日 KD，9 日）</h3>
+      <h3 class="detail-group">技術面<small>股價現在在高檔還是低檔</small></h3>
+      <h4 class="section-head">KD（日 KD，9 日）</h4>
       <div class="card static detail-card kd-card">
         <span class="card-grid">
           ${cell(`K 值${Stars.mark(r, 'kdLow')}`, fmt(r.k), kz ? `strong ${kz}` : 'strong')}
@@ -209,10 +217,8 @@ const Detail = (() => {
         </span>
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
-      ${epsHTML(r)}
-      ${fcHTML(r)}
 
-      <h3 class="section-head">配息紀錄</h3>
+      <h3 class="detail-group">配息紀錄</h3>
       ${eventsHTML()}
 
       ${watchRec
