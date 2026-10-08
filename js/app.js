@@ -415,7 +415,10 @@
       `家庭成員：${Store.members().length} → ${parsed.members.length} 位（${parsed.members.map(m => m.name).join('、')}）`,
       ...Object.entries(SCHEMAS).map(([k, s]) => `${s.title}：${Store.list(k, 'all').length} → ${parsed[k].length} 筆`),
     ];
-    if (!confirm(`匯入「${file.name}」會取代目前所有資料。\n\n${lines.join('\n')}\n\n確定匯入？`)) return;
+    // 連結了試算表時，同步會整份改寫試算表：其他裝置或試算表裡新增、還沒同步到這台的資料也會不見
+    const cloudNote = Sync.state().linked
+      ? '\n\nGoogle 試算表也會整份換成這個檔案的內容。其他裝置或試算表裡新增、還沒同步到這台的資料也會不見。' : '';
+    if (!confirm(`匯入「${file.name}」會取代目前所有資料。${cloudNote}\n\n${lines.join('\n')}\n\n確定匯入？`)) return;
 
     Store.replaceAll(parsed);
     renderScopeBar();
@@ -441,9 +444,11 @@
     return h < 24 ? `${h} 小時前` : `${Math.floor(h / 24)} 天前`;
   }
 
-  const offlineText = st => (st.pending
-    ? `目前沒有網路，${st.pending} 筆資料會在連上網路後自動同步`
-    : '目前沒有網路，連上後會自動同步');
+  // 登入過期時連上網路也不會自動同步，要按「同步」重新登入
+  const offlineText = st => {
+    if (st.needLogin) return st.pending ? `目前沒有網路，${st.pending} 筆資料還沒同步，連上網路後請按「同步」` : '目前沒有網路';
+    return st.pending ? `目前沒有網路，${st.pending} 筆資料會在連上網路後自動同步` : '目前沒有網路，連上後會自動同步';
+  };
 
   function syncStatusText(st) {
     if (st.running) return '同步中…';

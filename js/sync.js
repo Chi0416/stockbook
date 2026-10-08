@@ -4,7 +4,7 @@
 //         以試算表的資料為主、疊上這台裝置還沒送出的修改 → 把修改寫回試算表
 //         寫回時用 id 找到那一列再改，不靠列號；長輩手動輸入、沒有 id 的列會補上 id
 //   時機：打開 App、從背景切回來、修改資料後（等幾秒一起送），登入還有效就自動同步
-//         登入過期時，修改資料的那一下順便跳出 Google 視窗；沒成功就顯示「同步」按鈕讓使用者按
+//         登入過期時，修改資料的那一下順便跳出 Google 視窗（沒有網路時不跳）；沒成功就顯示「同步」按鈕讓使用者按
 //   登出：先同步一次，確定試算表已經有這台裝置的全部資料，才清掉這台裝置上的資料（換帳號時不會混在一起）
 //   股價：同步成功後，在試算表隱藏的「_股價」分頁用 GOOGLEFINANCE 抓目前持股和觀察清單的現價，讀回來給持股總覽、殖利率顯示
 //         開盤時間畫面開著的話，每 5 分鐘再抓一次現價（不整份同步）
@@ -58,7 +58,8 @@ const Sync = (() => {
       lastSyncAt: cloud?.lastSyncAt || null,
       running,
       error,
-      offline,
+      // 登入過期就不會自動同步、也不會再試網路：瀏覽器說連上網路了，就不再顯示「沒有網路」，改請使用者按「同步」
+      offline: offline && (Google.hasToken() || !navigator.onLine),
       problems,
       problemsAt,
       okAt,
@@ -204,6 +205,18 @@ const Sync = (() => {
   async function exchange(meta, snap) {
     const byTitle = await pull(meta);
     const parsed = Sheet.fromValues(byTitle, Store.members());
+    // 長輩手動輸入、沒有 id 的列：剛給的 id 先寫回試算表，寫好了才放進這台裝置
+    //   寫的時候斷線就整次停下來：這台裝置不會留著試算表上沒有的 id（下次讀回來會是另一個 id，改過的話同一筆會變兩筆）
+    const ids = [
+      ...parsed.addIdHeader.map(({ tab, col }) => ({ range: a1(tab, `${Sheet.colLetter(col)}1`), values: [[Sheet.ID]] })),
+      ...parsed.idFixes.map(({ tab, row, col, id }) => ({ range: a1(tab, `${Sheet.colLetter(col)}${row}`), values: [[id]] })),
+    ];
+    if (ids.length) {
+      await api(`${Google.SHEETS}/${meta.id}/values:batchUpdate`, {
+        method: 'POST',
+        body: { valueInputOption: 'RAW', data: ids },
+      });
+    }
     problems = parsed.problems;
     problemsAt = Date.now();
 
@@ -226,9 +239,6 @@ const Sync = (() => {
 
     empty.forEach(t => writes.push({ range: a1(titleOf(t), 'A1'), values: all[titleOf(t)] }));
     const handled = t => done.includes(t) && !empty.includes(t);
-
-    parsed.addIdHeader.forEach(({ tab, col }) => writes.push({ range: a1(tab, `${Sheet.colLetter(col)}1`), values: [[Sheet.ID]] }));
-    parsed.idFixes.forEach(({ tab, row, col, id }) => writes.push({ range: a1(tab, `${Sheet.colLetter(col)}${row}`), values: [[id]] }));
 
     const memberRow = (m, header) => header.map(h => (h === '名稱' ? m.name : h === Sheet.ID ? m.id : null));
     const rowValues = (t, rec, header) => (t === 'members' ? memberRow(rec, header) : Sheet.encodeRow(t, rec, local.members, header));
@@ -463,7 +473,19 @@ const Sync = (() => {
   const startLink = () => login('link');
 
   function syncNow() {
-    return Google.hasToken() ? run({ manual: true }) : login('sync');
+    if (Google.hasToken()) return run({ manual: true });
+    if (!navigator.onLine) {
+      noNetwork();
+      hooks.toast('目前沒有網路，連上網路後再按「同步」');
+      return Promise.resolve();
+    }
+    return login('sync');
+  }
+
+  // 登入過期又沒有網路：Google 的登入視窗載不出來，不跳；提示列顯示沒有網路
+  function noNetwork() {
+    offline = true;
+    emit();
   }
 
   // 彈出視窗在某些手機上不能用時，改成整頁跳轉登入
@@ -672,14 +694,19 @@ const Sync = (() => {
   }
 
   // 資料改了：登入有效就等幾秒後一起送出；過期了，趁這次點擊（儲存、刪除）跳出 Google 視窗
-  //   每次打開 App 只自動跳一次，被關掉或失敗就改顯示「同步」按鈕，不一直打擾
+  //   每次打開 App 只自動跳一次，被關掉或失敗就改顯示「同步」按鈕，不一直打擾；沒有網路時不跳
   function changed() {
     if (!cloud) return;
-    emit();
     if (Google.hasToken()) {
+      emit();
       schedule();
       return;
     }
+    if (!navigator.onLine) {
+      noNetwork();
+      return;
+    }
+    emit();
     if (autoLoginTried || !Google.ready()) return;
     autoLoginTried = true;
     Google.requestToken({ hint: cloud.email }).then(() => { autoLoginTried = false; run(); }, () => emit());
@@ -701,8 +728,11 @@ const Sync = (() => {
       emit();
       if (cloud && Google.hasToken() && Date.now() - lastRunAt > 30000) run();
     });
-    // 網路恢復時馬上同步
-    window.addEventListener('online', () => { if (cloud && Google.hasToken()) run(); });
+    // 網路恢復時馬上同步；登入過期時沒辦法自動同步，提示列改成請使用者按「同步」
+    window.addEventListener('online', () => {
+      if (cloud && Google.hasToken()) run();
+      else emit();
+    });
     setInterval(livePrices, LIVE_CHECK);
     emit();
   }

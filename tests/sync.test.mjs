@@ -174,6 +174,9 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true, clock 
   const alerts = [];
   const loggedOut = { count: 0 };
   const priced = { count: 0 };
+  const nav = { onLine: true }; // navigator.onLine：改成 false 是瀏覽器知道沒有網路
+  const events = {};             // window 的事件（online），測試裡用 fire() 觸發
+  const popups = { count: 0 };   // 跳出 Google 登入視窗的次數
   const ctx = vm.createContext({
     localStorage: {
       getItem: k => (k in ls ? ls[k] : null),
@@ -188,13 +191,14 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true, clock 
     clearTimeout: () => {},
     setInterval: fn => { ticks.push(fn); return 0; },
     fetch: fake.fetch,
+    navigator: nav,
     URLSearchParams,
     location: { origin: 'http://localhost:8765', pathname: '/', search: '', hash: '', assign() {} },
     history: { replaceState() {} },
     document: { hidden: false, addEventListener() {} },
   });
   ctx.window = ctx;
-  ctx.window.addEventListener = () => {};
+  ctx.window.addEventListener = (type, fn) => { (events[type] ||= []).push(fn); };
   if (clock) {
     ctx.Date = class extends Date {
       constructor(...a) { super(...(a.length ? a : [clock.now])); }
@@ -205,7 +209,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true, clock 
   ctx.google = {
     accounts: {
       oauth2: {
-        initTokenClient: cfg => ({ requestAccessToken: () => cfg.callback({ access_token: 'fake', expires_in: 3600 }) }),
+        initTokenClient: cfg => ({ requestAccessToken: () => { popups.count++; cfg.callback({ access_token: 'fake', expires_in: 3600 }); } }),
         hasGrantedAllScopes: () => true,
         revoke: (t, done) => done && done(),
       },
@@ -220,7 +224,8 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true, clock 
     onLogout: () => { loggedOut.count++; },
     onPrices: () => { priced.count++; },
   });
-  return { ...app, ls, toasts, asked, notes, alerts, loggedOut, priced, ticks, doc: ctx.document };
+  const fire = type => (events[type] || []).forEach(fn => fn());
+  return { ...app, ls, toasts, asked, notes, alerts, loggedOut, priced, ticks, doc: ctx.document, nav, fire, popups };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -400,6 +405,74 @@ test('沒有網路：顯示會自動同步，不算失敗；網路恢復後正�
   st = d.Sync.state();
   assert.equal(st.offline, false);
   assert.equal(st.pending, 0);
+});
+
+test('離線超過 1 小時（登入過期）：連上網路後不再顯示「沒有網路」，改成請使用者按「同步」', async () => {
+  const clock = { now: Date.UTC(2026, 9, 8, 2, 0) };
+  const { fake, d } = await linked(new FakeGoogle(), { clock });
+  fake.offline = true;
+  d.nav.onLine = false;
+  d.Store.add('trades', TRADE);
+  await d.Sync.syncNow();
+  clock.now += 2 * 3600e3; // 登入過期
+  let st = d.Sync.state();
+  assert.equal(st.offline, true);
+  assert.equal(st.needLogin, true);
+  // 連上網路：登入過期不會自動同步，也不再說沒有網路
+  fake.offline = false;
+  d.nav.onLine = true;
+  const before = fake.calls.length;
+  d.fire('online');
+  st = d.Sync.state();
+  assert.equal(fake.calls.length, before);
+  assert.equal(st.offline, false);
+  assert.equal(st.needLogin, true);
+  assert.equal(st.pending, 1);
+  // 按「同步」：重新登入後送出
+  await d.Sync.syncNow();
+  assert.equal(d.Sync.state().pending, 0);
+});
+
+test('登入過期又沒有網路：修改資料、按「同步」都不跳 Google 登入視窗，提示沒有網路', async () => {
+  const { fake, d } = await linked();
+  const storage = { ...d.ls, 'stockbook.google.token': JSON.stringify({ accessToken: 'old', expiresAt: Date.now() - 1 }) };
+  const again = device(fake, { storage, token: false });
+  again.nav.onLine = false;
+  again.Store.add('trades', TRADE);
+  assert.equal(again.popups.count, 0);
+  let st = again.Sync.state();
+  assert.equal(st.offline, true);
+  assert.equal(st.pending, 1);
+  await again.Sync.syncNow();
+  assert.equal(again.popups.count, 0);
+  assert.ok(again.toasts.includes('目前沒有網路，連上網路後再按「同步」'));
+  // 連上網路：改成請使用者按「同步」，按了才跳登入視窗、送出
+  again.nav.onLine = true;
+  again.fire('online');
+  st = again.Sync.state();
+  assert.equal(st.offline, false);
+  assert.equal(st.pending, 1);
+  await again.Sync.syncNow();
+  assert.equal(again.popups.count, 1);
+  assert.equal(again.Sync.state().pending, 0);
+});
+
+test('長輩手動輸入、沒有 id 的列：補 id 時斷線，這台裝置先不放進來；之後在 App 裡改這筆也不會變兩筆', async () => {
+  const { fake, d, id } = await linked();
+  fake.appendRow(id, '交易明細', ['我', '2026/9/10', '普買', '00878', '國泰永續高股息', 1000, 22.5, 22500, 32, 0]);
+  fake.onBatchGet = () => { fake.offline = true; }; // 讀回來之後就斷線
+  await d.Sync.syncNow();
+  assert.equal(d.Sync.state().offline, true);
+  assert.equal(d.Store.list('trades', 'all').length, 0);
+  fake.offline = false;
+  await d.Sync.syncNow();
+  const [t] = d.Store.list('trades', 'all');
+  d.Store.update('trades', t.id, { shares: 2000 });
+  await d.Sync.syncNow();
+  const rows = fake.values(id, '交易明細');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1][5], 2000);
+  assert.equal(rows[1].at(-1), t.id);
 });
 
 test('成員改名：「成員」分頁和資料裡的名字一起改', async () => {
