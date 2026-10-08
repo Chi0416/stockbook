@@ -1,0 +1,44 @@
+# EPS 和股利（shared/eps.json）：每個工作天晚上抓公開資訊觀測站，有變才存進 repo，網站跟著更新
+#   抓資料的程式：tools/update-eps.mjs；只重抓最近三季的 EPS、今年和去年的股利（從 GitHub 抓很慢，全部重抓要在本機跑 --all）
+#   App 打開時自己下載新的，不用改版本號
+#   要馬上更新：Actions →「更新 EPS 和股利」→ Run workflow（或 gh workflow run update-eps.yml）
+#   失敗時 GitHub 會寄信通知；App 照常用上一份資料
+name: 更新 EPS 和股利
+on:
+  schedule:
+    - cron: '37 12 * * 1-5' # 台灣時間週一到週五 20:37（整點時 GitHub 比較忙，排程容易延後）
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: update-eps
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: 抓 EPS 和股利
+        run: node tools/update-eps.mjs
+      - name: 檢查格式
+        run: node --test tests/epslist.test.mjs
+      - name: 有變才存進 repo
+        run: |
+          if git diff --quiet -- shared/eps.json; then
+            echo "EPS 和股利沒有變"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add shared/eps.json
+          git commit -q -m "更新 EPS 和股利（$(TZ=Asia/Taipei date +%m/%d)）"
+          # 剛好有人也推了東西時，接在最新的後面再推（只改這一個檔案，不會衝突）
+          for i in 1 2 3; do
+            git push -q && exit 0
+            sleep 10
+            git pull -q --rebase
+          done
+          exit 1
