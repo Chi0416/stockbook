@@ -9,7 +9,8 @@
 //   即將除權息：持股和觀察清單接下來 30 天要除權息的（見 upcoming.js）
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
 //   庫存總市值卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
-//   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js），持股列表上方註明更新時間；不是自己的資料，隱藏金額時照常顯示
+//   現價：連結 Google 時用試算表的 GOOGLEFINANCE 抓的（見 sync.js），抓不到的、沒連結的用最近一次的收盤價（見 market.js）
+//     持股列表上方註明更新時間、哪幾檔用收盤價；不是自己的資料，隱藏金額時照常顯示
 //   subtitle：標題後面的小字，顯示今天的日期
 const OVERVIEW = {
   title: '持股總覽',
@@ -89,17 +90,15 @@ function createOverview() {
     //   損益賺錢紅色、賠錢綠色（台股的習慣）；隱藏金額時連正負號和顏色都不顯示
     let hero;
     if (holdings) {
-      const q = quotes();
-      const priced = q ? holdings.positions.filter(p => p.shares > 0 && typeof q.quotes[p.code] === 'number') : [];
-      const value = priced.reduce((s, p) => s + p.shares * q.quotes[p.code], 0);
+      const priced = holdings.positions.filter(p => p.shares > 0 && priceOf(p.code) !== null);
+      const value = priced.reduce((s, p) => s + p.shares * priceOf(p.code), 0);
       const pricedCost = priced.reduce((s, p) => s + p.cost, 0);
       const pl = Math.round(value) - Math.round(pricedCost);
       // 和券商的卡片一樣：賺錢不加「+」，用紅色表示；賠錢留著「-」，綠色（長輩不一定注意得到顏色）
       const tone = Privacy.hidden || !pl ? '' : pl > 0 ? 'gain' : 'loss';
       const rate = pricedCost > 0 ? Privacy.num(`${U.fmtNum(U.round(pl / pricedCost * 100, 2), 2)}%`) : '—';
       const unpriced = holdings.positions.filter(p => p.shares > 0).length - priced.length;
-      const priceNote = !q ? '連結 Google 帳號後，會用 GOOGLEFINANCE 抓現價算市值'
-        : !priced.length ? (q.at ? '抓不到現價，算不出市值' : '正在抓現價…')
+      const priceNote = !priced.length ? (Market.waiting() || '抓不到現價，算不出市值')
         : unpriced ? `另有 ${unpriced} 檔抓不到現價，沒有算進市值和損益` : '';
       const cell = (label, v, cls = '') => `<span class="kpi-cell"><small>${label}</small><b class="${cls}">${v}</b></span>`;
       hero = `
@@ -155,7 +154,7 @@ function createOverview() {
         ${missingNote(last12)}
       </div>
       ${nextTile}
-      ${Upcoming.cardHTML(holdings, quotes())}
+      ${Upcoming.cardHTML(holdings)}
       ${holdings && holdings.missingCode
         ? `<p class="kpi-note">有 ${holdings.missingCode} 筆快照或交易沒填代號，沒有計入</p>` : ''}
       ${checkNote()}`;
@@ -222,24 +221,22 @@ function createOverview() {
       : `<span class="card-note">${U.esc(one.changed ? `股數 = ${Privacy.text(one.formula)}` : `依 ${U.fmtDate(one.snapDate)} 庫存快照`)}</span>`;
   }
 
-  // 股價：連結 Google、抓過股價才有；沒連結時不顯示現價
-  const quotes = () => (Sync.state().linked ? Sync.prices() : null);
-
-  // 「價格更新於 14:05，可能延遲 20 分鐘」；不是今天的話加上日期
-  function priceNote(q, positions) {
-    const t = q.at ? U.fmtDateTime(q.at) : '';
-    const time = t.startsWith(U.today().replace(/-/g, '/')) ? t.slice(11) : t;
-    const missing = positions.filter(p => q.quotes[p.code] === null).length;
-    const parts = [time ? `價格更新於 ${time}，可能延遲 20 分鐘` : '正在抓價格…'];
-    if (missing) parts.push(`${missing} 檔抓不到價格`);
-    return `<p class="list-intro">${U.esc(parts.join('；'))}</p>`;
+  // 現價（GOOGLEFINANCE，抓不到時用收盤價，見 market.js）；都沒有時是 null
+  function priceOf(code) {
+    return Market.quote(code).price;
   }
 
-  // 右上角是市值（股數 × 現價；沒連結 Google、抓不到現價時是「—」），付出成本放在下面一排，和券商 App 對帳用
-  function cardHTML(p, q) {
+  // 「現價 14:05 更新，可能延遲 20 分鐘；1 檔抓不到，用 10/07 收盤價」（見 market.js）
+  function priceNote(positions) {
+    const note = Market.priceNote(positions.filter(p => p.shares > 0).map(p => p.code));
+    return note ? `<p class="list-intro">${U.esc(note)}</p>` : '';
+  }
+
+  // 右上角是市值（股數 × 現價；抓不到現價時是「—」），付出成本放在下面一排，和券商 App 對帳用
+  function cardHTML(p) {
     const avg = p.shares > 0 ? U.round(p.cost / p.shares, 2) : null;
-    const price = q?.quotes[p.code];
-    const priced = typeof price === 'number' && p.shares > 0;
+    const price = priceOf(p.code);
+    const priced = price !== null && p.shares > 0;
     return `
       <div class="card static">
         <span class="card-top">
@@ -249,7 +246,7 @@ function createOverview() {
         <span class="card-grid">
           <span class="cell"><small>股數</small><span>${shares(p.shares)}</span></span>
           <span class="cell"><small>成本均價</small><span>${avg === null ? '—' : Privacy.num(U.fmtNum(avg, 2))}</span></span>
-          ${q ? `<span class="cell"><small>現價</small><span>${typeof price === 'number' ? U.fmtNum(U.round(price, 2)) : '—'}</span></span>` : ''}
+          <span class="cell"><small>現價</small><span>${price !== null ? U.fmtNum(U.round(price, 2)) : '—'}</span></span>
           <span class="cell"><small>付出成本</small><span>${money(p.cost)}</span></span>
         </span>
         ${noteHTML(p)}
@@ -267,9 +264,8 @@ function createOverview() {
     const text = p => `${p.code} ${p.name} ${(p.parts || []).map(x => Store.memberName(x.member)).join(' ')}`;
     const rows = all.filter(p => !kw || text(p).toLowerCase().includes(kw));
     countEl.textContent = rows.length === all.length ? `${all.length} 檔` : `${rows.length}／${all.length} 檔`;
-    const q = quotes();
     listEl.innerHTML = rows.length
-      ? (q ? priceNote(q, all) : '') + rows.map(p => cardHTML(p, q)).join('')
+      ? priceNote(all) + rows.map(cardHTML).join('')
       : `<p class="empty">${all.length ? '沒有符合條件的持股' : '目前沒有持股'}</p>`;
   }
 

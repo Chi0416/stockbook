@@ -1,7 +1,7 @@
 // 即將除權息：持股總覽的一張卡片（見 overview.js），列出持股和觀察清單接下來 30 天要除權息的
 //   除權息日當天參考價會扣掉股利，看起來變便宜，可以當作買進的時間點參考；想領這次股利，最晚前一個交易日買進
 //   資料：公告的除權息（announced.js）加上自己記的除權息；同一次（代號相同、除權息日差 7 天內）以公告為主，
-//         公告的金額還沒出來時用自己記的；百分比是每股現金股利 ÷ 現價（連結 Google 才有現價），參考價大約少這麼多
+//         公告的金額還沒出來時用自己記的；百分比是每股現金股利 ÷ 現價（見 market.js），參考價大約少這麼多
 //   持股跟著上面選的成員；觀察清單全家共用；兩邊都有的標「持有」
 //   可以摺疊：收起時只列最近的一筆，下面「還有 N 筆」點了展開；展開或收起記在這台裝置，預設收起
 const Upcoming = (() => {
@@ -44,8 +44,8 @@ const Upcoming = (() => {
     }).sort((a, b) => (a.exDate < b.exDate ? -1 : a.exDate > b.exDate ? 1 : a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
   }
 
-  // 卡片：holdings 是 Holdings.all 的結果（沒有持股時是 null），q 是現價（Sync.prices，沒連結時是 null）
-  function cardHTML(holdings, q) {
+  // 卡片：holdings 是 Holdings.all 的結果（沒有持股時是 null）
+  function cardHTML(holdings) {
     const today = U.today();
     const held = new Map((holdings ? holdings.positions : []).filter(p => p.shares > 0).map(p => [p.code, p.name]));
     const watched = new Map(Store.list('watch').map(r => [key(r.code), r.name]));
@@ -55,7 +55,7 @@ const Upcoming = (() => {
     const pct = n => `${U.fmtNum(U.round(n * 100, 2), 2)}%`;
 
     const row = r => {
-      const price = q?.quotes[r.code];
+      const { price } = Market.quote(r.code);
       const cash = r.cash === null ? '金額待公告'
         : `${U.fmtNum(r.cash)} 元${r.stock ? `＋配股 ${U.fmtNum(r.stock)} 元` : ''}${r.own ? '（你記的）' : ''}`;
       const drop = r.cash !== null && typeof price === 'number' && price > 0 ? `約 ${pct(r.cash / price)}` : '';

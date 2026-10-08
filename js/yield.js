@@ -1,5 +1,4 @@
-// 殖利率：底部「殖利率」一格裡的兩頁，上方切換「庫存｜觀察」，同一套欄位，預設殖利率由高到低
-//   庫存：目前的持股（跟著上面選的成員）；觀察：觀察清單（全家共用，見 schema.js 的 watch），你也持有的標「持有」
+// 殖利率：行情的一頁（列表、「全部｜持有｜觀察」、搜尋見 market.js），預設殖利率由高到低
 //   排序：依殖利率、依暴力年化（高的在前，算不出來的放最後）或依代號
 //   近一年現金股利：公告的除權息（shared/dividends.json，見 announced.js）加上自己記的除權息，照配息頻率取最近幾次（月配 12、季配 4、半年配 2、年配 1）
 //     公告的除權息是 App 打開時才下載的：還沒下載好、下載不了時，卡片寫出來，下載好之後整頁重畫（app.js）
@@ -10,8 +9,7 @@
 //     比殖利率高，代表最近一次配得比近一年平均多；成本殖利率（÷ 成本均價）只是看起來高，2026-10-07 拿掉，換成這一格
 //     最近一次比近一年平均每次多：紅色，少：綠色（台股的習慣，和總覽的損益一樣）；一樣多、近一年只配一次（年配）：不上色
 //       和平均每次比，不直接比殖利率：剛上市、近一年次數不夠時，殖利率會少算，暴力年化一定比較高
-//   現價：連結 Google 時由試算表的 GOOGLEFINANCE 抓（見 sync.js，持股和觀察清單的代號都抓）；沒連結時沒有現價，算不出殖利率
-const YIELD_PAGE = { title: '殖利率' };
+//   現價：連結 Google 時用試算表的 GOOGLEFINANCE 抓的（見 sync.js），抓不到的、沒連結的用最近一次的收盤價（見 market.js）
 
 const Yield = (() => {
   const DAY = 86400000;
@@ -71,57 +69,17 @@ const Yield = (() => {
   return { events, info };
 })();
 
-// 殖利率頁：庫存（mode 'held'）、觀察（mode 'watch'）各一頁，和其他列表一樣有 el、refresh、reset、changed
-function createYield(mode) {
-  const watch = mode === 'watch';
-  const state = { keyword: '', sort: 'yield' };
-  const key = c => U.toHalf(c ?? '').trim().toUpperCase();
-
-  const el = document.createElement('section');
-  el.className = 'panel';
-  el.hidden = true;
-  el.innerHTML = `
-    <div class="filterbar">
-      <select class="f-sort" aria-label="排序">
-        <option value="yield">依殖利率</option>
-        <option value="annual">依暴力年化</option>
-        <option value="code">依代號</option>
-      </select>
-      <input class="f-keyword" type="search" placeholder="搜尋代號或證券" autocomplete="off" enterkeyhint="search">
-      <span class="count"></span>
-    </div>
-    <div class="list"></div>`;
-  const sortSel = el.querySelector('.f-sort');
-  const keywordInput = el.querySelector('.f-keyword');
-  const countEl = el.querySelector('.count');
-  const listEl = el.querySelector('.list');
-
-  sortSel.addEventListener('change', () => { state.sort = sortSel.value; render(); });
-  keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; render(); });
-  // 觀察：點卡片打開表單（可以移除）；庫存是算出來的，不能點
-  listEl.addEventListener('click', e => {
-    const card = e.target.closest('.card[data-id]');
-    if (card) Form.open('watch', card.dataset.id);
-  });
-
-  // 現價：連結 Google、抓過股價才有（和持股總覽一樣）
-  const quotes = () => (Sync.state().linked ? Sync.prices() : null);
+// 殖利率這一頁（列表見 market.js 的 createMarket）
+const YIELD_PAGE = (() => {
   // 今年的日期只寫月/日
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
   const pct = n => `${U.fmtNum(U.round(n * 100, 2), 2)}%`;
+  // 高的在前，算不出來的放最後
+  const high = k => (a, b) => (b[k] ?? -1) - (a[k] ?? -1);
 
-  function rows() {
-    const h = Holdings.all(U.today());
-    const held = (h ? h.positions : []).filter(p => p.shares > 0);
-    if (!watch) return held.map(p => ({ code: p.code, name: p.name }));
-    const mine = new Set(held.map(p => p.code));
-    return Store.list('watch').map(r => ({ id: r.id, code: key(r.code), name: r.name, held: mine.has(key(r.code)) }));
-  }
-
-  function enrich(r, q) {
+  function enrich(r) {
     const info = Yield.info(r.code);
-    const p = q?.quotes[r.code];
-    const price = typeof p === 'number' && p > 0 ? p : null;
+    const { price } = Market.quote(r.code);
     return {
       ...r, info, price,
       y: info?.count && price ? info.sum / price : null,    // 殖利率（近一年）
@@ -160,11 +118,11 @@ function createYield(mode) {
       cell('配息', info ? info.freq : '—'),
       cell('暴力年化', ya === null ? '—' : pct(ya), ` strong${ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`),
     ];
-    const tag = r.held ? '<span class="card-tags"><span class="badge member">持有</span></span>' : '';
+    const tag = r.held ? '<span class="badge member">持有</span>' : '<span class="badge">觀察</span>';
     return `
-      <div class="card yield-card${watch ? '' : ' static'}"${watch ? ` data-id="${U.esc(r.id)}"` : ''}>
+      <div class="card yield-card static" data-code="${U.esc(r.code)}">
         <span class="card-top">
-          <span class="card-title">${tag}<span class="card-code">${U.esc(r.code)}</span>${U.esc(r.name)}</span>
+          <span class="card-title"><span class="card-tags">${tag}</span><span class="card-code">${U.esc(r.code)}</span>${U.esc(r.name)}</span>
           <span class="card-primary"><small>殖利率</small><b class="yield-pct">${y === null ? '—' : pct(y)}</b></span>
         </span>
         <span class="card-grid">${cells.join('')}</span>
@@ -173,54 +131,17 @@ function createYield(mode) {
   }
 
   // 列表上面的說明：怎麼算、現價和公告資料是什麼時候的
-  function introHTML(q, all) {
-    const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。' +
-      (watch ? '你也持有的標「持有」，點一檔可以移除。' : '');
-    let price = '連結 Google 帳號後，會用 GOOGLEFINANCE 抓現價算殖利率';
-    if (q) {
-      const t = q.at ? U.fmtDateTime(q.at) : '';
-      const time = t.startsWith(U.today().replace(/-/g, '/')) ? t.slice(11) : t;
-      const missing = all.filter(r => q.quotes[r.code] === null).length;
-      price = (time ? `現價 ${time} 更新，可能延遲 20 分鐘` : '正在抓現價…') + (missing ? `；${missing} 檔抓不到現價` : '');
-    }
+  function introHTML(all) {
+    const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。';
+    const price = Market.priceNote(all.map(r => r.code));
     const updated = Announced.updated();
-    return `<p class="list-intro">${how}<br>${U.esc(price)}${updated ? `；公告的除權息 ${md(updated)} 更新` : ''}</p>`;
+    const data = [price, updated ? `公告的除權息 ${md(updated)} 更新` : ''].filter(Boolean).join('；');
+    return `<p class="list-intro">${how}${data ? `<br>${U.esc(data)}` : ''}</p>`;
   }
 
-  function render() {
-    const q = quotes();
-    const all = rows().map(r => enrich(r, q));
-    const kw = state.keyword.trim().toLowerCase();
-    const shown = all.filter(r => !kw || `${r.code} ${r.name}`.toLowerCase().includes(kw));
-    const byCode = (a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
-    const by = k => (a, b) => ((b[k] ?? -1) - (a[k] ?? -1)) || byCode(a, b);
-    shown.sort(state.sort === 'code' ? byCode : by(state.sort === 'annual' ? 'ya' : 'y'));
-    countEl.textContent = shown.length === all.length ? `${all.length} 檔` : `${shown.length}／${all.length} 檔`;
-    if (!all.length) {
-      listEl.innerHTML = watch
-        ? '<p class="empty">還沒有觀察的股票<br>點右上角「新增觀察」，打代號或名稱加進來<br>就能和庫存一起比殖利率</p>'
-        : '<p class="empty">目前沒有持股<br>到「記帳」記一筆買進，或照券商的庫存填一期快照</p>';
-      return;
-    }
-    listEl.innerHTML = introHTML(q, all) +
-      (shown.length ? shown.map(cardHTML).join('') : '<p class="empty">沒有符合條件的股票</p>');
-  }
-
-  function reset() {
-    state.keyword = '';
-    keywordInput.value = '';
-    render();
-  }
-
-  // 剛新增或改過的那一檔閃一下
-  function changed(rec) {
-    render();
-    const card = rec?.id && listEl.querySelector(`[data-id="${CSS.escape(rec.id)}"]`);
-    if (card) {
-      card.classList.add('flash');
-      card.scrollIntoView({ block: 'nearest' });
-    }
-  }
-
-  return { el, refresh: render, reset, changed };
-}
+  return {
+    title: '殖利率',
+    sorts: [['yield', '依殖利率', high('y')], ['annual', '依暴力年化', high('ya')], ['code', '依代號', null]],
+    enrich, cardHTML, introHTML,
+  };
+})();

@@ -20,6 +20,11 @@ const Form = (() => {
   let calcked = [];   // 各欄位上次自動算出來的數字（schema 的 calc）；欄位還是這個數字時才跟著重算
   let announceEl = null; // 公告的除權息（新增除權息時，見 renderAnnounce）
   let announced = [];    // 目前列出的公告
+  // 新增觀察時，表單下面列出目前的觀察清單（schema 的 manage，見 renderManage）
+  const manageEl = document.createElement('div');
+  manageEl.className = 'manage';
+  manageEl.hidden = true;
+  delBtn.before(manageEl);
   let hooks = { toast() {}, onChanged() {} };
 
   // 注音等輸入法選字時按的 Enter 不算
@@ -62,6 +67,7 @@ const Form = (() => {
     dlg.dataset.table = tableKey; // 只有股票一格的表單（觀察清單）要留位置給下拉選單（見 style.css）
     statusEl.hidden = true;
     buildFields(rec);
+    renderManage();
     dlg.showModal();
     bodyEl.scrollTop = 0;
   }
@@ -643,6 +649,7 @@ const Form = (() => {
     calcked = ctx.fields.map(() => null);
     renderAllChips();
     renderNotes();
+    renderManage();
     initial = inputs.map(inp => inp.value);
     lastCode = inputs.map(inp => inp.value);
     combos.forEach(c => { c.editing = false; c.open = false; setComboError(c, ''); renderCombo(c); renderChips(c.i); });
@@ -658,6 +665,38 @@ const Form = (() => {
       document.activeElement.blur();
     }
   }
+
+  // ---------- 新增時列出目前的清單（schema 的 manage：觀察清單），每一檔可以移除 ----------
+  //   觀察清單只在這裡管理：行情頁的卡片點了沒有反應；依代號排，和行情頁的「依代號」同一個順序
+  function renderManage() {
+    const m = ctx.schema.manage;
+    manageEl.hidden = !m || !!ctx.id;
+    if (manageEl.hidden) {
+      manageEl.innerHTML = '';
+      return;
+    }
+    const rows = Store.list(ctx.tableKey, 'all').slice()
+      .sort((a, b) => (String(a.code) < String(b.code) ? -1 : String(a.code) > String(b.code) ? 1 : 0));
+    manageEl.innerHTML = `<h3 class="section-head">${U.esc(m.title)}（${rows.length} 檔）</h3>` + (rows.length
+      ? `<ul class="member-list">${rows.map(r => `
+          <li>
+            <span class="member-info"><b><span class="card-code">${U.esc(r.code)}</span>${U.esc(r.name)}</b></span>
+            <button type="button" class="text-btn danger" data-remove="${U.esc(r.id)}">移除</button>
+          </li>`).join('')}</ul>`
+      : `<p class="note muted">${U.esc(m.empty)}</p>`);
+  }
+
+  manageEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-remove]');
+    const rec = btn && Store.get(ctx.tableKey, btn.dataset.remove);
+    if (!rec) return;
+    if (!confirm(`確定${ctx.schema.remove.label}：${[rec.code, rec.name].filter(Boolean).join(' ')}？`)) return;
+    Store.remove(ctx.tableKey, rec.id);
+    hooks.onChanged(ctx.tableKey, null);
+    renderManage();
+    renderAllChips(); // 移除的那一檔又可以從最近記過的股票裡選
+    hooks.toast(ctx.schema.remove.done);
+  });
 
   // 觀察清單寫「確定從觀察清單移除：0056 元大高股息？」（schema 的 remove）
   function remove() {

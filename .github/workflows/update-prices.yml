@@ -1,0 +1,44 @@
+# 收盤價和日 KD（shared/prices.json）：每個工作天收盤後抓證交所、櫃買中心的每日收盤行情，算好 KD，有變才存進 repo，網站跟著更新
+#   抓資料的程式：tools/update-prices.mjs；App 打開時自己下載新的（見 js/market.js），不用改版本號
+#   要馬上更新：Actions →「更新收盤價和 KD」→ Run workflow（或 gh workflow run update-prices.yml）
+#   失敗時 GitHub 會寄信通知；App 照常用上一份資料
+name: 更新收盤價和 KD
+on:
+  schedule:
+    - cron: '43 7 * * 1-5'  # 台灣時間週一到週五 15:43（收盤資料下午兩、三點出來；整點時 GitHub 比較忙，排程容易延後）
+    - cron: '43 11 * * 1-5' # 19:43 再跑一次：下午那次延後太久、或櫃買中心的資料那時還沒出來，晚上補上
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: update-prices
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: 抓收盤行情、算 KD
+        run: node tools/update-prices.mjs
+      - name: 檢查格式
+        run: node --test tests/pricelist.test.mjs
+      - name: 有變才存進 repo
+        run: |
+          if git diff --quiet -- shared/prices.json; then
+            echo "收盤資料沒有變"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add shared/prices.json
+          git commit -q -m "更新收盤價和 KD（$(TZ=Asia/Taipei date +%m/%d)）"
+          # 剛好有人也推了東西時，接在最新的後面再推（只改這一個檔案，不會衝突）
+          for i in 1 2 3; do
+            git push -q && exit 0
+            sleep 10
+            git pull -q --rebase
+          done
+          exit 1

@@ -1,5 +1,5 @@
 // 進入點：分頁、列表、表單、Google 雲端硬碟同步、訊息匣、家庭成員、資料備份
-//   底部 4 格：總覽｜記帳｜股利｜殖利率；記帳、股利、殖利率一格裡有兩頁，在標題下面左右切換（見 GROUPS）
+//   底部 4 格：總覽｜記帳｜股利｜行情；記帳、股利、行情一格裡有好幾頁，在標題下面左右切換（見 GROUPS）
 (() => {
   const TAB_KEY = 'stockbook.tab';
   const LOGOUT_KEY = 'stockbook.loggedOut'; // 登出後重新載入頁面時顯示「已登出」（sessionStorage，登出清資料時不會被清掉）
@@ -18,36 +18,38 @@
 
   // ---------- 列表與表單 ----------
   // 持股總覽、資料表與推算頁面都有列表；推算頁面點卡片時開啟來源資料表的編輯表單
-  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yieldHeld: YIELD_PAGE, yieldWatch: YIELD_PAGE };
+  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yield: YIELD_PAGE, kd: KD_PAGE };
   const lists = {};
   let current = 'overview';
 
   lists.overview = createOverview();
   $('panels').appendChild(lists.overview.el);
   Object.entries({ ...SCHEMAS, ...VIEWS }).forEach(([key, page]) => {
-    if (page.noList) return; // 觀察清單畫在殖利率頁（見 yield.js）
+    if (page.noList) return; // 觀察清單畫在行情的每一頁（見 market.js）
     const formKey = page.source || key;
     lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id) });
     $('panels').appendChild(lists[key].el);
   });
-  // 殖利率：庫存、觀察各一頁（見 yield.js）
-  lists.yieldHeld = createYield('held');
-  lists.yieldWatch = createYield('watch');
-  $('panels').append(lists.yieldHeld.el, lists.yieldWatch.el);
+  // 行情：每個指標一頁，持股和觀察清單列在一起（見 market.js）
+  const MARKET = ['yield', 'kd'];
+  lists.yield = createMarket(YIELD_PAGE);
+  lists.kd = createMarket(KD_PAGE);
+  $('panels').append(lists.yield.el, lists.kd.el);
+  const refreshMarket = () => MARKET.forEach(k => lists[k].refresh());
 
   Form.init({
     toast,
     onChanged(key, rec) {
-      // 觀察清單：切到「觀察」那一頁，剛加的那一檔閃一下
+      // 觀察清單：切到行情（不在行情時切到第一頁），剛加的那一檔閃一下；總覽的即將除權息也有觀察清單
       if (key === 'watch') {
-        if (rec && current !== 'yieldWatch') showTab('yieldWatch');
-        lists.yieldWatch.changed(rec);
+        if (rec && !MARKET.includes(current)) showTab(MARKET[0]);
+        MARKET.forEach(k => (k === current ? lists[k].changed(rec) : lists[k].refresh()));
+        lists.overview.refresh();
         return;
       }
       lists[key].changed(rec);
-      // 持股、自己記的除權息變了，殖利率跟著重算
-      lists.yieldHeld.refresh();
-      lists.yieldWatch.refresh();
+      // 持股、自己記的除權息變了，行情跟著重算
+      refreshMarket();
       // 推算頁面跟著重算；正在看的那頁順便標亮剛改的那筆
       Object.entries(VIEWS).forEach(([v, view]) => {
         if (view.source === key && current === v) lists[v].changed(rec);
@@ -64,14 +66,16 @@
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
     { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息']] },
-    { key: 'yield', label: '殖利率', pages: [['yieldHeld', '庫存'], ['yieldWatch', '觀察']] },
+    { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD']] },
   ];
+  // 以前的頁面（殖利率分成庫存、觀察兩頁）：記在這台裝置的上次那一頁換成新的
+  const OLD = { yieldHeld: 'yield', yieldWatch: 'yield' };
   const groupOf = key => GROUPS.find(g => g.key === key || g.pages.some(([k]) => k === key));
   // 新增按鈕：這一頁新增到哪張表、按鈕上寫什麼（手機上也寫出來）；總覽沒有新增按鈕
   const ADD = {
     trades: ['trades', '交易'], snapshots: ['snapshots', '快照'],
     cashDividends: ['dividends', '除權息'], dividends: ['dividends', '除權息'],
-    yieldHeld: ['watch', '觀察'], yieldWatch: ['watch', '觀察'],
+    yield: ['watch', '觀察'], kd: ['watch', '觀察'],
   };
   const tabBtns = [...document.querySelectorAll('.tabbar [data-tab]')];
   const subtabsEl = $('subtabs');
@@ -90,6 +94,7 @@
   // key：底部的一格（book）或其中一頁（snapshots）；訊息匣也會直接指定某一頁
   //   有兩頁的格子：標題寫格子的名稱（記帳），下面切換是哪一頁
   function showTab(key) {
+    key = OLD[key] || key;
     const group = groupOf(key) || GROUPS[0];
     if (group.key === key) key = group.pages[0][0];
     if (!lists[key]) key = 'overview';
@@ -255,17 +260,35 @@
     $('last-export').textContent = t ? `上次匯出：${U.fmtDateTime(t)}` : '尚未匯出過備份';
   }
 
-  // section：打開後直接捲到哪一段（'members' 家庭成員）
+  // section：打開後直接捲到哪一段（'members' 家庭成員、'kd' KD 標記）
   function openMenu(section) {
     renderMembers();
+    renderKdMarks();
     renderBackupInfo();
     if (!menu.open) menu.showModal();
-    if (section === 'members') $('members-head').scrollIntoView({ block: 'start' });
+    const head = { members: 'members-head', kd: 'kd-head' }[section];
+    if (head && $(head)) $(head).scrollIntoView({ block: 'start' });
   }
 
   $('btn-menu').addEventListener('click', () => openMenu());
   menu.querySelector('[data-act="close"]').addEventListener('click', () => menu.close());
   menu.addEventListener('click', e => { if (e.target === menu) menu.close(); }); // 點背景關閉
+
+  // ---------- KD 標記（見 kd.js）：K 值低於下限綠色、高於上限紅色；KD 頁說明裡的「調整」打開這一段 ----------
+  const kdLow = $('kd-low');
+  const kdHigh = $('kd-high');
+  function renderKdMarks() {
+    if (!kdLow || !kdHigh) return; // 瀏覽器還拿著舊版 index.html
+    const opts = (list, v) => list.map(n => `<option value="${n}"${n === v ? ' selected' : ''}>${n}</option>`).join('');
+    kdLow.innerHTML = opts(KD.LOWS, KD.low);
+    kdHigh.innerHTML = opts(KD.HIGHS, KD.high);
+  }
+  [kdLow, kdHigh].forEach(sel => sel?.addEventListener('change', () => KD.set(+kdLow.value, +kdHigh.value)));
+  KD.onChange(m => {
+    lists.kd.refresh();
+    toast(`KD：低於 ${m.low} 綠色、高於 ${m.high} 紅色`);
+  });
+  $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="kd-marks"]')) openMenu('kd'); });
 
   // ---------- 隱藏金額（見 privacy.js）：設定選單的開關；總覽的眼睛在 overview.js ----------
   const hideSwitch = $('hide-amounts');
@@ -536,6 +559,15 @@
     window.addEventListener('online', () => Announced.refresh());
   }
 
+  // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和行情
+  Market.onChange(() => {
+    lists.overview.refresh();
+    refreshMarket();
+  });
+  Market.load();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) Market.refresh(); });
+  window.addEventListener('online', () => Market.refresh());
+
   // 試算表的資料讀回來之後，全部重畫
   Sync.init({
     toast,
@@ -554,11 +586,10 @@
       renderCloud(st);
       Inbox.syncStatus(st);
     },
-    // 讀回新的股價：持股總覽、殖利率重畫
+    // 讀回新的股價：持股總覽、殖利率重畫（KD 頁只用收盤價，不用重畫）
     onPrices() {
       lists.overview.refresh();
-      lists.yieldHeld.refresh();
-      lists.yieldWatch.refresh();
+      lists.yield.refresh();
     },
     // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始
     onLogout() {
