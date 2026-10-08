@@ -164,8 +164,10 @@ const ROOT = new URL('../', import.meta.url);
 const FILES = ['util', 'schema', 'storage', 'holdings', 'config', 'google', 'sheet', 'sync'];
 
 // 每個測試一個全新的裝置：localStorage、權杖、Google 都是新的
-function device(fake, { storage = {}, token = true, confirmAnswer = true } = {}) {
+//   clock：{ now }，改 now 就是時間往前走（盤中自動更新現價的測試用）；沒給時用真的時間
+function device(fake, { storage = {}, token = true, confirmAnswer = true, clock = null } = {}) {
   const ls = { ...storage };
+  const ticks = []; // setInterval 的計時器（盤中自動更新現價），測試裡直接呼叫
   const toasts = [];
   const notes = []; // 送進訊息匣的標題
   const asked = { answer: confirmAnswer, messages: [] };
@@ -184,6 +186,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
     confirm: msg => { asked.messages.push(msg); return asked.answer; },
     setTimeout: () => 0, // 自動同步的計時器不執行，測試裡直接呼叫同步
     clearTimeout: () => {},
+    setInterval: fn => { ticks.push(fn); return 0; },
     fetch: fake.fetch,
     URLSearchParams,
     location: { origin: 'http://localhost:8765', pathname: '/', search: '', hash: '', assign() {} },
@@ -192,6 +195,12 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
   });
   ctx.window = ctx;
   ctx.window.addEventListener = () => {};
+  if (clock) {
+    ctx.Date = class extends Date {
+      constructor(...a) { super(...(a.length ? a : [clock.now])); }
+      static now() { return clock.now; }
+    };
+  }
   // Google 登入元件：按下登入就直接成功
   ctx.google = {
     accounts: {
@@ -202,7 +211,7 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
       },
     },
   };
-  if (token) ls['stockbook.google.token'] = JSON.stringify({ accessToken: 'fake', expiresAt: Date.now() + 3600e3 });
+  if (token) ls['stockbook.google.token'] = JSON.stringify({ accessToken: 'fake', expiresAt: (clock?.now ?? Date.now()) + 3600e3 });
   for (const f of FILES) vm.runInContext(readFileSync(new URL(`js/${f}.js`, ROOT), 'utf8'), ctx, { filename: `${f}.js` });
   const app = vm.runInContext('({ Store, Sync, Sheet })', ctx);
   app.Sync.init({
@@ -211,15 +220,15 @@ function device(fake, { storage = {}, token = true, confirmAnswer = true } = {})
     onLogout: () => { loggedOut.count++; },
     onPrices: () => { priced.count++; },
   });
-  return { ...app, ls, toasts, asked, notes, alerts, loggedOut, priced };
+  return { ...app, ls, toasts, asked, notes, alerts, loggedOut, priced, ticks, doc: ctx.document };
 }
 
 const plain = v => JSON.parse(JSON.stringify(v));
 const TRADE = { member: 'me', date: '2026-09-01', type: '普買', code: '0050', name: '元大台灣50', shares: 1000, price: 96.5, fee: 137, tax: 0, settle: 96637 };
 
 // 連結後的第一台裝置，已有一筆快照
-async function linked(fake = new FakeGoogle()) {
-  const d = device(fake);
+async function linked(fake = new FakeGoogle(), opts = {}) {
+  const d = device(fake, opts);
   d.Store.add('snapshots', { member: 'me', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, avgCost: 32.56, totalCost: 1367670, cumDividend: 434810 });
   await d.Sync.startLink();
   d.asked.messages.length = 0; // 連結時「資料會存到哪個帳號」的確認，另外測
@@ -736,4 +745,85 @@ test('股價：沒有網路時保留上次的價格，不算同步失敗以外�
   await d.Sync.syncNow();
   assert.equal(d.Sync.state().offline, true);
   assert.equal(d.Sync.prices().quotes['0056'], 37.85);
+});
+
+// ---------- 盤中自動更新現價 ----------
+// 台灣時間 2026/10/14（星期三）的幾點幾分
+const tw = (hm, day = 14) => Date.parse(`2026-10-${day}T${hm}:00+08:00`);
+
+test('股價：開盤時間畫面開著，每 5 分鐘自動抓一次現價，只抓現價、不整份同步', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': 37.85 };
+  const clock = { now: tw('13:00') }; // 登入一小時內（權杖 14:00 過期）
+  const { d, id } = await linked(fake, { clock });
+  assert.equal(d.ticks.length, 1);
+  const tick = d.ticks[0];
+  fake.quotes = { '0056': 38.1 };
+
+  // 同步時才抓過：還不到 5 分鐘不抓
+  clock.now = tw('13:04');
+  assert.equal(tick(), null);
+  assert.equal(d.Sync.prices().quotes['0056'], 37.85);
+
+  clock.now = tw('13:05');
+  const n = fake.calls.length;
+  await tick();
+  assert.deepEqual(fake.calls.slice(n), [
+    `POST /v4/spreadsheets/${id}/values:batchClear`,
+    `POST /v4/spreadsheets/${id}/values:batchUpdate`,
+    `GET /v4/spreadsheets/${id}/values:batchGet`,
+  ]);
+  assert.equal(d.Sync.prices().quotes['0056'], 38.1);
+  assert.equal(d.Sync.prices().at, new Date(tw('13:05')).toISOString());
+
+  clock.now = tw('13:06');
+  assert.equal(tick(), null);
+
+  // 收盤價：13:30 收盤，GOOGLEFINANCE 延遲 20 分鐘，抓到 14:00 為止
+  clock.now = tw('13:58');
+  fake.quotes = { '0056': 38.3 };
+  await tick();
+  assert.equal(d.Sync.prices().quotes['0056'], 38.3);
+
+  // 隔天按「同步」重新登入；沒有網路時等 5 分鐘再試，不會每 30 秒試一次
+  clock.now = tw('09:00', 15);
+  await d.Sync.syncNow();
+  clock.now = tw('09:05', 15);
+  fake.offline = true;
+  await tick();
+  fake.offline = false;
+  clock.now = tw('09:09', 15);
+  assert.equal(tick(), null);
+  clock.now = tw('09:10', 15);
+  fake.quotes = { '0056': 38.5 };
+  await tick();
+  assert.equal(d.Sync.prices().quotes['0056'], 38.5);
+});
+
+test('股價：收盤後、開盤前、週末、切到背景時不自動抓；開盤時間登入過期，同步列提醒', async () => {
+  const fake = new FakeGoogle();
+  fake.quotes = { '0056': 37.85 };
+  const clock = { now: tw('09:00') };
+  const { d } = await linked(fake, { clock });
+  const tick = d.ticks[0];
+  const n = fake.calls.length;
+  for (const t of [tw('14:00'), tw('15:30'), tw('08:59', 15), tw('10:00', 17), tw('10:00', 18)]) {
+    clock.now = t;
+    assert.equal(tick(), null, new Date(t).toISOString());
+  }
+  clock.now = tw('09:30');
+  d.doc.hidden = true;
+  assert.equal(tick(), null);
+  d.doc.hidden = false;
+  assert.equal(fake.calls.length, n);
+  assert.equal(d.Sync.state().liveStopped, false);
+
+  // 登入一小時後過期：開盤時間不抓，提醒按「同步」；收盤後不提醒
+  clock.now = tw('10:30');
+  assert.equal(tick(), null);
+  assert.equal(fake.calls.length, n);
+  assert.equal(d.Sync.state().needLogin, true);
+  assert.equal(d.Sync.state().liveStopped, true);
+  clock.now = tw('14:00');
+  assert.equal(d.Sync.state().liveStopped, false);
 });

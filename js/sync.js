@@ -7,6 +7,7 @@
 //         登入過期時，修改資料的那一下順便跳出 Google 視窗；沒成功就顯示「同步」按鈕讓使用者按
 //   登出：先同步一次，確定試算表已經有這台裝置的全部資料，才清掉這台裝置上的資料（換帳號時不會混在一起）
 //   股價：同步成功後，在試算表隱藏的「_股價」分頁用 GOOGLEFINANCE 抓目前持股和觀察清單的現價，讀回來給持股總覽、殖利率顯示
+//         開盤時間畫面開著的話，每 5 分鐘再抓一次現價（不整份同步）
 const Sync = (() => {
   const CLOUD_KEY = 'stockbook.cloud';
   const MARK = 'stockbook'; // 試算表上的標記（雲端硬碟的 appProperties），用來找回這份試算表
@@ -63,6 +64,7 @@ const Sync = (() => {
       okAt,
       loggingOut,
       needLogin: !!cloud && !Google.hasToken(),
+      liveStopped: liveStopped(),
       pending: Store.pendingCount(),
     };
   }
@@ -363,7 +365,7 @@ const Sync = (() => {
       okAt = Date.now();
       if (manual) hooks.toast('已同步');
       // 股價抓不到不算同步失敗，下次同步再試
-      try { await updatePrices(meta, manual); } catch (_) {}
+      try { await refreshPrices(meta, manual); } catch (_) {}
     } catch (e) {
       if (e.code === 'network') offline = true;
       else if (e.code !== 'need_login') error = e.message || String(e);
@@ -483,6 +485,7 @@ const Sync = (() => {
   // ---------- 股價（GOOGLEFINANCE） ----------
   // 試算表隱藏的「_股價」分頁：A 欄全家目前持股和觀察清單的代號、B 欄 =GOOGLEFINANCE("TPE:代號","price")，讀回 Google 算好的現價
   //   同步成功後更新：代號變了（買了新的、加了觀察）、或按了「同步」就馬上更新，否則最多 5 分鐘一次
+  //   開盤時間另外每 5 分鐘自動更新（見下面的 livePrices）
   //   每次都清掉重寫公式，讓 Google 重新抓價格；剛寫進去時可能還是「Loading...」，過幾秒再讀一次（最多 3 次）
   //   價格只存在這台裝置：{ at: 讀到價格的時間, quotes: { 代號: 價格；null 是抓不到；沒有這個代號是還在抓 } }
   //   不寫進資料、不進 data.json；登出、取消連結時一起清掉
@@ -494,6 +497,8 @@ const Sync = (() => {
   let priceKey = '';      // 上次寫進試算表的代號
   let priceWrittenAt = 0; // 上次寫進試算表的時間
   let priceTimer = null;
+  let priceMeta = null;   // 上次更新股價時的試算表（盤中自動更新用，不用每次重新找）
+  let pricing = null;     // 正在更新股價（同時只更新一次）
 
   function savePrices() {
     try {
@@ -507,7 +512,15 @@ const Sync = (() => {
     prices = null;
     priceKey = '';
     priceWrittenAt = 0;
+    priceMeta = null;
     savePrices();
+  }
+
+  // 同步和盤中自動更新碰在一起時，等前一次更新完，不重複寫試算表
+  function refreshPrices(meta, force) {
+    priceMeta = meta;
+    if (!pricing) pricing = updatePrices(meta, force).finally(() => { pricing = null; });
+    return pricing;
   }
 
   async function updatePrices(meta, force = false) {
@@ -558,6 +571,38 @@ const Sync = (() => {
         if (cloud?.spreadsheetId === id) readPrices(id, codes, tries + 1).catch(() => {});
       }, PRICE_RETRY);
     }
+  }
+
+  // ---------- 盤中自動更新現價 ----------
+  // 畫面開著時，週一到週五 9:00～14:00（台灣時間）每 5 分鐘抓一次現價；只抓現價，不整份同步
+  //   GOOGLEFINANCE 最多延遲 20 分鐘，抓到 14:00 才拿得到 13:30 的收盤價；國定假日照樣抓，價格不會變
+  //   切到背景、鎖螢幕時不抓（切回來時的同步會順便抓）；打開 App 後要先同步成功一次（知道試算表在哪）才開始
+  //   登入過期時不抓（要使用者按「同步」重新登入），同步列提醒現價不會自動更新
+  const LIVE_CHECK = 30000; // 多久檢查一次該不該抓（只看時間，不連網路）
+  const LIVE_FROM = 9 * 60;
+  const LIVE_TO = 14 * 60;
+  let liveTriedAt = 0; // 上次自動更新的時間（失敗也算，沒有網路時不會每 30 秒試一次）
+  let liveWasStopped = false;
+
+  // 台灣時間（UTC+8，沒有日光節約）
+  function trading() {
+    const t = new Date(Date.now() + 8 * 3600e3);
+    const day = t.getUTCDay();
+    const min = t.getUTCHours() * 60 + t.getUTCMinutes();
+    return day >= 1 && day <= 5 && min >= LIVE_FROM && min < LIVE_TO;
+  }
+
+  const liveStopped = () => !!cloud && !Google.hasToken() && trading();
+
+  function livePrices() {
+    if (liveStopped() !== liveWasStopped) {
+      liveWasStopped = !liveWasStopped;
+      emit();
+    }
+    if (!cloud || !priceMeta || running || loggingOut || document.hidden || !Google.hasToken() || !trading()) return null;
+    if (Date.now() - Math.max(priceWrittenAt, liveTriedAt) < PRICE_EVERY) return null;
+    liveTriedAt = Date.now();
+    return refreshPrices(priceMeta, true).catch(() => {});
   }
 
   // ---------- 登出 ----------
@@ -658,6 +703,7 @@ const Sync = (() => {
     });
     // 網路恢復時馬上同步
     window.addEventListener('online', () => { if (cloud && Google.hasToken()) run(); });
+    setInterval(livePrices, LIVE_CHECK);
     emit();
   }
 

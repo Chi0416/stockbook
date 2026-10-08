@@ -492,6 +492,11 @@
       text = `有 ${st.pending} 筆還沒同步`;
       btn = '同步';
       syncAction = Sync.syncNow;
+    } else if (st.liveStopped) {
+      // 開盤時間登入過期：現價不會每 5 分鐘自動更新（見 sync.js 的 livePrices），按「同步」重新登入
+      text = '登入過期，現價不會自動更新';
+      btn = '同步';
+      syncAction = Sync.syncNow;
     } else if (st.needLogin && (!st.lastSyncAt || Date.now() - Date.parse(st.lastSyncAt) > STALE)) {
       // 登入過期就不會自動同步：試算表或其他裝置改過的資料，要按「同步」才看得到
       text = st.lastSyncAt ? `上次同步是 ${ago(st.lastSyncAt)}` : '還沒有同步過';
