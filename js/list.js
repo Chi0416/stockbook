@@ -1,7 +1,9 @@
 // 列表：依日期分組的卡片；點卡片開啟編輯表單
 // schema.rows 存在時為推算頁面（資料由其他資料表算出）
 // schema.stats 存在時，合計卡片下方有「明細｜統計」切換（統計畫面見 stats.js）；每次打開 App 都先顯示明細
-function createList(tableKey, schema, { openForm }) {
+// schema.top 存在時，列表最上面另外畫一段（除權息頁的「即將除權息」，見 upcoming.js），搜尋框有打字時不畫
+//   top.html()：畫出來；top.act(名稱, 值)：裡面的按鈕，回傳 { redraw } 重畫、{ added, msg } 新增了一筆（onChanged、toast）
+function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = () => {} }) {
   const fields = schema.fields;
   const byKey = Object.fromEntries(fields.map(f => [f.key, f]));
   const periodKey = schema.period.key;
@@ -88,6 +90,13 @@ function createList(tableKey, schema, { openForm }) {
   //   點某個月（或某一年）：整頁改看那個月；再點一次選中的那個月，回到那一整年
   //   點排行的某一檔：在下面展開每一次配息，再點一次收起來
   function act(name, value) {
+    const top = schema.top?.act(name, value);
+    if (top) {
+      if (top.added) onChanged(tableKey, top.added);
+      else if (top.redraw) renderList();
+      if (top.msg) toast(top.msg);
+      return;
+    }
     if (name === 'period') {
       state.period = state.period === value ? value.slice(0, 4) : value;
       refresh(); // 上方的年月選單也跟著變
@@ -159,6 +168,8 @@ function createList(tableKey, schema, { openForm }) {
       </div>`;
   }
 
+  const topHTML = () => (schema.top && !state.keyword.trim() ? schema.top.html() : '');
+
   function renderList() {
     const all = getRows();
     const kw = state.keyword.trim();
@@ -173,9 +184,9 @@ function createList(tableKey, schema, { openForm }) {
     countEl.textContent = rows.length === all.length ? `${all.length} 筆` : `${rows.length}／${all.length} 筆`;
 
     if (!rows.length) {
-      listEl.innerHTML = all.length
+      listEl.innerHTML = topHTML() + (all.length
         ? `${introHTML}<p class="empty">沒有符合條件的資料</p>`
-        : `<p class="empty">${schema.empty || '還沒有資料<br>點右上角「＋ 新增」開始記錄'}</p>`;
+        : `<p class="empty">${schema.empty || '還沒有資料<br>點右上角「＋ 新增」開始記錄'}</p>`);
     } else {
       // 分組標題的說明；日期在今天之後時改用 futureSuffix（例如「發放」→「預計發放」）
       const { groupSuffix, futureSuffix } = schema.period;
@@ -184,7 +195,7 @@ function createList(tableKey, schema, { openForm }) {
         const s = futureSuffix && g > today ? futureSuffix : groupSuffix;
         return s ? ` · ${s}` : '';
       };
-      let html = introHTML + (schema.total ? summaryHTML(rows) : '');
+      let html = topHTML() + introHTML + (schema.total ? summaryHTML(rows) : '');
       const withMember = showMember();
       if (stats) html += modeHTML();
       if (stats && state.mode === 'stats') {

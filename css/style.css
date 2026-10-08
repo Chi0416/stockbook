@@ -690,6 +690,44 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .up-more[aria-expanded="true"] svg { transform: rotate(180deg); }
 .up-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
 
+/* 總覽卡片最下面的「看全部」：切到股利 → 除權息 */
+.up-all { display: block; margin: 8px 0 2px; font-size: 13px; }
+
+/* 詳細版：股利 → 除權息頁最上面的「即將除權息」（見 upcoming.js 的 pageHTML），一張白底的框，分本週、下週、之後 */
+.up-panel {
+  margin: 0 0 16px;
+  padding: 14px 16px 10px;
+  background: var(--surface);
+  border: .5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.up-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; }
+.up-panel-head b { font-size: 15px; font-weight: 600; }
+.up-panel-head small { font-size: 12px; color: var(--muted); }
+.up-group { margin: 14px 0 0; font-size: 12px; font-weight: 600; color: var(--accent-text); }
+.up-panel .up-list { margin: 4px 0 0; }
+/* 每一筆三行：日期｜每股股利、股票｜約幾 %、發放日和預估領多少｜記下來 */
+.up-item { row-gap: 3px; padding: 10px 0; }
+.up-meta { grid-column: 1; font-size: 12px; color: var(--muted); }
+.up-act { grid-column: 2; grid-row: 3; align-self: center; text-align: right; }
+.up-stock { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.up-add {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.up-add:active { background: var(--accent-soft); }
+.up-done { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.up-foot { margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+
 /* 不能點的卡片（持股總覽的每檔持股） */
 .card.static { cursor: default; }
 .card.static:active { background: var(--surface); }

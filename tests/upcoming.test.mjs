@@ -59,3 +59,23 @@ test('公告資料裡沒有的（上櫃 ETF）：自己記了就列出來', () =
     { code: '00679B', exDate: '2026-10-16', payDate: '2026-11-12', cash: 0.37, stock: 0, own: true },
   ]);
 });
+
+test('詳細版：days 是 null 時列今天以後的全部（不限 30 天）', () => {
+  const r = plain(Upcoming.list(['0056', '00922', '00929', '00878', '1101'], { today: '2026-10-07', own: [], days: null }));
+  assert.deepEqual(r.map(x => `${x.exDate} ${x.code}`),
+    ['2026-10-07 00929', '2026-10-19 00922', '2026-10-20 1101', '2026-10-22 0056', '2026-11-18 00878']);
+});
+
+test('詳細版分本週、下週、之後：週一到週日算一週', () => {
+  // 2026-10-07 是週三：本週到 10/11（週日），下週 10/12～10/18
+  assert.equal(Upcoming.weekOf('2026-10-07', '2026-10-07'), 'this');
+  assert.equal(Upcoming.weekOf('2026-10-11', '2026-10-07'), 'this');
+  assert.equal(Upcoming.weekOf('2026-10-12', '2026-10-07'), 'next');
+  assert.equal(Upcoming.weekOf('2026-10-18', '2026-10-07'), 'next');
+  assert.equal(Upcoming.weekOf('2026-10-19', '2026-10-07'), 'later');
+  // 今天是週日：明天就是下週
+  assert.equal(Upcoming.weekOf('2026-10-11', '2026-10-11'), 'this');
+  assert.equal(Upcoming.weekOf('2026-10-12', '2026-10-11'), 'next');
+  // 今天是週一
+  assert.equal(Upcoming.weekOf('2026-10-18', '2026-10-12'), 'this');
+});

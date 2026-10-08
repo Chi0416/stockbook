@@ -27,7 +27,7 @@
   Object.entries({ ...SCHEMAS, ...VIEWS }).forEach(([key, page]) => {
     if (page.noList) return; // 觀察清單畫在行情的每一頁（見 market.js）
     const formKey = page.source || key;
-    lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id) });
+    lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id), onChanged: (k, rec) => onChanged(k, rec), toast });
     $('panels').appendChild(lists[key].el);
   });
   // 行情：每個指標一頁，加上把星星加起來的★ 星星；點卡片打開那一檔的詳細頁（見 market.js、detail.js）
@@ -42,14 +42,17 @@
 
   // 新增、修改、刪除之後（表單、詳細頁的加入觀察清單）：相關的頁面重畫
   function onChanged(key, rec) {
-    // 觀察清單：切到行情（不在行情時切到第一頁），剛加的那一檔閃一下；總覽的即將除權息也有觀察清單
+    // 觀察清單：切到行情（不在行情時切到第一頁），剛加的那一檔閃一下；總覽和除權息頁的即將除權息也有觀察清單
     if (key === 'watch') {
       if (rec && !MARKET.includes(current)) showTab(MARKET[0]);
       MARKET.forEach(k => (k === current ? lists[k].changed(rec) : lists[k].refresh()));
       lists.overview.refresh();
+      lists.dividends.refresh();
       return;
     }
     lists[key].changed(rec);
+    // 持股變了，除權息頁最上面的即將除權息（持有的、預估領多少）跟著重算
+    if (key !== 'dividends') lists.dividends.refresh();
     // 持股、自己記的除權息變了，行情跟著重算
     refreshMarket();
     // 推算頁面跟著重算；正在看的那頁順便標亮剛改的那筆
@@ -299,6 +302,12 @@
     toast(`KD：低於 ${m.low} 綠色、高於 ${m.high} 紅色`);
   });
   $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="kd-marks"]')) openMenu('kd'); });
+  // 總覽「即將除權息」最下面的「看全部」：切到股利 → 除權息，最上面是詳細版（見 upcoming.js）
+  $('panels').addEventListener('click', e => {
+    if (!e.target.closest('[data-act="upcoming-all"]')) return;
+    showTab('dividends');
+    window.scrollTo(0, 0);
+  });
 
   // ---------- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁說明裡的「調整」打開這一段 ----------
   const starsSet = document.querySelector('.stars-set');
@@ -603,8 +612,10 @@
   }
 
   // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和行情
+  //   除權息頁最上面的即將除權息也有「約佔現價幾 %」
   Market.onChange(() => {
     lists.overview.refresh();
+    lists.dividends.refresh();
     refreshMarket();
     Detail.refresh();
   });
@@ -639,11 +650,14 @@
       renderCloud(st);
       Inbox.syncStatus(st);
     },
-    // 讀回新的股價：持股總覽、殖利率、星星（殖利率的星星）重畫（KD 頁只用收盤價，不用重畫）
+    // 讀回新的股價：持股總覽、殖利率、EPS（預估殖利率）、星星（殖利率的星星）、除權息頁的即將除權息（約幾 %）重畫
+    //   KD 頁只用收盤價，不用重畫
     onPrices() {
       lists.overview.refresh();
       lists.yield.refresh();
+      lists.eps.refresh();
       lists.stars.refresh();
+      lists.dividends.refresh();
       Detail.refresh();
     },
     // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始

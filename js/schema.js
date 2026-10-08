@@ -225,6 +225,8 @@ const SCHEMAS = {
   dividends: {
     title: '除權息',
     announce: true,
+    // 列表最上面：持股和觀察清單即將除權息的（總覽卡片的詳細版，見 upcoming.js）
+    top: { html: () => Upcoming.pageHTML(), act: (name, value) => Upcoming.pageAct(name, value) },
     period: { key: 'exDate', unit: 'month', label: '年月', groupSuffix: '除權息', futureSuffix: '預計除權息' },
     card: { code: 'code', title: 'name', primary: 'cash' },
     // 除權息日當天就算已除息（當天以後買的拿不到這次股利）；已除息還沒發放時金額已確定，不變淡
