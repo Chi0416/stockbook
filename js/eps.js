@@ -14,6 +14,19 @@
 //   ETF、興櫃沒有 EPS，這一頁不列（列表上面寫出有幾檔沒列）
 //   排序：超前多的在前（預設）、同期成長多的在前、依代號；算不出來的放最後
 //   達成率超過進度、達到星星條件時，旁邊標 ★（見 stars.js）
+//
+// 股利預估：用今年的 EPS 推算今年賺的錢會配多少現金股利（年配的通常隔年發），提前佈局
+//   預估配 = 照這速度全年 × 近 3 年配息率；預估殖利率 = 預估配 ÷ 現價
+//   配息率 = 近 3 年配的現金股利加起來 ÷ 近 3 年 EPS 加起來（股利照所屬年度，季配、半年配的加成一整年）
+//     不直接把三年的比率平均：某一年 EPS 很低時（賺 0.05 配 1 元，那年 2000%），平均會被拉得很誇張
+//     「近 3 年」：今年以前、全年 EPS 是正的、那一年度的股利都決議了的，最近 3 年；虧損、還沒決議的年往前找，不夠 3 年就用有的
+//     只算現金股利，配股不算
+//     配息率超過 150%：配的比賺的多很多（多半是拿公積、以前的盈餘來配，跟 EPS 沒什麼關係），估了也不準，不估、寫原因
+//       例：三圓近幾年只有 2024 年能算，EPS 0.1 元配 1 元，配息率 1000%，照算會變成預估配 77 元
+//   今年的股利已經決議了一部分（季配、半年配）：寫出已決議多少，預估的還是全年
+//   今年的股利整年都決議了（年配的隔年 3～5 月董事會決議後）：不用估，直接寫已決議多少
+//   卡片上只寫一行結果；怎麼算的（每一年的 EPS、配多少、配息率）在詳細頁（見 detail.js）
+//   預估殖利率 15% 以上：多半是今年 EPS 衝很高（可能有一次性的收入，例如賣土地），× 4 之後被放大，照算、加一句參考就好
 const Eps = (() => {
   const FILE = 'shared/eps.json';
   const AGAIN = 30 * 60000;
@@ -81,6 +94,7 @@ const Eps = (() => {
   //     est: 照這速度全年, growth: 比去年同期多幾成（0.68 是多 68%）,
   //     years: [{ year, eps, q }] 每一年最後一個有數字的季，舊的在前 }
   //   last、same 沒有是 null；去年全年 ≤ 0 時 pct、ahead、rate 是 null；去年同期 ≤ 0 時 growth 是 null
+  //   fc：股利預估（見 forecast）
   function info(code) {
     const r = data?.rows[key(code)];
     if (!r) return null;
@@ -98,12 +112,36 @@ const Eps = (() => {
     const rate = last > 0 ? now / last : null;
     const pct = rate === null ? null : Math.round(rate * 100);
     const pace = q * 25;
+    const est = U.round(now / q * 4, 2);
     return {
-      year, q, now, last, same, pct, pace, rate,
+      year, q, now, last, same, pct, pace, rate, est,
       ahead: pct === null ? null : pct - pace,
-      est: U.round(now / q * 4, 2),
       growth: same > 0 ? now / same - 1 : null,
       years,
+      fc: forecast(r, year, est),
+    };
+  }
+
+  // 股利預估：{ years: 算配息率用的那幾年 [{ year, eps, cash, ratio }]（舊的在前）, payout: 配息率（沒有能算的年是 null）,
+  //   base: 用哪個 EPS 估（照這速度全年；第 4 季公布了就是全年）, cash: 預估配多少（估不出來是 null；今年虧損是 0）,
+  //   wild: 配息率超過 150%，不估（cash 是 null）,
+  //   decided: 今年已決議的現金股利（還沒決議是 null）, decidedQ: 已決議的涵蓋幾季, done: 整年都決議了 }
+  const MAX_PAYOUT = 1.5;
+  function forecast(r, year, base) {
+    const years = Object.keys(r.eps).map(Number).sort((a, b) => a - b)
+      .filter(y => y < year && r.eps[y].length === 4 && r.eps[y][3] > 0 && r.div[y]?.[2] >= 4)
+      .slice(-3)
+      .map(y => ({ year: y, eps: r.eps[y][3], cash: r.div[y][0], ratio: r.div[y][0] / r.eps[y][3] }));
+    const sumEps = years.reduce((s, y) => s + y.eps, 0);
+    const payout = years.length ? years.reduce((s, y) => s + y.cash, 0) / sumEps : null;
+    const d = r.div[year];
+    const wild = payout !== null && payout > MAX_PAYOUT;
+    return {
+      years, payout, base, wild,
+      cash: payout === null || wild ? null : U.round(Math.max(0, base) * payout, 2),
+      decided: d ? d[0] : null,
+      decidedQ: d ? d[2] : 0,
+      done: !!d && d[2] >= 4,
     };
   }
 
@@ -149,8 +187,37 @@ const EPS_PAGE = (() => {
     return (x === null) - (y === null) || (x === null ? 0 : y - x);
   };
 
+  // 股利：小數點後最多兩位（5.51、36.5）；殖利率：兩位小數的 %（和殖利率頁一樣）
+  const money = v => U.fmtNum(U.round(v, 2));
+  const pct = n => `${U.fmtNum(U.round(n * 100, 2), 2)}%`;
+
+  // e：Eps.info；fy：預估殖利率（今年整年都決議了就用決議的；沒有現價、估不出來是 null）
   function enrich(r) {
-    return { ...r, e: Eps.info(r.code) };
+    const e = Eps.info(r.code);
+    const f = e?.fc;
+    const cash = !f ? null : f.done ? f.decided : f.cash;
+    const { price } = Market.quote(r.code);
+    return { ...r, e, fy: cash !== null && price > 0 ? cash / price : null };
+  }
+
+  // 預估殖利率到這麼高，加一句提醒（還沒決議的才提醒；決議了的就是真的）
+  const HIGH_YIELD = 0.15;
+  const fcWarn = r => (r.fy >= HIGH_YIELD && !r.e?.fc?.done
+    ? '預估殖利率特別高：多半是今年 EPS 衝很高（可能有一次性的收入），參考就好' : '');
+
+  // 股利預估那一行（卡片最下面、詳細頁）：「預估配 5.51 元・預估殖利率 4.80%」；估不出來時寫原因
+  function fcText(r) {
+    const f = r.e?.fc;
+    if (!f) return '';
+    const name = yearName(r.e.year);
+    const yld = r.fy === null ? '' : `・${f.done ? '殖利率' : '預估殖利率'} ${pct(r.fy)}${f.done ? '（以現價算）' : ''}`;
+    const part = f.decided === null ? '' : `已決議 ${money(f.decided)} 元`;
+    if (f.done) return `${name}賺的已決議配 ${money(f.decided)} 元${yld}`;
+    if (f.payout === null) return `估不出股利（近幾年沒有賺錢又決議配息的資料）${part ? `；${part}` : ''}`;
+    if (f.wild) return `近 ${f.years.length} 年配的比賺的多很多（配息率 ${U.fmtNum(Math.round(f.payout * 100))}%，多半是拿公積來配），估不準，不估${part ? `；${part}` : ''}`;
+    if (r.e.est <= 0) return `${name}到目前虧損，照這樣估不會配現金${part ? `；${part}` : ''}`;
+    if (!f.cash) return `近 ${f.years.length} 年都沒配現金股利`;
+    return `預估${part ? '全年' : ''}配 ${money(f.cash)} 元${part ? `（${part}）` : ''}${yld}`;
   }
 
   // 這一頁只列有 EPS 的（EPS 還沒下載好時先全部列，卡片上寫還在下載）
@@ -209,13 +276,16 @@ const EPS_PAGE = (() => {
         ${barHTML(e)}
         ${e ? `<span class="card-grid">${cellsHTML(e)}</span>` : ''}
         ${notes(e).map(n => `<span class="card-note">${U.esc(n)}</span>`).join('')}
+        ${e ? `<span class="card-note fc">${U.esc(fcText(r))}</span>` : ''}
+        ${fcWarn(r) ? `<span class="card-note">${fcWarn(r)}</span>` : ''}
       </div>`;
   }
 
   // 列表上面的說明：怎麼算、財報公布到哪一季、沒列出的有幾檔
   //   skipped：持股和觀察清單裡沒有 EPS 的（ETF、興櫃）；全市場不一檔一檔數
   function introHTML(all, wide, skipped = 0) {
-    const how = '達成率 = 今年累計 EPS ÷ 去年全年 EPS。每過一季進度 25%，達成率超過進度是紅色（今年賺得比去年快），落後是綠色；長條上的刻度是進度。';
+    const how = '達成率 = 今年累計 EPS ÷ 去年全年 EPS，超過進度（每季 25%，長條上的刻度）紅色、落後綠色。' +
+      '預估配 = 照這速度全年 × 近 3 年配息率，點一檔看怎麼算的。';
     const parts = [];
     const l = Eps.latest();
     if (!Eps.ready()) parts.push(Eps.waiting());
@@ -239,9 +309,10 @@ const EPS_PAGE = (() => {
     sorts: [
       ['ahead', '依超前進度', desc(r => (r.e?.rate == null ? null : r.e.rate * 100 - r.e.pace))],
       ['growth', '依同期成長', desc(r => r.e?.growth ?? null)],
+      ['fyield', '依預估殖利率', desc(r => r.fy)],
       ['code', '依代號', null],
     ],
     enrich, keep, cardHTML, introHTML, skippedHTML,
-    barHTML, notes, cellsHTML, tone, // 詳細頁（detail.js）也用
+    barHTML, notes, cellsHTML, tone, fcText, fcWarn, money, pct, yearName, // 詳細頁（detail.js）也用
   };
 })();

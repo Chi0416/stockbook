@@ -3,6 +3,7 @@
 //   我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
 //   殖利率、KD、EPS：和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，不顯示這一段
+//   股利預估：預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（EPS、配多少、配息率），算法見 eps.js
 //   配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前
 //   最下面可以加入觀察清單、從觀察清單移除（觀察清單全家共用）
 const Detail = (() => {
@@ -104,6 +105,47 @@ const Detail = (() => {
       </div>`;
   }
 
+  // 股利預估：上面四格（預估配、預估殖利率、配息率、用哪個 EPS 估），中間每一年怎麼算的，下面說明
+  //   今年整年都決議了：寫已決議配多少，不用估；估不出來時只寫原因
+  function fcHTML(r) {
+    const { e } = r;
+    const f = e?.fc;
+    if (!f) return '';
+    const P = EPS_PAGE;
+    const name = P.yearName(e.year);
+    const head = '<h3 class="section-head">股利預估</h3>';
+    // 估不出來、今年虧損、從來不配：只寫原因；配息率太高不估的，照樣列出每一年，看得到為什麼
+    if (!f.done && (f.payout === null || e.est <= 0 || f.cash === 0)) {
+      return `${head}<p class="note muted">${U.esc(P.fcText(r))}</p>`;
+    }
+    const rows = f.years.map(y => `
+      <span>${y.year}</span><span>${fmt(y.eps)}</span><span>${P.money(y.cash)} 元</span><span>${U.fmtNum(Math.round(y.ratio * 100))}%</span>`).join('');
+    const notes = [];
+    if (f.done) {
+      notes.push(`${name}賺的錢已經決議配 ${P.money(f.decided)} 元，不用估了`);
+    } else if (f.wild) {
+      notes.push(P.fcText(r));
+    } else {
+      notes.push(`預估配 = ${e.q === 4 ? '全年' : '照這速度全年'} ${fmt(f.base)} × 配息率 ${U.fmtNum(Math.round(f.payout * 100))}% ≈ ${P.money(f.cash)} 元`);
+      if (f.decided !== null) notes.push(`已經決議 ${P.money(f.decided)} 元（${f.decidedQ === 2 ? '上半年' : `到第 ${f.decidedQ} 季`}），預估的是全年`);
+      if (P.fcWarn(r)) notes.push(P.fcWarn(r));
+    }
+    if (f.years.length) notes.push(`配息率 = 近 ${f.years.length} 年配的現金股利加起來 ÷ EPS 加起來（虧損、還沒決議的年不算，配股不算）`);
+    notes.push(`${name}賺的錢，年配的通常隔年夏天除息；只是照過去的配息習慣推算，公司不一定照這樣配`);
+    return `
+      ${head}
+      <div class="card static detail-card eps-card">
+        <span class="card-grid">
+          ${cell(f.done ? '已決議配' : '預估配', f.done ? `${P.money(f.decided)} 元` : f.cash === null ? '—' : `${P.money(f.cash)} 元`, 'strong')}
+          ${cell(f.done ? '殖利率' : '預估殖利率', r.fy === null ? '—' : P.pct(r.fy), 'strong')}
+          ${f.payout === null ? '' : cell('配息率', `${U.fmtNum(Math.round(f.payout * 100))}%`)}
+          ${cell(e.q === 4 ? `${name}全年 EPS` : '照這速度全年', fmt(f.base))}
+        </span>
+        ${rows ? `<span class="fc-years"><small>年度</small><small>EPS</small><small>配現金</small><small>配息率</small>${rows}</span>` : ''}
+        ${notesHTML(notes)}
+      </div>`;
+  }
+
   // 配息紀錄：公告的加上自己記的，新的在前；還沒除息的寫「預計」，金額還沒公告寫「待公告」
   function eventsHTML() {
     const today = U.today();
@@ -168,6 +210,7 @@ const Detail = (() => {
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
       ${epsHTML(r)}
+      ${fcHTML(r)}
 
       <h3 class="section-head">配息紀錄</h3>
       ${eventsHTML()}

@@ -364,6 +364,23 @@ body:has(dialog[open]) { overflow: hidden; }
 .card-grid.eps-years { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .eps-years .cell > span > small { display: block; margin-left: 0; font-size: 11px; color: var(--muted); white-space: normal; }
 
+/* 股利預估（見 eps.js）：卡片最下面那一行用深一點的字，和上面 EPS 的說明分得出來 */
+.eps-card .card-note.fc { color: var(--text-2); }
+/* 詳細頁的股利預估：每一年 EPS、配多少、配息率，一列一年，數字靠右對齊 */
+.fc-years {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr;
+  gap: 6px 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: .5px solid var(--border);
+  font-size: 14px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.fc-years > :nth-child(4n + 2), .fc-years > :nth-child(4n + 3), .fc-years > :nth-child(4n + 4) { text-align: right; }
+.fc-years small { font-size: 11px; color: var(--muted); }
+
 /* 星星（見 stars.js）：達標的數字旁邊一顆金色 ★；在小標題裡跟著字走，不換行、不跟著數字變紅綠 */
 .star { color: var(--star); font-weight: 600; }
 .cell small .star,
