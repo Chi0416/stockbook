@@ -1,7 +1,8 @@
 // 一檔股票的詳細資料：行情的卡片點了打開（從底部彈出，和新增表單一樣）
 //   最上面：持有或觀察、星星（達標的條件，見 stars.js）
-//   下面的順序：我的 → EPS → 股利預估 → 殖利率 → KD → 配息紀錄（先基本面、再技術面；不另外加分區的標題，免得變長）
+//   下面的順序：EPS → 股利預估 → 殖利率 → KD → 我的 → 配息紀錄（先基本面、再技術面；不另外加分區的標題，免得變長）
 //     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
+//       放在配息紀錄正上面：領到多少和每次配多少上下並排，好對照
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
 //     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年，算法見 eps.js
 //     殖利率：接在股利預估後面，和預估殖利率好比較
@@ -186,9 +187,6 @@ const Detail = (() => {
         <span class="detail-met">${!total ? '星星條件都沒有打勾' : r.n ? `達標：${r.stars.map(x => x.short).join('、')}` : '沒有達標的條件'}</span>
       </div>
 
-      <h3 class="section-head">我的</h3>
-      <div class="card static detail-card">${mineHTML(pos, r.price)}</div>
-
       ${epsHTML(r)}
       ${fcHTML(r)}
 
@@ -214,6 +212,9 @@ const Detail = (() => {
         </span>
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
+
+      <h3 class="section-head">我的</h3>
+      <div class="card static detail-card">${mineHTML(pos, r.price)}</div>
 
       <h3 class="section-head">配息紀錄</h3>
       ${eventsHTML()}
