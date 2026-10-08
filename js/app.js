@@ -695,4 +695,10 @@
       location.reload();
     },
   });
+
+  // 離線也打得開（見 sw.js）：版本號跟著這個檔案網址後面的 ?v=，換版本時存在手機裡的那份也一起換
+  if ('serviceWorker' in navigator) {
+    const v = new URL(document.currentScript?.src || location.href).searchParams.get('v') || '';
+    navigator.serviceWorker.register(`sw.js?v=${encodeURIComponent(v)}`).catch(() => {});
+  }
 })();
