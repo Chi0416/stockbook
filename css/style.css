@@ -401,21 +401,6 @@ body:has(dialog[open]) { overflow: hidden; }
 .detail-stars.none { color: var(--muted); }
 .detail-met { flex-basis: 100%; font-size: 13px; color: var(--muted); }
 #stock-sheet .section-head { margin-top: 22px; }
-/* 四大類的大標題：我的、基本面、技術面、配息紀錄；上面一條線分開，右邊灰色小字說明這一類看什麼 */
-#stock-sheet .detail-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  margin: 30px 2px 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-strong);
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text);
-}
-#stock-sheet .detail-group small { font-size: 12px; font-weight: 400; color: var(--muted); }
-#stock-sheet .detail-group + .section-head { margin-top: 0; }
 .detail-card { margin: 0; cursor: default; }
 .detail-card:active { background: var(--surface); }
 .detail-card .card-grid:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
