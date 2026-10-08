@@ -1,12 +1,13 @@
 // 產生 shared/prices.json：每一檔最近一個交易日的收盤價和日 KD，行情頁的 KD、抓不到即時現價時的收盤價用（見 js/market.js）
 //   上市：證交所「每日收盤行情」https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX（全部，不含權證、牛熊證）
-//   上櫃：櫃買中心「上櫃股票行情」https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes（權證不收）
+//   上櫃：櫃買中心「上櫃股票每日收盤行情」https://www.tpex.org.tw/www/zh-tw/afterTrading/otc（所有證券，不含權證、牛熊證）
+//     不用「上櫃股票行情」（afterTrading/dailyQuotes）：一定連權證一起回來，一天 2 MB 多，從 GitHub 抓要十幾分鐘
 //   一次抓一天的全市場，從今天往回抓到湊滿 60 個交易日，每次都從頭算 KD（算法見 kd.mjs）
 //     不用記上一次的結果：哪天沒更新到，下一次會自己補回來
 //     KD 一天接一天算，第一天要假設前一天是 50；算了 50 天以上，和券商從上市第一天算起的已經一樣
 //   GitHub 每個工作天收盤後自動執行，有變才存進 repo（見 .github/workflows/update-prices.yml）；App 打開時自己下載，不用改版本號
 //     要馬上更新：GitHub 的 Actions →「更新收盤價和 KD」→ Run workflow（或 gh workflow run update-prices.yml）
-//     本機也可以執行（node tools/update-prices.mjs，大約 6 分鐘），但不要自己推這個檔案，免得和 GitHub 推的衝突
+//     本機也可以執行（node tools/update-prices.mjs，大約 4 分鐘），但不要自己推這個檔案，免得和 GitHub 推的衝突
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { kd } from './kd.mjs';
 
@@ -28,15 +29,15 @@ async function getJSON(url, label) {
       return JSON.parse(await res.text());
     } catch (e) {
       if (k >= 3) throw new Error(`${label}：${e.cause?.code || e.message}`);
-      console.log(`${label} 失敗，20 秒後再試（第 ${k} 次）`);
+      console.log(`${label} 失敗（${e.cause?.code || e.message}），20 秒後再試（第 ${k} 次）`);
       await wait(20000);
     }
   }
 }
 
-// 表格的欄位名稱 → 第幾欄；找不到就是網站改了格式
+// 表格的欄位名稱 → 第幾欄（櫃買中心的欄位名稱前後有空白）；找不到就是網站改了格式
 function columns(fields, names, label) {
-  const at = names.map(n => fields.indexOf(n));
+  const at = names.map(n => fields.findIndex(f => String(f).trim() === n));
   if (at.some(i => i < 0)) throw new Error(`${label}：找不到「${names[at.findIndex(i => i < 0)]}」欄，網站格式可能改了`);
   return at;
 }
@@ -52,13 +53,13 @@ async function twse(date) {
   return t.data.map(r => ({ code: String(r[c]).trim().toUpperCase(), high: num(r[h]), low: num(r[l]), close: num(r[p]) }));
 }
 
-// 權證：7 開頭的六碼（例如 710001、71234P）
+// type=EW：不含權證、牛熊證；萬一又混進來，7 開頭的六碼（例如 710001、71234P）也不收
 async function tpex(date) {
   const label = `櫃買中心 ${date}`;
-  const j = await getJSON(`https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=${date.replace(/-/g, '%2F')}&response=json`, label);
+  const j = await getJSON(`https://www.tpex.org.tw/www/zh-tw/afterTrading/otc?date=${date.replace(/-/g, '%2F')}&type=EW&response=json`, label);
   const t = (j.tables || [])[0];
-  if (!t || !Array.isArray(t.data)) throw new Error(`${label}：找不到上櫃股票行情，網站格式可能改了`);
-  if (!t.data.length) return null; // 休市、資料還沒出來：上櫃家數 0 家
+  if (!t || !Array.isArray(t.data)) throw new Error(`${label}：找不到上櫃股票每日收盤行情，網站格式可能改了`);
+  if (!t.data.length) return null; // 休市、資料還沒出來：0 筆
   const [c, h, l, p] = columns(t.fields, ['代號', '最高', '最低', '收盤'], label);
   return t.data
     .map(r => ({ code: String(r[c]).trim().toUpperCase(), high: num(r[h]), low: num(r[l]), close: num(r[p]) }))
