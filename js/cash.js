@@ -6,6 +6,7 @@
 //   投入、已提領、股利從推算持股的起點算（最近一期快照，沒有快照時從 0，見 holdings.js 的 position）
 //     賺了 = 最高能提領 + 已提領 + 股利 − 投入（現在全部賣掉的話，總共賺多少）
 //   價格用現價（見 market.js 的 quote）；零股的成交價可能和現價差一點
+//   上面和其他頁一樣有搜尋框和筆數（代號、證券、成員名字都找得到）
 //
 // Cash：手續費、證交稅、要賣幾股的計算（不碰畫面，測試直接呼叫）
 //   手續費 = 成交金額 × 0.1425% × 折數，元以下捨去，不足最低手續費收最低；月退的用原價
@@ -76,12 +77,22 @@ const CASH_PAGE = {
 function createCash(hooks) {
   const AMOUNTS = [100000, 200000];
   const picks = new Map(); // 每個現金單選的金額：{ amt: 100000 | 200000 | 'custom', custom: 自己填的文字 }
+  const state = { keyword: '' };
 
   const el = document.createElement('section');
   el.className = 'panel';
   el.hidden = true;
-  el.innerHTML = '<div class="list"></div>';
+  el.innerHTML = `
+    <div class="filterbar">
+      <input class="f-keyword" type="search" placeholder="搜尋代號或證券" autocomplete="off" enterkeyhint="search">
+      <span class="count"></span>
+    </div>
+    <div class="list"></div>`;
+  const keywordInput = el.querySelector('.f-keyword');
+  const countEl = el.querySelector('.count');
   const listEl = el.querySelector('.list');
+
+  keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; refresh(); });
 
   const money = n => Privacy.num(U.fmtNum(Math.round(n)));
   const shares = n => Privacy.num(U.fmtNum(n));
@@ -194,6 +205,7 @@ function createCash(hooks) {
     const many = members.length > 1;
     const order = id => members.findIndex(m => m.id === id);
     if (!pools.length) {
+      countEl.textContent = '';
       listEl.innerHTML = `
         <div class="empty">
           把一檔股票（例如 0050）當成資金池<br>要用錢時，算出要賣幾股、實拿多少
@@ -204,7 +216,11 @@ function createCash(hooks) {
     const lacking = Store.shown().filter(id => !pools.some(p => p.member === id));
     const codes = pools.map(p => Holdings.codeOf(p));
     const note = Market.priceNote(codes);
-    listEl.innerHTML = pools.slice().sort((a, b) => order(a.member) - order(b.member)).map(p => cardHTML(p, many)).join('') +
+    const kw = state.keyword.trim().toLowerCase();
+    const text = p => `${p.code} ${p.name} ${Store.memberName(p.member)}`.toLowerCase();
+    const rows = pools.filter(p => !kw || text(p).includes(kw)).sort((a, b) => order(a.member) - order(b.member));
+    countEl.textContent = rows.length === pools.length ? `${pools.length} 檔` : `${rows.length}／${pools.length} 檔`;
+    listEl.innerHTML = (rows.length ? rows.map(p => cardHTML(p, many)).join('') : '<p class="empty">沒有符合條件的現金單</p>') +
       `<p class="list-intro">${note ? `${U.esc(note)}。` : ''}零股的成交價可能和現價差一點；手續費、證交稅元以下捨去，和券商可能差 1 元。</p>` +
       (lacking.length ? `<button type="button" class="text-btn" data-add="${lacking.length === 1 ? U.esc(lacking[0]) : ''}">` +
         `＋ 幫${U.esc(lacking.map(id => Store.memberName(id)).join('、'))}設定現金單</button>` : '');
@@ -239,6 +255,8 @@ function createCash(hooks) {
 
   function reset() {
     picks.clear();
+    state.keyword = '';
+    keywordInput.value = '';
     refresh();
   }
 
