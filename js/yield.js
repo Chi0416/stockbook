@@ -10,6 +10,8 @@
 //     最近一次比近一年平均每次多：紅色，少：綠色（台股的習慣，和總覽的損益一樣）；一樣多、近一年只配一次（年配）：不上色
 //       和平均每次比，不直接比殖利率：剛上市、近一年次數不夠時，殖利率會少算，暴力年化一定比較高
 //   現價：連結 Google 時用試算表的 GOOGLEFINANCE 抓的（見 sync.js），抓不到的、沒連結的用最近一次的收盤價（見 market.js）
+//     全市場的其他股票都用收盤價（GOOGLEFINANCE 只抓持股和觀察清單）
+//   殖利率達到星星條件、暴力年化是紅色時，數字旁邊標 ★（見 stars.js）
 
 const Yield = (() => {
   const DAY = 86400000;
@@ -116,14 +118,14 @@ const YIELD_PAGE = (() => {
       cell('現價', price ? U.fmtNum(price, 2) : '—'),
       cell('近一年股利', info?.count ? `${U.fmtNum(info.sum)} 元` : '—'),
       cell('配息', info ? info.freq : '—'),
-      cell('暴力年化', ya === null ? '—' : pct(ya), ` strong${ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`),
+      cell(`暴力年化${Stars.mark(r, 'trend')}`, ya === null ? '—' : pct(ya), ` strong${ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`),
     ];
-    const tag = r.held ? '<span class="badge member">持有</span>' : '<span class="badge">觀察</span>';
+    const tag = r.held ? '<span class="badge member">持有</span>' : r.watched ? '<span class="badge">觀察</span>' : '';
     return `
-      <div class="card yield-card static" data-code="${U.esc(r.code)}">
+      <div class="card yield-card" data-code="${U.esc(r.code)}">
         <span class="card-top">
-          <span class="card-title"><span class="card-tags">${tag}</span><span class="card-code">${U.esc(r.code)}</span>${U.esc(r.name)}</span>
-          <span class="card-primary"><small>殖利率</small><b class="yield-pct">${y === null ? '—' : pct(y)}</b></span>
+          <span class="card-title">${tag ? `<span class="card-tags">${tag}</span>` : ''}<span class="card-code">${U.esc(r.code)}</span>${U.esc(r.name)}</span>
+          <span class="card-primary"><small>殖利率${Stars.mark(r, 'yield')}</small><b class="yield-pct">${y === null ? '—' : pct(y)}</b></span>
         </span>
         <span class="card-grid">${cells.join('')}</span>
         ${notes(r).map(n => `<span class="card-note">${U.esc(n)}</span>`).join('')}
@@ -131,9 +133,11 @@ const YIELD_PAGE = (() => {
   }
 
   // 列表上面的說明：怎麼算、現價和公告資料是什麼時候的
-  function introHTML(all) {
+  //   全市場：持股和觀察清單以外都是收盤價，不一檔一檔數
+  function introHTML(all, wide) {
     const how = '殖利率 = 近一年現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。';
-    const price = Market.priceNote(all.map(r => r.code));
+    const price = wide ? `價格是 ${md(Market.date())} 收盤價（持股和觀察清單連結 Google 時用即時價格）`
+      : Market.priceNote(all.map(r => r.code));
     const updated = Announced.updated();
     const data = [price, updated ? `公告的除權息 ${md(updated)} 更新` : ''].filter(Boolean).join('；');
     return `<p class="list-intro">${how}${data ? `<br>${U.esc(data)}` : ''}</p>`;
@@ -143,5 +147,6 @@ const YIELD_PAGE = (() => {
     title: '殖利率',
     sorts: [['yield', '依殖利率', high('y')], ['annual', '依暴力年化', high('ya')], ['code', '依代號', null]],
     enrich, cardHTML, introHTML,
+    notes, // 詳細頁（detail.js）也用
   };
 })();

@@ -23,9 +23,15 @@ const Announced = (() => {
   const listeners = [];
 
   let cache = null;
+  let byCode = null; // 代號 → 這一檔的公告（行情的全市場一次算 2,400 檔，不能每一檔都從頭找一遍）
   function rows() {
     if (!cache) {
       cache = (data ? data.rows : []).map(([code, name, exDate, payDate, cash, stock]) => ({ code, name, exDate, payDate, cash, stock }));
+      byCode = new Map();
+      cache.forEach(r => {
+        if (!byCode.has(r.code)) byCode.set(r.code, []);
+        byCode.get(r.code).push(r);
+      });
     }
     return cache;
   }
@@ -79,8 +85,9 @@ const Announced = (() => {
   function forCode(code, recorded = []) {
     const c = key(code);
     if (!c) return [];
-    return rows()
-      .filter(r => r.code === c && !recorded.some(d => sameEvent(d, r)))
+    rows();
+    return (byCode.get(c) || [])
+      .filter(r => !recorded.some(d => sameEvent(d, r)))
       .sort((a, b) => (a.exDate < b.exDate ? 1 : a.exDate > b.exDate ? -1 : 0));
   }
 

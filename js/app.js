@@ -18,7 +18,7 @@
 
   // ---------- 列表與表單 ----------
   // 持股總覽、資料表與推算頁面都有列表；推算頁面點卡片時開啟來源資料表的編輯表單
-  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yield: YIELD_PAGE, kd: KD_PAGE };
+  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, yield: YIELD_PAGE, kd: KD_PAGE, stars: STARS_PAGE };
   const lists = {};
   let current = 'overview';
 
@@ -30,34 +30,36 @@
     lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id) });
     $('panels').appendChild(lists[key].el);
   });
-  // 行情：每個指標一頁，持股和觀察清單列在一起（見 market.js）
-  const MARKET = ['yield', 'kd'];
-  lists.yield = createMarket(YIELD_PAGE);
-  lists.kd = createMarket(KD_PAGE);
-  $('panels').append(lists.yield.el, lists.kd.el);
+  // 行情：每個指標一頁，加上把星星加起來的★ 星星；點卡片打開那一檔的詳細頁（見 market.js、detail.js）
+  const MARKET = ['yield', 'kd', 'stars'];
+  const openStock = code => Detail.open(code);
+  lists.yield = createMarket(YIELD_PAGE, { openStock });
+  lists.kd = createMarket(KD_PAGE, { openStock });
+  lists.stars = createMarket(STARS_PAGE, { openStock });
+  $('panels').append(lists.yield.el, lists.kd.el, lists.stars.el);
   const refreshMarket = () => MARKET.forEach(k => lists[k].refresh());
 
-  Form.init({
-    toast,
-    onChanged(key, rec) {
-      // 觀察清單：切到行情（不在行情時切到第一頁），剛加的那一檔閃一下；總覽的即將除權息也有觀察清單
-      if (key === 'watch') {
-        if (rec && !MARKET.includes(current)) showTab(MARKET[0]);
-        MARKET.forEach(k => (k === current ? lists[k].changed(rec) : lists[k].refresh()));
-        lists.overview.refresh();
-        return;
-      }
-      lists[key].changed(rec);
-      // 持股、自己記的除權息變了，行情跟著重算
-      refreshMarket();
-      // 推算頁面跟著重算；正在看的那頁順便標亮剛改的那筆
-      Object.entries(VIEWS).forEach(([v, view]) => {
-        if (view.source === key && current === v) lists[v].changed(rec);
-        else lists[v].refresh();
-      });
+  // 新增、修改、刪除之後（表單、詳細頁的加入觀察清單）：相關的頁面重畫
+  function onChanged(key, rec) {
+    // 觀察清單：切到行情（不在行情時切到第一頁），剛加的那一檔閃一下；總覽的即將除權息也有觀察清單
+    if (key === 'watch') {
+      if (rec && !MARKET.includes(current)) showTab(MARKET[0]);
+      MARKET.forEach(k => (k === current ? lists[k].changed(rec) : lists[k].refresh()));
       lists.overview.refresh();
-    },
-  });
+      return;
+    }
+    lists[key].changed(rec);
+    // 持股、自己記的除權息變了，行情跟著重算
+    refreshMarket();
+    // 推算頁面跟著重算；正在看的那頁順便標亮剛改的那筆
+    Object.entries(VIEWS).forEach(([v, view]) => {
+      if (view.source === key && current === v) lists[v].changed(rec);
+      else lists[v].refresh();
+    });
+    lists.overview.refresh();
+  }
+  Form.init({ toast, onChanged });
+  Detail.init({ toast, onChanged });
 
   // ---------- 分頁 ----------
   // 底部的每一格（key）和裡面的頁（pages：[頁面, 上方切換的名稱]）；只有一頁的不顯示上方切換
@@ -66,7 +68,7 @@
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
     { key: 'income', label: '股利', pages: [['cashDividends', '股利'], ['dividends', '除權息']] },
-    { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD']] },
+    { key: 'market', label: '行情', pages: [['yield', '殖利率'], ['kd', 'KD'], ['stars', '★ 星星']] },
   ];
   // 以前的頁面（殖利率分成庫存、觀察兩頁）：記在這台裝置的上次那一頁換成新的
   const OLD = { yieldHeld: 'yield', yieldWatch: 'yield' };
@@ -75,7 +77,7 @@
   const ADD = {
     trades: ['trades', '交易'], snapshots: ['snapshots', '快照'],
     cashDividends: ['dividends', '除權息'], dividends: ['dividends', '除權息'],
-    yield: ['watch', '觀察'], kd: ['watch', '觀察'],
+    yield: ['watch', '觀察'], kd: ['watch', '觀察'], stars: ['watch', '觀察'],
   };
   const tabBtns = [...document.querySelectorAll('.tabbar [data-tab]')];
   const subtabsEl = $('subtabs');
@@ -129,7 +131,10 @@
   });
   addBtn.addEventListener('click', () => { if (ADD[current]) Form.open(ADD[current][0], null); });
 
-  const refreshAll = () => Object.values(lists).forEach(l => l.refresh());
+  const refreshAll = () => {
+    Object.values(lists).forEach(l => l.refresh());
+    Detail.refresh();
+  };
 
   // ---------- 看哪些成員：在設定的「家庭成員」勾選（見 storage.js 的檢視範圍） ----------
   //   沒有勾全家時，標題下面一條提示「只顯示 爸爸、小明 ›」，點一下打開設定的家庭成員
@@ -260,13 +265,14 @@
     $('last-export').textContent = t ? `上次匯出：${U.fmtDateTime(t)}` : '尚未匯出過備份';
   }
 
-  // section：打開後直接捲到哪一段（'members' 家庭成員、'kd' KD 標記）
+  // section：打開後直接捲到哪一段（'members' 家庭成員、'kd' KD 標記、'stars' 星星條件）
   function openMenu(section) {
     renderMembers();
     renderKdMarks();
+    renderStars();
     renderBackupInfo();
     if (!menu.open) menu.showModal();
-    const head = { members: 'members-head', kd: 'kd-head' }[section];
+    const head = { members: 'members-head', kd: 'kd-head', stars: 'stars-head' }[section];
     if (head && $(head)) $(head).scrollIntoView({ block: 'start' });
   }
 
@@ -284,11 +290,39 @@
     kdHigh.innerHTML = opts(KD.HIGHS, KD.high);
   }
   [kdLow, kdHigh].forEach(sel => sel?.addEventListener('change', () => KD.set(+kdLow.value, +kdHigh.value)));
+  // 下限也是星星條件（低檔），星星跟著變
   KD.onChange(m => {
-    lists.kd.refresh();
+    refreshMarket();
+    Detail.refresh();
+    renderStars();
     toast(`KD：低於 ${m.low} 綠色、高於 ${m.high} 紅色`);
   });
   $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="kd-marks"]')) openMenu('kd'); });
+
+  // ---------- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁說明裡的「調整」打開這一段 ----------
+  const starsSet = document.querySelector('.stars-set');
+  const starYield = $('star-yield');
+  const starCross = $('star-cross');
+  function renderStars() {
+    if (!starsSet || !starYield || !starCross) return; // 瀏覽器還拿著舊版 index.html
+    starsSet.querySelectorAll('[data-star]').forEach(box => { box.checked = Stars.isOn(box.dataset.star); });
+    starYield.innerHTML = Stars.YIELDS.map(n => `<option value="${n}"${n === Stars.yieldMin ? ' selected' : ''}>${n}%</option>`).join('');
+    starYield.disabled = !Stars.isOn('yield');
+    starCross.innerHTML = Stars.CROSS_AT.map(([v, label]) => `<option value="${v}"${v === Stars.crossAt ? ' selected' : ''}>${label}</option>`).join('');
+    starCross.disabled = !Stars.isOn('golden');
+  }
+  starsSet?.addEventListener('change', () => {
+    const off = [...starsSet.querySelectorAll('[data-star]')].filter(box => !box.checked).map(box => box.dataset.star);
+    Stars.set({ off, yieldMin: +starYield.value, crossAt: starCross.value });
+  });
+  Stars.onChange(() => {
+    refreshMarket();
+    Detail.refresh();
+    renderStars();
+    const on = Stars.on();
+    toast(on.length ? `星星條件：${on.map(x => x.short).join('、')}` : '星星條件都沒有打勾');
+  });
+  $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="stars-set"]')) openMenu('stars'); });
 
   // ---------- 隱藏金額（見 privacy.js）：設定選單的開關；總覽的眼睛在 overview.js ----------
   const hideSwitch = $('hide-amounts');
@@ -563,6 +597,7 @@
   Market.onChange(() => {
     lists.overview.refresh();
     refreshMarket();
+    Detail.refresh();
   });
   Market.load();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Market.refresh(); });
@@ -586,10 +621,12 @@
       renderCloud(st);
       Inbox.syncStatus(st);
     },
-    // 讀回新的股價：持股總覽、殖利率重畫（KD 頁只用收盤價，不用重畫）
+    // 讀回新的股價：持股總覽、殖利率、星星（殖利率的星星）重畫（KD 頁只用收盤價，不用重畫）
     onPrices() {
       lists.overview.refresh();
       lists.yield.refresh();
+      lists.stars.refresh();
+      Detail.refresh();
     },
     // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始
     onLogout() {

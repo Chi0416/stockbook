@@ -1,7 +1,11 @@
 // 行情：底部「行情」一格，每個指標一頁（殖利率｜KD，之後的其他指標往後加，見 app.js 的 GROUPS）
-//   每一頁都列持股和觀察清單，同一檔只列一次，標「持有」或「觀察」；上面的「全部｜持有｜觀察」只看其中一邊
-//     持股跟著設定裡勾的成員；觀察清單全家共用一份（見 schema.js 的 watch），在右上角「新增觀察」裡新增、移除（見 form.js）
-//   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）
+//   每一頁上面切換「全部｜持有｜觀察｜全市場」（每一頁一起切換）：
+//     全部：持股和觀察清單，同一檔只列一次，標「持有」或「觀察」；持股跟著設定裡勾的成員，觀察清單全家共用一份
+//     持有、觀察：只看其中一邊（你也持有的觀察清單股票，兩邊都有）
+//     全市場：收盤資料裡的每一檔（上市、上櫃約 2,400 檔），照排序先列前 50 檔，下面「再顯示 50 檔」；搜尋時找全部
+//   觀察清單在右上角「新增觀察」裡新增、移除（見 form.js），詳細頁裡也可以加入、移除（見 detail.js）
+//   點卡片打開那一檔的詳細頁（見 detail.js）
+//   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）、STARS_PAGE（stars.js）
 //
 // Market：收盤價和日 KD（shared/prices.json，由 tools/update-prices.mjs 產生）
 //   GitHub 每個工作天收盤後自動更新這個檔案（見 .github/workflows/update-prices.yml），不用改版本號：
@@ -107,6 +111,8 @@ const Market = (() => {
 
   return {
     get, quote, priceNote, waiting, load, refresh,
+    // 資料裡的每一檔（行情的「全市場」）
+    codes: () => (data ? Object.keys(data.rows) : []),
     date: () => (data ? data.date : ''),
     state: () => state,
     ready: () => state === 'ready',
@@ -114,14 +120,19 @@ const Market = (() => {
   };
 })();
 
-// 行情的一頁：page 是 YIELD_PAGE、KD_PAGE；和其他列表一樣有 el、refresh、reset、changed
+// 行情每一頁共用的「全部｜持有｜觀察｜全市場」：切換時每一頁一起重畫，換到別頁還是同一個範圍
+const MARKET_VIEW = { range: 'all', pages: [] };
+
+// 行情的一頁：page 是 YIELD_PAGE、KD_PAGE、STARS_PAGE；和其他列表一樣有 el、refresh、reset、changed
 //   page.sorts：[[值, 選單上的字, 比較的函式]]，第一個是預設；一樣的時候依代號
 //   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片；page.introHTML(rows)：列表上面的說明
-//   卡片點了沒有反應（觀察清單在「新增觀察」裡移除）
-function createMarket(page) {
-  const SHOWS = [['all', '全部'], ['held', '持有'], ['watch', '觀察']];
-  const state = { keyword: '', sort: page.sorts[0][0], show: 'all' };
+//   openStock(代號)：點卡片時打開詳細頁
+function createMarket(page, { openStock = () => {} } = {}) {
+  const RANGES = [['all', '全部'], ['held', '持有'], ['watch', '觀察'], ['market', '全市場']];
+  const STEP = 50; // 全市場一次列幾檔
+  const state = { keyword: '', sort: page.sorts[0][0], limit: STEP };
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
+  const names = () => (typeof STOCK_LIST !== 'undefined' ? STOCK_LIST.names : {});
 
   const el = document.createElement('section');
   el.className = 'panel';
@@ -140,62 +151,102 @@ function createMarket(page) {
   const countEl = el.querySelector('.count');
   const listEl = el.querySelector('.list');
 
-  sortSel.addEventListener('change', () => { state.sort = sortSel.value; render(); });
-  keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; render(); });
+  sortSel.addEventListener('change', () => { state.sort = sortSel.value; state.limit = STEP; render(); });
+  keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; state.limit = STEP; render(); });
   listEl.addEventListener('click', e => {
-    const btn = e.target.closest('[data-act="show"]');
-    if (!btn || btn.dataset.value === state.show) return;
-    state.show = btn.dataset.value;
-    render();
+    const btn = e.target.closest('[data-act]');
+    if (btn?.dataset.act === 'range') {
+      setRange(btn.dataset.value);
+      return;
+    }
+    if (btn?.dataset.act === 'more') {
+      state.limit += STEP;
+      render();
+      return;
+    }
+    if (btn) return; // 說明裡的「調整」（app.js 打開設定）
+    const card = e.target.closest('.card[data-code]');
+    if (card) openStock(card.dataset.code);
   });
 
+  // 搜尋的字留著（「看全市場」是要在全市場找同一個字）
+  function setRange(range) {
+    if (range === MARKET_VIEW.range) return;
+    MARKET_VIEW.range = range;
+    MARKET_VIEW.pages.forEach(p => p.ranged());
+  }
+
   // 持股（股數大於 0）在前，觀察清單裡沒持有的接在後面；held：設定裡勾的成員有持有，watched：在觀察清單裡
-  function rows() {
+  function mine() {
     const h = Holdings.all(U.today());
     const watched = new Map();
     Store.list('watch').forEach(r => { if (key(r.code) && !watched.has(key(r.code))) watched.set(key(r.code), r.name); });
     const out = (h ? h.positions : []).filter(p => p.shares > 0)
-      .map(p => ({ code: p.code, name: p.name, held: true, watched: watched.has(key(p.code)) }));
-    const mine = new Set(out.map(r => key(r.code)));
-    watched.forEach((name, code) => { if (!mine.has(code)) out.push({ code, name, held: false, watched: true }); });
+      .map(p => ({ code: key(p.code), name: p.name, held: true, watched: watched.has(key(p.code)) }));
+    const have = new Set(out.map(r => r.code));
+    watched.forEach((name, code) => { if (!have.has(code)) out.push({ code, name, held: false, watched: true }); });
     return out;
   }
 
-  const showHTML = () => `
-    <div class="seg three" role="group" aria-label="顯示哪些股票">
-      ${SHOWS.map(([v, label]) => `<button type="button" data-act="show" data-value="${v}" aria-pressed="${state.show === v}">${label}</button>`).join('')}
+  // 全市場：收盤資料裡的每一檔，加上持股和觀察清單（興櫃之類收盤資料裡沒有的也列）；名稱用證交所的清單，沒有的用自己記的
+  function market(my) {
+    const list = names();
+    const byCode = new Map(my.map(r => [r.code, r]));
+    const out = Market.codes().map(code => byCode.get(code) || { code, name: list[code] || '', held: false, watched: false });
+    my.forEach(r => { if (!Market.get(r.code)) out.push(r); });
+    return out;
+  }
+
+  const rangeHTML = () => `
+    <div class="seg range" role="group" aria-label="列出哪些股票">
+      ${RANGES.map(([v, label]) => `<button type="button" data-act="range" data-value="${v}" aria-pressed="${MARKET_VIEW.range === v}">${label}</button>`).join('')}
     </div>`;
 
   function render() {
-    const all = rows();
-    if (!all.length) {
-      countEl.textContent = '0 檔';
-      listEl.innerHTML = '<p class="empty">還沒有持股和觀察的股票<br>到「記帳」記一筆買進，或點右上角「新增觀察」<br>打代號或名稱，加幾檔想看的股票</p>';
+    const kw = state.keyword.trim().toLowerCase();
+    const match = r => !kw || `${r.code} ${r.name}`.toLowerCase().includes(kw);
+    const my = mine();
+    const wide = MARKET_VIEW.range === 'market';
+    if (wide && !Market.ready()) {
+      countEl.textContent = '';
+      listEl.innerHTML = rangeHTML() + `<p class="empty">${Market.waiting()}</p>`;
       return;
     }
-    const inShow = all.filter(r => state.show === 'all' || (state.show === 'held' ? r.held : r.watched)).map(page.enrich);
-    const kw = state.keyword.trim().toLowerCase();
-    const shown = inShow.filter(r => !kw || `${r.code} ${r.name}`.toLowerCase().includes(kw));
+    const range = MARKET_VIEW.range;
+    const base = wide ? market(my) : my.filter(r => range === 'all' || (range === 'held' ? r.held : r.watched));
+    const all = base.filter(match).map(page.enrich);
     const byCode = (a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
     const cmp = page.sorts.find(([v]) => v === state.sort)[2];
-    shown.sort((a, b) => (cmp ? cmp(a, b) : 0) || byCode(a, b));
-    countEl.textContent = shown.length === inShow.length ? `${inShow.length} 檔` : `${shown.length}／${inShow.length} 檔`;
-    const empty = !inShow.length
-      ? (state.show === 'held' ? '目前沒有持股' : '還沒有觀察的股票<br>點右上角「新增觀察」，打代號或名稱加進來')
-      : '沒有符合條件的股票';
-    listEl.innerHTML = showHTML() + page.introHTML(inShow) +
-      (shown.length ? shown.map(page.cardHTML).join('') : `<p class="empty">${empty}</p>`);
+    all.sort((a, b) => (cmp ? cmp(a, b) : 0) || byCode(a, b));
+    const shown = wide ? all.slice(0, state.limit) : all;
+    countEl.textContent = `${U.fmtNum(all.length)} 檔`;
+
+    let empty = '';
+    if (!all.length) {
+      // 持股、觀察清單裡找不到，全市場有：給一個按鈕切過去
+      const elsewhere = !wide && kw && Market.ready() ? Market.codes().filter(c => match({ code: c, name: names()[c] || '' })).length : 0;
+      empty = elsewhere ? `這裡沒有符合的股票<br><button type="button" class="link-btn" data-act="range" data-value="market">全市場有 ${elsewhere} 檔符合，看全市場</button>`
+        : kw ? '沒有符合條件的股票'
+        : range === 'held' ? '目前沒有持股<br>到「記帳」記一筆買進，或照券商的庫存填一期快照'
+        : range === 'watch' ? '還沒有觀察的股票<br>點右上角「新增觀察」，打代號或名稱加進來<br>也可以在「全市場」點一檔，加入觀察清單'
+        : '還沒有持股和觀察的股票<br>到「記帳」記一筆買進，或點右上角「新增觀察」<br>也可以切到「全市場」看全部的股票';
+    }
+    const more = wide && all.length > shown.length
+      ? `<button type="button" class="wide-btn more-btn" data-act="more">再顯示 ${Math.min(STEP, all.length - shown.length)} 檔（還有 ${U.fmtNum(all.length - shown.length)} 檔）</button>` : '';
+    listEl.innerHTML = rangeHTML() + (all.length ? page.introHTML(all, wide) : '') +
+      (shown.length ? shown.map(page.cardHTML).join('') + more : `<p class="empty">${empty}</p>`);
   }
 
   function reset() {
     state.keyword = '';
+    state.limit = STEP;
     keywordInput.value = '';
     render();
   }
 
-  // 剛加進觀察清單的那一檔閃一下；只看持股時先切回全部，才看得到
+  // 剛加進觀察清單的那一檔閃一下；只看持有時先切回全部，才看得到
   function changed(rec) {
-    if (rec?.code && state.show === 'held') state.show = 'all';
+    if (rec?.code && MARKET_VIEW.range === 'held') MARKET_VIEW.range = 'all';
     render();
     const card = rec?.code && listEl.querySelector(`[data-code="${CSS.escape(key(rec.code))}"]`);
     if (card) {
@@ -204,5 +255,10 @@ function createMarket(page) {
     }
   }
 
-  return { el, refresh: render, reset, changed };
+  const view = {
+    el, refresh: render, reset, changed,
+    ranged() { state.limit = STEP; render(); },
+  };
+  MARKET_VIEW.pages.push(view);
+  return view;
 }

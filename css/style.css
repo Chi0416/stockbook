@@ -23,6 +23,7 @@
   --danger: #b53333;
   --invalid-bg: #f8e5e3;
   --flash: #f3e3c7;
+  --star: #c48a12; /* 星星（見 stars.js） */
   /* 統計長條：已入帳、待入帳（淡一階，對白底還有 2:1 的對比） */
   --bar: #c96442;
   --bar-pend: #df9c83;
@@ -60,6 +61,7 @@
     --danger: #e26d62;
     --invalid-bg: #432624;
     --flash: #4d3d27;
+    --star: #e8b54a;
     --bar: #d97757;
     --bar-pend: #8f5a47;
     --shadow: 0 1px 2px rgba(0, 0, 0, .2);
@@ -314,7 +316,7 @@ body:has(dialog[open]) { overflow: hidden; }
 }
 .cell { display: block; min-width: 0; }
 .cell small { display: block; font-size: 11px; color: var(--muted); }
-.cell span { display: block; font-size: 14px; color: var(--text-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cell > span { display: block; font-size: 14px; color: var(--text-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 .card-note { display: block; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .card-note.warn { color: var(--danger); }
@@ -324,23 +326,56 @@ body:has(dialog[open]) { overflow: hidden; }
 .yield-card .card-note + .card-note { margin-top: 3px; }
 /* 暴力年化那一格：名稱和數字都用深色字，和旁邊幾格分得出來 */
 .yield-card .cell.strong small { color: var(--text-2); }
-.yield-card .cell.strong span { color: var(--text); font-weight: 600; }
+.yield-card .cell.strong > span { color: var(--text); font-weight: 600; }
 /* 最近一次比近一年平均多：紅色，少：綠色（台股的習慣，和總覽的損益一樣） */
-.yield-card .cell.strong.up span { color: var(--buy); }
-.yield-card .cell.strong.down span { color: var(--sell); }
+.yield-card .cell.strong.up > span { color: var(--buy); }
+.yield-card .cell.strong.down > span { color: var(--sell); }
 
-/* 行情（見 market.js）：列表最上面的「全部｜持有｜觀察」，三等分 */
-.seg.three { grid-template-columns: repeat(3, 1fr); margin: 0 0 12px; }
+/* 行情（見 market.js）：列表最上面的「全部｜持有｜觀察｜全市場」，四等分 */
+.seg.range { grid-template-columns: repeat(4, 1fr); margin: 0 0 12px; }
 
 /* KD 卡片（見 kd.js）：K 值低於下限綠色、高於上限紅色，D 值那一格一樣；交叉那一格黃金交叉紅、死亡交叉綠 */
 .card-primary b.kd-k { font-size: 20px; }
 .card-primary b.kd-k.low,
-.kd-card .cell.low span { color: var(--sell); font-weight: 600; }
+.kd-card .cell.low > span { color: var(--sell); font-weight: 600; }
 .card-primary b.kd-k.high,
-.kd-card .cell.high span { color: var(--buy); font-weight: 600; }
-.kd-card .cell.strong span { font-weight: 600; }
-.kd-card .cell.strong.up span { color: var(--buy); }
-.kd-card .cell.strong.down span { color: var(--sell); }
+.kd-card .cell.high > span { color: var(--buy); font-weight: 600; }
+.kd-card .cell.strong > span { font-weight: 600; }
+.kd-card .cell.strong.up > span { color: var(--buy); }
+.kd-card .cell.strong.down > span { color: var(--sell); }
+/* 交叉右邊的灰色小字：在低檔、中間還是高檔交叉；和「黃金交叉」同一行，卡片不會變高（太窄時整個換到下一行，不拆開） */
+.cell > span > small { display: inline-block; margin-left: 4px; font-weight: 400; white-space: nowrap; }
+
+/* 星星（見 stars.js）：達標的數字旁邊一顆金色 ★；在小標題裡跟著字走，不換行、不跟著數字變紅綠 */
+.star { color: var(--star); font-weight: 600; }
+.cell small .star,
+.card-primary small .star { color: var(--star); font-weight: 600; }
+/* ★ 星星頁：右上角 ★★★☆；暴力年化、K / D 照殖利率頁、KD 頁的紅綠 */
+.card-primary b.stars-n { font-size: 18px; letter-spacing: 1px; color: var(--star); }
+.card-primary b.stars-n.none { color: var(--muted); }
+.stars-card .cell.up > span,
+.stars-card .cell.high > span { color: var(--buy); }
+.stars-card .cell.down > span,
+.stars-card .cell.low > span { color: var(--sell); }
+/* 全市場：最下面「再顯示 50 檔」 */
+.more-btn { margin-top: 4px; }
+
+/* ---------- 一檔股票的詳細資料（見 detail.js） ---------- */
+.detail-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.detail-stars { font-size: 22px; letter-spacing: 2px; color: var(--star); }
+.detail-stars.none { color: var(--muted); }
+.detail-met { flex-basis: 100%; font-size: 13px; color: var(--muted); }
+#stock-sheet .section-head { margin-top: 22px; }
+.detail-card { margin: 0; cursor: default; }
+.detail-card:active { background: var(--surface); }
+.detail-card .card-grid:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.detail-card .cell.up > span { color: var(--buy); }
+.detail-card .cell.down > span { color: var(--sell); }
+.member-list.detail-events li { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 14px; padding: 10px 16px; font-variant-numeric: tabular-nums; }
+.detail-events small { display: block; font-size: 11px; color: var(--muted); }
+.ev-pay { font-size: 13px; color: var(--muted); }
+.ev-cash { text-align: right; font-weight: 600; }
+.detail-watch { margin-top: 28px; }
 
 /* 推算頁面上方的合計：大號襯線數字 */
 .summary {
@@ -1029,9 +1064,13 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
 .member-info small { display: block; font-size: 12px; color: var(--muted); }
 .text-btn.danger { color: var(--danger); }
 
-/* 設定的 KD 標記（見 app.js）：右邊選數字 */
-.kd-marks li { gap: 12px; padding: 8px 10px 8px 16px; }
-.kd-marks select {
+/* 設定的 KD 標記、星星條件（見 app.js）：右邊選數字 */
+.kd-marks li,
+.stars-set li { gap: 12px; padding: 8px 10px 8px 16px; }
+.stars-set select:disabled { opacity: .45; cursor: default; }
+.stars-set .member-pick { flex: 1; }
+.kd-marks select,
+.stars-set select {
   flex: none;
   height: 38px;
   padding: 0 30px 0 12px;
@@ -1045,7 +1084,8 @@ dialog.sheet::backdrop { background: rgba(20, 20, 19, .4); }
   appearance: none;
   cursor: pointer;
 }
-.kd-marks select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.kd-marks select:focus-visible,
+.stars-set select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 
 /* 新增觀察的表單下面：目前的觀察清單（見 form.js 的 renderManage） */
 .manage { margin-top: 28px; }
