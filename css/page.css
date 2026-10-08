@@ -1,20 +1,28 @@
-/* 說明頁、隱私權政策等文字頁面：字比較大，也可以直接列印（App 本身的樣式在 style.css） */
+/* 說明頁、隱私權政策等文字頁面：字比較大，也可以直接列印（App 本身的樣式在 style.css）
+   說明頁分成幾層，一眼看得出換了話題：
+     大區（.part，色字加橫線）→ 段落（section，白卡，標題是一條淡橘色帶）→ 小卡（.sub，淺灰底，編號 1-1）
+   內容依種類用不同樣式：步驟（ol.steps，圓圈編號連成一條線）、提醒（.tip）、注意（.note）、公式（.formula）、問答（details） */
 :root {
-  --bg: #faf9f5; --surface: #fff; --text: #141413; --muted: #73726c;
-  --border: rgba(31, 30, 29, .15); --accent: #c96442; --accent-text: #ae5630; --accent-soft: #f4e7df;
-  --warn-bg: #f8e5e3; --warn: #b53333;
+  --bg: #f5f4ed; --surface: #fff; --sub-bg: #faf9f5; --text: #141413; --muted: #73726c;
+  --border: rgba(31, 30, 29, .15); --border-strong: rgba(31, 30, 29, .3);
+  --accent: #c96442; --accent-text: #ae5630; --accent-strong: #b5583a; --accent-soft: #f4e7df;
+  --tip-bg: #f3ecdc; --warn-bg: #f8e5e3; --warn: #b53333;
+  --shadow: 0 1px 3px rgba(20, 20, 19, .06);
   --serif: ui-serif, "Noto Serif TC", "Songti TC", Georgia, serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #262624; --surface: #30302e; --text: #faf9f5; --muted: #9c9a92;
-    --border: rgba(222, 220, 209, .14); --accent: #d97757; --accent-text: #e3896a; --accent-soft: #4b3a32;
-    --warn-bg: #432624; --warn: #e26d62;
+    --bg: #1f1e1d; --surface: #30302e; --sub-bg: #292927; --text: #faf9f5; --muted: #9c9a92;
+    --border: rgba(222, 220, 209, .14); --border-strong: rgba(222, 220, 209, .28);
+    --accent: #d97757; --accent-text: #e3896a; --accent-strong: #b5583a; --accent-soft: #4b3a32;
+    --tip-bg: #3a3429; --warn-bg: #432624; --warn: #e26d62;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .3);
     color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background: var(--bg);
@@ -30,37 +38,180 @@ main {
 .back { display: inline-block; margin: 4px 0 12px; color: var(--accent-text); font-size: 17px; text-decoration: none; }
 h1 { margin: 0 0 6px; font-family: var(--serif); font-size: 30px; font-weight: 600; }
 .lead { margin: 0 0 20px; color: var(--muted); }
+
+/* 段落：白卡，標題是卡片最上面的一條色帶 */
 section {
   margin: 16px 0;
-  padding: 18px 18px 8px;
+  padding: 16px 14px 6px;
   border: .5px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
-  break-inside: avoid;
+  box-shadow: var(--shadow);
+  scroll-margin-top: calc(12px + env(safe-area-inset-top));
 }
-h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-family: var(--serif); font-size: 22px; font-weight: 600; }
+h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-family: var(--serif); font-size: 22px; font-weight: 600; line-height: 1.4; }
+section > h2:first-child {
+  margin: -16px -14px 16px;
+  padding: 12px 14px;
+  border-bottom: .5px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  background: var(--accent-soft);
+}
 h2 .no {
   display: inline-grid; place-items: center; flex-shrink: 0;
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--accent); color: #fff; font: 600 17px/1 -apple-system, sans-serif;
+  background: var(--accent-strong); color: #fff; font: 600 17px/1 -apple-system, sans-serif;
 }
+h3 { margin: 18px 0 6px; font-size: 18px; }
+section p { margin: 0 0 12px; }
+
+/* 大區：開始使用、平常怎麼用…… */
+.part {
+  display: flex; align-items: center; gap: 10px;
+  margin: 40px 0 0; scroll-margin-top: calc(12px + env(safe-area-inset-top));
+  color: var(--accent-text); font-family: var(--serif); font-size: 20px; font-weight: 600;
+}
+.part small { color: var(--muted); font: 15px/1 -apple-system, sans-serif; }
+.part::after { content: ""; flex: 1; height: 1.5px; background: var(--accent); opacity: .35; }
+
+/* 小卡：段落裡的一個小主題 */
+.sub {
+  margin: 0 0 14px;
+  padding: 12px 12px 2px;
+  border: .5px solid var(--border);
+  border-radius: 12px;
+  background: var(--sub-bg);
+  break-inside: avoid;
+}
+.sub h3 { margin: 0 0 8px; font-size: 19px; line-height: 1.45; }
+.sub .tag {
+  display: inline-block; margin-right: 8px; padding: 0 8px; border-radius: 999px; vertical-align: 2px;
+  background: var(--accent-strong); color: #fff; font: 600 14px/1.6 -apple-system, sans-serif;
+}
+.sub .hint { display: block; color: var(--muted); font-size: 15px; font-weight: 400; }
+
 ol, ul { margin: 0 0 12px; padding-left: 1.4em; }
 li { margin: 6px 0; }
+ul > li::marker { color: var(--accent); }
+
+/* 步驟：圓圈編號，步驟之間用直線連起來 */
+ol.steps { padding-left: 0; list-style: none; counter-reset: step; }
+ol.steps > li { position: relative; margin: 0; padding: 0 0 14px 38px; counter-increment: step; }
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 1px;
+  width: 28px; height: 28px; border: 1.5px solid var(--accent); border-radius: 50%;
+  background: var(--surface); color: var(--accent-text);
+  font: 600 15px/25px -apple-system, sans-serif; text-align: center;
+}
+ol.steps > li:not(:last-child)::after {
+  content: ""; position: absolute; left: 13.25px; top: 31px; bottom: 1px;
+  width: 1.5px; background: var(--accent); opacity: .35;
+}
+ol.steps > li:last-child { padding-bottom: 2px; }
+ol.steps ul { margin: 6px 0 0; }
+
+/* 提醒、注意：前面一個小標籤 */
+.tip, .note { margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; font-size: 17px; }
+.tip { background: var(--tip-bg); }
+.note { background: var(--warn-bg); color: var(--warn); }
+.tip .label, .note .label {
+  display: inline-block; margin-right: 6px; padding: 0 8px; border-radius: 6px;
+  color: #fff; font-size: 14px; font-weight: 700; line-height: 1.7;
+}
+.tip .label { background: var(--accent-strong); }
+.note .label { background: var(--warn); }
+@media (prefers-color-scheme: dark) { .note .label { color: #1f1e1d; } }
+
+/* 公式：寫成分數，分子在上、分母在下；放不下時分數換到下一行 */
+.formula {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px;
+  margin: 0 0 10px; padding: 10px 14px;
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  background: var(--surface); font-weight: 600; line-height: 1.5;
+}
+.formula b { color: var(--accent-text); }
+.frac { display: inline-flex; flex-direction: column; align-items: center; text-align: center; word-break: keep-all; }
+.frac > span:first-child { padding: 0 6px 3px; border-bottom: 1.5px solid currentColor; }
+.frac > span:last-child { padding-top: 3px; }
+
+/* 遇到問題：點題目展開 */
+details {
+  margin: 0 0 10px; padding: 0 14px;
+  border: .5px solid var(--border); border-radius: 12px;
+  background: var(--sub-bg);
+  break-inside: avoid;
+}
+summary {
+  position: relative; padding: 12px 28px 12px 0;
+  font-weight: 600; list-style: none; cursor: pointer;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after {
+  content: ""; position: absolute; right: 4px; top: 50%;
+  width: 9px; height: 9px; margin-top: -7px;
+  border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg);
+  transition: transform .15s;
+}
+details[open] summary::after { margin-top: -3px; transform: rotate(-135deg); }
+details[open] summary { border-bottom: .5px solid var(--border); margin-bottom: 10px; }
+details p { margin: 0 0 12px; }
+
+/* 開頭：畫面下方的四格 */
+.tabs {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  margin: 0 0 8px;
+  border: .5px solid var(--border); border-radius: 16px;
+  background: var(--surface); box-shadow: var(--shadow); overflow: hidden;
+}
+.tabs a {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 12px 4px 10px; color: var(--text); text-align: center; text-decoration: none;
+}
+.tabs a + a { border-left: .5px solid var(--border); }
+.tabs svg { width: 28px; height: 28px; fill: none; stroke: var(--accent-text); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tabs b { font-size: 17px; }
+.tabs small { color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+/* 目錄 */
+.toc {
+  margin: 20px 0 0; padding: 16px 16px 6px;
+  border: .5px solid var(--border); border-radius: 16px;
+  background: var(--surface); box-shadow: var(--shadow);
+  scroll-margin-top: calc(12px + env(safe-area-inset-top));
+}
+.toc h2 { margin: 0 0 8px; }
+.toc-part { margin: 10px 0 6px; color: var(--accent-text); font-size: 15px; font-weight: 600; }
+.toc-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 0 0 10px; }
+@media (min-width: 560px) { .toc-links { grid-template-columns: repeat(3, 1fr); } }
+.toc-links a {
+  display: flex; align-items: center; gap: 8px; min-height: 44px;
+  padding: 6px 10px; border: .5px solid var(--border); border-radius: 10px;
+  background: var(--sub-bg); color: var(--text); font-size: 17px; line-height: 1.3; text-decoration: none;
+}
+.toc-links .no {
+  display: inline-grid; place-items: center; flex-shrink: 0;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-text); font: 600 14px/1 -apple-system, sans-serif;
+}
+
+/* 每段最後：回目錄 */
+.to-toc { display: block; margin: 0 0 10px; font-size: 16px; text-align: right; text-decoration: none; }
+
 b.btn {
   display: inline-block; padding: 0 8px; border: .5px solid var(--border); border-radius: 8px;
   background: var(--accent-soft); color: var(--accent-text); font-weight: 600; white-space: nowrap;
 }
 .url { word-break: break-all; font-weight: 600; color: var(--accent-text); }
-.note { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-size: 16px; }
 .muted { color: var(--muted); font-size: 16px; }
-@media print {
-  :root { --bg: #fff; --surface: #fff; }
-  .back { display: none; }
-  body { font-size: 15px; }
-  section { border-color: #ccc; }
-}
 .footer { margin-top: 24px; text-align: center; }
 .footer a, section a { color: var(--accent-text); }
-h3 { margin: 18px 0 6px; font-size: 18px; }
-section p { margin: 0 0 12px; }
 code { padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); font-size: .9em; }
+
+@media print {
+  :root { --bg: #fff; --surface: #fff; --shadow: none; }
+  .back, .to-toc { display: none; }
+  body { font-size: 15px; }
+  section, .toc, .tabs { border-color: #ccc; }
+  summary::after { display: none; }
+}

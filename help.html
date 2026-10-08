@@ -3,112 +3,221 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#262624" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f4ed" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1f1e1d" media="(prefers-color-scheme: dark)">
   <title>使用說明</title>
   <link rel="icon" type="image/png" href="icons/book-192.png">
-  <!-- 給家人看的步驟；字比較大，也可以直接列印 -->
-  <link rel="stylesheet" href="css/page.css?v=2026.10.08.1">
+  <!-- 給家人看的步驟；字比較大，也可以直接列印
+       分成四個大區：開始使用（只做一次）、平常怎麼用、各頁怎麼看（照畫面下方的四格）、其他
+       段落編號連續（1–11），小卡編號是「段落-第幾張」；改了段落順序，目錄、開頭的四格和文中的「見『…』」都要跟著改 -->
+  <link rel="stylesheet" href="css/page.css?v=2026.10.08.2">
 </head>
 <body>
 <main>
   <a class="back" href="./">‹ 回到記錄簿</a>
   <h1>股票記錄簿 使用說明</h1>
   <p class="lead">記錄股票的買賣、庫存和股利，也可以看殖利率和 KD。資料存在你自己的 Google 雲端硬碟，手機和電腦都能看到同一份。</p>
-  <p>畫面下方有四格：<b class="btn">總覽</b>（目前的持股、市值、即將除權息）、<b class="btn">記帳</b>（交易明細、庫存快照）、<b class="btn">股利</b>（領了多少股利、除權息）、<b class="btn">行情</b>（殖利率、KD）。記帳、股利、行情裡面各有幾頁，在標題下面切換。</p>
 
-  <section>
+  <!-- 畫面下方的四格（圖示和 index.html 的 .tabbar 一樣），點了跳到那一頁的說明 -->
+  <p class="muted">畫面下方有四格，點一格看那一頁的說明：</p>
+  <div class="tabs">
+    <a href="#overview">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></svg>
+      <b>總覽</b><small>持股、市值<br>即將除權息</small>
+    </a>
+    <a href="#record">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></svg>
+      <b>記帳</b><small>交易明細<br>庫存快照</small>
+    </a>
+    <a href="#income">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.4-1.3-2.6-1.3-1.5 0-2.6.8-2.6 1.9 0 2.6 5.2 1.4 5.2 4.1 0 1.1-1.1 2-2.6 2-1.2 0-2.2-.5-2.7-1.3M12 6.5V8M12 16v1.5"/></svg>
+      <b>股利</b><small>領了多少<br>除權息</small>
+    </a>
+    <a href="#market">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 17.5 9 11.5l4 4 7.5-8.5"/><path d="M15.5 7h5v5"/></svg>
+      <b>行情</b><small>殖利率<br>KD</small>
+    </a>
+  </div>
+  <p class="muted">記帳、股利、行情裡面各有幾頁，在標題下面切換。</p>
+
+  <nav class="toc" id="toc" aria-label="目錄">
+    <h2>目錄</h2>
+    <p class="toc-part">開始使用（只做一次）</p>
+    <div class="toc-links">
+      <a href="#setup"><span class="no">1</span>第一次設定</a>
+      <a href="#start"><span class="no">2</span>開始記帳</a>
+      <a href="#members"><span class="no">3</span>家庭成員</a>
+    </div>
+    <p class="toc-part">平常怎麼用</p>
+    <div class="toc-links">
+      <a href="#record"><span class="no">4</span>記一筆資料</a>
+      <a href="#sync"><span class="no">5</span>同步</a>
+      <a href="#switch"><span class="no">6</span>幫家人記帳</a>
+    </div>
+    <p class="toc-part">各頁怎麼看</p>
+    <div class="toc-links">
+      <a href="#overview"><span class="no">7</span>總覽</a>
+      <a href="#income"><span class="no">8</span>股利</a>
+      <a href="#market"><span class="no">9</span>行情</a>
+    </div>
+    <p class="toc-part">其他</p>
+    <div class="toc-links">
+      <a href="#sheet"><span class="no">10</span>試算表</a>
+      <a href="#faq"><span class="no">11</span>遇到問題</a>
+    </div>
+  </nav>
+
+  <!-- ===== 開始使用 ===== -->
+  <div class="part">開始使用<small>只做一次</small></div>
+
+  <section id="setup">
     <h2><span class="no">1</span>第一次設定</h2>
     <p class="muted">只要做一次，可以請家人幫忙。先照自己的手機把記錄簿加到主畫面，再連結 Google 帳號。</p>
 
-    <h3>iPhone</h3>
-    <ol>
-      <li>用 Safari 打開這個網址：<br><span class="url">https://chi0416.github.io/stockbook/</span></li>
-      <li>點 Safari 的 <b class="btn">分享</b> 按鈕（方框加向上的箭頭；找不到的話，先點網址列旁邊的 <b class="btn">⋯</b>）→ 往下找 <b class="btn">加入主畫面</b> → 點 <b class="btn">新增</b></li>
-    </ol>
+    <div class="sub">
+      <h3><span class="tag">1-1</span>iPhone</h3>
+      <ol class="steps">
+        <li>用 Safari 打開這個網址：<br><span class="url">https://chi0416.github.io/stockbook/</span></li>
+        <li>點 Safari 的 <b class="btn">分享</b> 按鈕（方框加向上的箭頭；找不到的話，先點網址列旁邊的 <b class="btn">⋯</b>）→ 往下找 <b class="btn">加入主畫面</b> → 點 <b class="btn">新增</b></li>
+      </ol>
+    </div>
 
-    <h3>Android 手機</h3>
-    <ol>
-      <li>用 Chrome 打開這個網址：<br><span class="url">https://chi0416.github.io/stockbook/</span></li>
-      <li>點右上角的 <b class="btn">⋮</b> → <b class="btn">加到主畫面</b>（有些手機寫 <b class="btn">安裝應用程式</b>）→ 跳出來的視窗點 <b class="btn">安裝</b></li>
-    </ol>
+    <div class="sub">
+      <h3><span class="tag">1-2</span>Android 手機</h3>
+      <ol class="steps">
+        <li>用 Chrome 打開這個網址：<br><span class="url">https://chi0416.github.io/stockbook/</span></li>
+        <li>點右上角的 <b class="btn">⋮</b> → <b class="btn">加到主畫面</b>（有些手機寫 <b class="btn">安裝應用程式</b>）→ 跳出來的視窗點 <b class="btn">安裝</b></li>
+      </ol>
+    </div>
 
-    <h3>連結 Google 帳號</h3>
-    <ol>
-      <li>回到手機主畫面，點橘色書本圖示的「記錄簿」打開</li>
-      <li>點右上角的 <b class="btn">⋯</b> → <b class="btn">連結 Google 帳號</b></li>
-      <li>選你自己的 Google 帳號 → 點 <b class="btn">允許</b></li>
-      <li>畫面出現「已連結 Google 帳號」就完成了</li>
-    </ol>
+    <div class="sub">
+      <h3><span class="tag">1-3</span>連結 Google 帳號</h3>
+      <ol class="steps">
+        <li>回到手機主畫面，點橘色書本圖示的「記錄簿」打開</li>
+        <li>點右上角的 <b class="btn">⋯</b> → <b class="btn">連結 Google 帳號</b></li>
+        <li>選你自己的 Google 帳號 → 點 <b class="btn">允許</b></li>
+        <li>畫面出現「已連結 Google 帳號」就完成了</li>
+      </ol>
+    </div>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
-  <section>
+  <section id="start">
     <h2><span class="no">2</span>開始記帳</h2>
     <p class="muted">總覽的持股是算出來的：從起點開始，加上之後的買賣和配股。起點有兩種，選一種就好。</p>
-    <p><b>家裡不只一個人用</b>：先點 <b class="btn">⋯</b>，在「家庭成員」把「我」<b class="btn">改名</b>，或點 <b class="btn">新增成員</b>（名字最多 5 個字）。每個人的買賣和庫存分開記。</p>
-    <p><b>只看某幾個人</b>：在同一個地方，名字前面打勾的才會顯示在各頁，勾「全家」就是每個人都看。只勾了某幾位時，標題下面會寫「只顯示 爸爸、小明」，點一下就能改。</p>
 
-    <h3>方式一：從券商目前的庫存開始（已經買很久了，建議用這個）</h3>
-    <ol>
-      <li>打開券商 App 的「綜合損益」頁，照著它填。<b>快照日期</b>填<b>前一個交易日</b>：那一頁的「昨日餘額」是前一個交易日收盤後的股數，今天的買賣還沒算進去</li>
-      <li>點畫面下方的 <b class="btn">記帳</b> → 標題下面的 <b class="btn">庫存快照</b> → 右上角的 <b class="btn">新增快照</b>，<b>每一檔股票填一筆</b>：
-        <ul>
-          <li>成員、快照日期、類別：同一次填的每一檔都一樣，存好一筆後會自動留著。類別一般填「現股」</li>
-          <li>股票：例如 0050 元大台灣50</li>
-          <li>昨日餘額：股數（1 張 = 1,000 股）</li>
-          <li>付出成本：照抄。券商的付出成本已經含手續費、扣掉已除息的現金股利</li>
-          <li>成本均價：會自動算（付出成本 ÷ 昨日餘額），和券商畫面核對一下就好</li>
-        </ul>
-      </li>
-      <li>全部填完點 <b class="btn">完成</b>，再到 <b class="btn">總覽</b> 看每一檔的股數、付出成本和券商一不一樣</li>
-      <li>之後的買賣記在 <b class="btn">記帳</b> 的 <b class="btn">交易明細</b>，總覽會自動加減股數和成本；除息日也會和券商一樣，從付出成本扣掉現金股利</li>
-    </ol>
-    <p><b>快照日期當天或以前的交易不用補</b>：已經算在快照裡了，記了總覽也不會再加一次，表單上會寫「已算在庫存快照裡」。想留紀錄也可以補，慢慢補沒關係：還沒補齊時，庫存快照頁會寫「更早的交易還沒補齊」和還差幾股；補到第一次買進，就會顯示「相符 ✓」。交易加起來比快照還多時（例如漏記賣出），才會出現「核對不符」。</p>
+    <div class="sub">
+      <h3><span class="tag">2-1</span>方式一：從券商目前的庫存開始<span class="hint">已經買很久了，建議用這個</span></h3>
+      <ol class="steps">
+        <li>打開券商 App 的「綜合損益」頁，照著它填。<b>快照日期</b>填<b>前一個交易日</b>：那一頁的「昨日餘額」是前一個交易日收盤後的股數，今天的買賣還沒算進去</li>
+        <li>點畫面下方的 <b class="btn">記帳</b> → 標題下面的 <b class="btn">庫存快照</b> → 右上角的 <b class="btn">新增快照</b>，<b>每一檔股票填一筆</b>：
+          <ul>
+            <li>成員、快照日期、類別：同一次填的每一檔都一樣，存好一筆後會自動留著。類別一般填「現股」</li>
+            <li>股票：例如 0050 元大台灣50</li>
+            <li>昨日餘額：股數（1 張 = 1,000 股）</li>
+            <li>付出成本：照抄。券商的付出成本已經含手續費、扣掉已除息的現金股利</li>
+            <li>成本均價：會自動算（付出成本 ÷ 昨日餘額），和券商畫面核對一下就好</li>
+          </ul>
+        </li>
+        <li>全部填完點 <b class="btn">完成</b>，再到 <b class="btn">總覽</b> 看每一檔的股數、付出成本和券商一不一樣</li>
+        <li>之後的買賣記在 <b class="btn">記帳</b> 的 <b class="btn">交易明細</b>，總覽會自動加減股數和成本；除息日也會和券商一樣，從付出成本扣掉現金股利</li>
+      </ol>
+      <p class="tip"><span class="label">提醒</span><b>快照日期當天或以前的交易不用補</b>：已經算在快照裡了，記了總覽也不會再加一次，表單上會寫「已算在庫存快照裡」。想留紀錄也可以補，慢慢補沒關係：還沒補齊時，庫存快照頁會寫「更早的交易還沒補齊」和還差幾股；補到第一次買進，就會顯示「相符 ✓」。交易加起來比快照還多時（例如漏記賣出），才會出現「核對不符」。</p>
+    </div>
 
-    <h3>方式二：從第一筆交易開始記（剛開始買股票）</h3>
-    <ul>
-      <li>不用填庫存快照，直接在 <b class="btn">記帳</b> 的 <b class="btn">交易明細</b> 記每一筆買賣，總覽會全部加起來算出目前持股</li>
-      <li>要從<b>第一次買進</b>開始記齊，少記一筆，股數和成本就會少算</li>
-    </ul>
+    <div class="sub">
+      <h3><span class="tag">2-2</span>方式二：從第一筆交易開始記<span class="hint">剛開始買股票</span></h3>
+      <ul>
+        <li>不用填庫存快照，直接在 <b class="btn">記帳</b> 的 <b class="btn">交易明細</b> 記每一筆買賣，總覽會全部加起來算出目前持股</li>
+      </ul>
+      <p class="note"><span class="label">注意</span>要從<b>第一次買進</b>開始記齊，少記一筆，股數和成本就會少算</p>
+    </div>
 
-    <h3>兩種方式都一樣</h3>
-    <ul>
-      <li><b>配息配股</b>：在 <b class="btn">股利</b> 的 <b class="btn">除權息</b> 新增一筆，全家共用一份。旁邊的「股利」那一頁會依每個人的持股自動算出領多少</li>
-      <li>同一檔股票在每一頁的<b>代號要填得一樣</b>，記錄簿靠代號把它們對起來</li>
-      <li>「庫存快照」頁只放你填的數字，不會跟著交易改變；<b>目前的持股請看「總覽」</b></li>
-    </ul>
+    <div class="sub">
+      <h3><span class="tag">2-3</span>兩種方式都一樣</h3>
+      <ul>
+        <li><b>配息配股</b>：在 <b class="btn">股利</b> 的 <b class="btn">除權息</b> 新增一筆，全家共用一份。旁邊的「股利」那一頁會依每個人的持股自動算出領多少</li>
+        <li>同一檔股票在每一頁的<b>代號要填得一樣</b>，記錄簿靠代號把它們對起來</li>
+        <li>「庫存快照」頁只放你填的數字，不會跟著交易改變；<b>目前的持股請看「總覽」</b></li>
+      </ul>
+    </div>
 
-    <h3>每隔一段時間對一次帳（建議）</h3>
-    <ul>
-      <li>每季或每年年底，照券商的庫存填一期快照。之後總覽會改從最新的一期開始算</li>
-      <li>庫存快照頁會自動檢查：上一期快照（第一期從 0 開始），加上這段期間的買賣和配股，應該等於新的這一期。對不上的會標出來，還會寫出算式，通常是漏記或記錯一筆交易</li>
-    </ul>
+    <div class="sub">
+      <h3><span class="tag">2-4</span>每隔一段時間對一次帳<span class="hint">建議</span></h3>
+      <ul>
+        <li>每季或每年年底，照券商的庫存填一期快照。之後總覽會改從最新的一期開始算</li>
+        <li>庫存快照頁會自動檢查：上一期快照（第一期從 0 開始），加上這段期間的買賣和配股，應該等於新的這一期。對不上的會標出來，還會寫出算式，通常是漏記或記錯一筆交易</li>
+      </ul>
+    </div>
 
-    <p>股票很多的話，用電腦打開試算表（見「5. 用 Google 試算表看資料」）比較快：在「庫存快照」分頁，一檔填一列，最右邊的 id 欄留空白，下次打開記錄簿就會同步過來。</p>
+    <p class="tip"><span class="label">提醒</span>股票很多的話，用電腦打開試算表（見「<a href="#sheet">10 Google 試算表</a>」）比較快：在「庫存快照」分頁，一檔填一列，最右邊的 id 欄留空白，下次打開記錄簿就會同步過來。</p>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
-  <section>
-    <h2><span class="no">3</span>記一筆資料</h2>
-    <ol>
+  <section id="members">
+    <h2><span class="no">3</span>家庭成員</h2>
+
+    <div class="sub">
+      <h3><span class="tag">3-1</span>家裡不只一個人用</h3>
+      <p>先點 <b class="btn">⋯</b>，在「家庭成員」把「我」<b class="btn">改名</b>，或點 <b class="btn">新增成員</b>（名字最多 5 個字）。每個人的買賣和庫存分開記。</p>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">3-2</span>只看某幾個人</h3>
+      <p>在同一個地方，名字前面打勾的才會顯示在各頁，勾「全家」就是每個人都看。只勾了某幾位時，標題下面會寫「只顯示 爸爸、小明」，點一下就能改。</p>
+    </div>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
+  </section>
+
+  <!-- ===== 平常怎麼用 ===== -->
+  <div class="part">平常怎麼用</div>
+
+  <section id="record">
+    <h2><span class="no">4</span>記一筆資料</h2>
+    <ol class="steps">
       <li>點畫面下方的 <b class="btn">記帳</b>（交易明細、庫存快照）或 <b class="btn">股利</b>（除權息），再點標題下面要記的那一頁</li>
       <li>點右上角的 <b class="btn">新增</b>：按鈕上會寫新增什麼，例如 <b class="btn">新增交易</b>、<b class="btn">新增快照</b>、<b class="btn">新增除權息</b></li>
       <li>填好後點 <b class="btn">儲存</b>。可以接著填下一筆，全部填完點 <b class="btn">完成</b></li>
     </ol>
-    <ul>
-      <li>交易明細的<b>交易別</b>：點 <b class="btn">買進</b> 或 <b class="btn">賣出</b>（買進變紅色、賣出變綠色）</li>
-      <li><b>股票</b>那一格打代號或名稱都可以（例如 2330 或 台積），點跳出來的清單裡的股票就填好了。要換股票，點那一格重新打，或點右邊的 <b class="btn">×</b></li>
-      <li>記<b>除權息</b>：選好股票後，下面會列出公告的除權息（證交所、公開資訊觀測站），按一下就帶入除權息日、發放日和每股股利，再按 <b class="btn">儲存</b>。公告每個工作天晚上自動更新，剛公告的隔天才會出現；還沒有的照股利通知書填就好</li>
-      <li>清單裡沒有的股票（例如剛上市的 ETF），打「代號 名稱」，例如 00999Z 新ETF；或點 <b class="btn">分開填代號和名稱</b></li>
-      <li>交易明細的欄位和券商 App 的成交明細一樣，照著抄：<b>成交數量</b>（股數，1 張 = 1,000 股）、<b>成交單價</b>、<b>手續費</b>、<b>交易稅</b>、<b>應收付金額</b></li>
-      <li><b>應收付金額</b>一定要填：買進是付出的錢（已經含手續費），總覽的成本就是用這個數字算；賣出是拿回的錢。成交單價、手續費、交易稅只是記錄，不知道可以空白</li>
-      <li>填了買進或賣出、成交數量、成交單價（和手續費、交易稅）後，<b>應收付金額會自動算好</b>，下面會寫「自動算的，請自行和券商 App 的應收付金額核對」。和券商 App 不一樣的話，直接改成 App 上的數字，改過的就不會再被自動算的蓋掉</li>
-      <li>填錯了：點那一筆，改好後點 <b class="btn">儲存</b></li>
-      <li>要刪除：點那一筆，再點最下面的 <b class="btn">刪除這筆</b></li>
-    </ul>
+
+    <div class="sub">
+      <h3><span class="tag">4-1</span>填股票</h3>
+      <ul>
+        <li><b>股票</b>那一格打代號或名稱都可以（例如 2330 或 台積），點跳出來的清單裡的股票就填好了。要換股票，點那一格重新打，或點右邊的 <b class="btn">×</b></li>
+        <li>清單裡沒有的股票（例如剛上市的 ETF），打「代號 名稱」，例如 00999Z 新ETF；或點 <b class="btn">分開填代號和名稱</b></li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">4-2</span>交易明細</h3>
+      <ul>
+        <li><b>交易別</b>：點 <b class="btn">買進</b> 或 <b class="btn">賣出</b>（買進變紅色、賣出變綠色）</li>
+        <li>欄位和券商 App 的成交明細一樣，照著抄：<b>成交數量</b>（股數，1 張 = 1,000 股）、<b>成交單價</b>、<b>手續費</b>、<b>交易稅</b>、<b>應收付金額</b></li>
+        <li>填了買進或賣出、成交數量、成交單價（和手續費、交易稅）後，<b>應收付金額會自動算好</b>，下面會寫「自動算的，請自行和券商 App 的應收付金額核對」。和券商 App 不一樣的話，直接改成 App 上的數字，改過的就不會再被自動算的蓋掉</li>
+      </ul>
+      <p class="note"><span class="label">注意</span><b>應收付金額</b>一定要填：買進是付出的錢（已經含手續費），總覽的成本就是用這個數字算；賣出是拿回的錢。成交單價、手續費、交易稅只是記錄，不知道可以空白</p>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">4-3</span>除權息</h3>
+      <ul>
+        <li>選好股票後，下面會列出公告的除權息（證交所、公開資訊觀測站），按一下就帶入除權息日、發放日和每股股利，再按 <b class="btn">儲存</b></li>
+        <li>公告每個工作天晚上自動更新，剛公告的隔天才會出現；還沒有的照股利通知書填就好</li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">4-4</span>改錯、刪除</h3>
+      <ul>
+        <li>填錯了：點那一筆，改好後點 <b class="btn">儲存</b></li>
+        <li>要刪除：點那一筆，再點最下面的 <b class="btn">刪除這筆</b></li>
+      </ul>
+    </div>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
-  <section>
-    <h2><span class="no">4</span>同步</h2>
+  <section id="sync">
+    <h2><span class="no">5</span>同步</h2>
     <ul>
       <li>平常會<b>自動同步</b>，不用做任何事</li>
       <li>畫面上方出現「<b>有 3 筆還沒同步</b>」或「<b>上次同步是 5 小時前</b>」時，點旁邊的 <b class="btn">同步</b></li>
@@ -116,81 +225,13 @@
       <li>出現「<b>目前沒有網路</b>」時不用處理，連上網路後會自動同步</li>
       <li>想確認有沒有同步：點 <b class="btn">⋯</b>，看「上次同步」的時間</li>
     </ul>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
-  <section>
-    <h2><span class="no">5</span>用 Google 試算表看資料</h2>
-    <ul>
-      <li>點 <b class="btn">⋯</b> → <b class="btn">開啟試算表</b>，或在 Google 試算表 App 裡找「股票記錄簿」</li>
-      <li>可以直接在試算表裡新增或修改，下次打開記錄簿就會同步過來</li>
-      <li>「成員」、交易明細的「交易別」、庫存快照的「類別」有下拉選單可以選</li>
-      <li>觀察清單也在試算表裡（「觀察清單」分頁），可以直接填代號和證券</li>
-    </ul>
-    <p class="note">請不要修改：<b>第一列的標題</b>，以及<b>最右邊灰色的 id 欄</b>。記錄簿要靠它們找到每一筆資料。</p>
-  </section>
-
-  <section>
-    <h2><span class="no">6</span>看股利統計</h2>
-    <ol>
-      <li>點畫面下方的 <b class="btn">股利</b>（一打開就是標題下面的 <b class="btn">股利</b> 那一頁）</li>
-      <li>點合計下面的 <b class="btn">統計</b></li>
-    </ol>
-    <ul>
-      <li><b>每月股息</b>：每個月領了多少，淡色的是還沒入帳的</li>
-      <li><b>股息來源排行</b>：每一檔佔全部股利的百分比，由多到少排</li>
-      <li>點某個月，下面的排行會改成只算那個月；再點一次同一個月，回到整年</li>
-      <li>點排行裡的某一檔，會列出它每一次配息的日期和金額；再點一次收起來</li>
-      <li>上面的年月選單可以換年份</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2><span class="no">7</span>看行情：殖利率、KD</h2>
-    <ol>
-      <li>點畫面下方的 <b class="btn">行情</b></li>
-      <li>標題下面切換 <b class="btn">殖利率</b> 或 <b class="btn">KD</b></li>
-    </ol>
-    <ul>
-      <li>每一頁都會列出你的持股和觀察清單，標「持有」或「觀察」；上面的 <b class="btn">全部</b>｜<b class="btn">持有</b>｜<b class="btn">觀察</b> 可以只看其中一邊</li>
-      <li>現價：連結 Google 帳號時用試算表的 GOOGLEFINANCE 抓（可能延遲 20 分鐘）；抓不到的（例如上櫃的股票）、還沒連結的，用最近一個交易日的收盤價，列表上面會寫是哪一天的。總覽的市值也是這樣算</li>
-    </ul>
-
-    <h3>觀察清單</h3>
-    <ul>
-      <li>想加一檔（還沒買的也可以）：點右上角的 <b class="btn">新增觀察</b>，打代號或名稱，點清單裡的股票，再點 <b class="btn">儲存</b></li>
-      <li>不想看了：點 <b class="btn">新增觀察</b>，在下面「目前的觀察清單」找到那一檔，點 <b class="btn">移除</b></li>
-      <li>觀察清單全家共用一份</li>
-    </ul>
-
-    <h3>殖利率</h3>
-    <ul>
-      <li><b>殖利率 = 近一年的現金股利 ÷ 現價</b>，由高排到低；上面的選單可以改成依暴力年化、依代號排</li>
-      <li><b>暴力年化 = 最近一次的股利 × 一年配幾次 ÷ 現價</b>（卡片右下那一格）。<b>紅色</b>：最近一次配得比近一年平均多（暴力年化比殖利率高）；<b>綠色</b>：最近配得比較少。年配的兩個一樣，維持黑色；有一次特別多（例如加發）也會變紅，參考就好</li>
-      <li>一年配幾次，是看近 13 個月每次除息相隔多久：大約一個月是月配、三個月是季配、半年是半年配；只有一次的當作年配（剛上市、只配過一次的也會先當成年配）</li>
-      <li>近一年的現金股利照公告的除權息算：月配取最近 12 次、季配 4 次、半年配 2 次、年配 1 次。公告還沒有金額的，用你在「除權息」記的</li>
-      <li>上櫃的 ETF（例如債券 ETF）、興櫃的股票，公告資料裡沒有，殖利率會是「—」；在「除權息」記過它的配息，就會用你記的算</li>
-    </ul>
-
-    <h3>KD</h3>
-    <ul>
-      <li>每一檔的<b>日 KD</b>（9 日，台灣券商常用的算法），每個交易日收盤後更新，盤中不會跟著變；列表上面會寫是哪一天收盤算的</li>
-      <li>右上角的大字是 <b>K 值</b>，由低排到高；上面的選單可以改成由高到低、依代號排</li>
-      <li><b>K 值低於 25：綠色</b>，標「低檔」；<b>高於 75：紅色</b>，標「高檔」。D 值那一格也照同樣的數字上色</li>
-      <li>想改成別的數字：點列表上面說明裡的 <b class="btn">調整</b>（或 <b class="btn">⋯</b> →「KD 標記」），選低於幾、高於幾。只記在這台手機</li>
-      <li><b>黃金交叉</b>（紅色）：K 由下往上穿過 D；<b>死亡交叉</b>（綠色）：K 由上往下穿過 D。看的是最近一個交易日和前一天比</li>
-      <li>和券商 App 的 KD 可能差一點點（小數點後面）；興櫃的股票沒有資料，剛上市不到 9 個交易日的還算不出來</li>
-    </ul>
-
-    <h3>總覽的「即將除權息」</h3>
-    <ul>
-      <li>持股和觀察清單接下來 30 天要除權息的，依日期排，寫出每股股利和約佔現價幾 %。平常只列最近的一筆，點下面的「還有 N 筆」展開，再點「收起」。除權息日當天參考價會扣掉股利，大約少這麼多，可以當作買進時間點的參考；想領這次股利，最晚要在前一個交易日買進</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2><span class="no">8</span>幫家人記帳（換別的 Google 帳號）</h2>
+  <section id="switch">
+    <h2><span class="no">6</span>幫家人記帳（換別的 Google 帳號）</h2>
     <p class="muted">每個人的資料存在自己的 Google 試算表，不用告訴別人密碼。</p>
-    <ol>
+    <ol class="steps">
       <li>點右上角的 <b class="btn">⋯</b> → <b class="btn">登出</b> → 點 <b class="btn">確定</b>。這台裝置上的資料會清除，但都還在你的試算表裡</li>
       <li>點 <b class="btn">⋯</b> → <b class="btn">連結 Google 帳號</b>，選家人的帳號，就可以幫忙記帳</li>
       <li>記完一樣先 <b class="btn">登出</b>，再連結自己的帳號，你的資料就回來了</li>
@@ -199,40 +240,179 @@
       <li>登出前會先自動同步。有資料還沒存到試算表時（例如沒有網路），不會讓你登出，照畫面上的說明處理後再按一次 <b class="btn">登出</b></li>
       <li>連結一個還沒用過記錄簿的帳號時，如果這台裝置上還有資料，會先問你要不要存到這個帳號。不是這個人的資料就點 <b class="btn">取消</b></li>
     </ul>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
-  <section>
-    <h2><span class="no">9</span>隱藏金額</h2>
-    <ol>
-      <li>點畫面下方的 <b class="btn">總覽</b></li>
-      <li>點「庫存總市值」右上角的<b>眼睛</b>，金額、股數都會變成 ***</li>
-      <li>要再看到金額，再點一次眼睛</li>
+  <!-- ===== 各頁怎麼看（照畫面下方的四格；記帳那一格的說明在 2、4） ===== -->
+  <div class="part">各頁怎麼看</div>
+
+  <section id="overview">
+    <h2><span class="no">7</span>總覽</h2>
+    <p class="muted">目前的持股、市值和即將除權息。持股是怎麼算出來的，見「<a href="#start">2 開始記帳</a>」。</p>
+
+    <div class="sub">
+      <h3><span class="tag">7-1</span>市值和現價</h3>
+      <ul>
+        <li>每一檔持股的右上角是<b>市值</b>（股數 × 現價，抓不到現價時是「—」），下面一排是付出成本，可以和券商對帳</li>
+        <li><b>現價</b>：連結 Google 帳號時用試算表的 GOOGLEFINANCE 抓（可能延遲 20 分鐘）；抓不到的（例如上櫃的股票）、還沒連結的，用最近一個交易日的收盤價，列表上面會寫是哪一天的。行情的殖利率也是這樣算</li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">7-2</span>即將除權息</h3>
+      <p>持股和觀察清單接下來 30 天要除權息的，依日期排，寫出每股股利和約佔現價幾 %。平常只列最近的一筆，點下面的「還有 N 筆」展開，再點「收起」。</p>
+      <p class="tip"><span class="label">提醒</span>除權息日當天參考價會扣掉股利，大約少這麼多，可以當作買進時間點的參考；想領這次股利，最晚要在前一個交易日買進</p>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">7-3</span>隱藏金額</h3>
+      <ol class="steps">
+        <li>點畫面下方的 <b class="btn">總覽</b></li>
+        <li>點「庫存總市值」右上角的<b>眼睛</b>，金額、股數都會變成 ***</li>
+        <li>要再看到金額，再點一次眼睛</li>
+      </ol>
+      <ul>
+        <li>也可以點 <b class="btn">⋯</b>，打開最上面的 <b>隱藏金額</b></li>
+        <li>除權息日、每股股利這些公開資訊照常顯示</li>
+        <li>關掉 App 再打開，還是會維持隱藏</li>
+        <li>只有這台手機會隱藏，Google 試算表裡還是看得到全部的數字</li>
+      </ul>
+    </div>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
+  </section>
+
+  <section id="income">
+    <h2><span class="no">8</span>股利</h2>
+    <p class="muted">標題下面有「股利」（每個人領了多少）和「除權息」（全家共用的配息配股，怎麼記見「<a href="#record">4 記一筆資料</a>」）兩頁。</p>
+
+    <div class="sub">
+      <h3><span class="tag">8-1</span>股利統計</h3>
+      <ol class="steps">
+        <li>點畫面下方的 <b class="btn">股利</b>（一打開就是標題下面的 <b class="btn">股利</b> 那一頁）</li>
+        <li>點合計下面的 <b class="btn">統計</b></li>
+      </ol>
+      <ul>
+        <li><b>每月股息</b>：每個月領了多少，淡色的是還沒入帳的</li>
+        <li><b>股息來源排行</b>：每一檔佔全部股利的百分比，由多到少排</li>
+        <li>點某個月，下面的排行會改成只算那個月；再點一次同一個月，回到整年</li>
+        <li>點排行裡的某一檔，會列出它每一次配息的日期和金額；再點一次收起來</li>
+        <li>上面的年月選單可以換年份</li>
+      </ul>
+    </div>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
+  </section>
+
+  <section id="market">
+    <h2><span class="no">9</span>行情</h2>
+    <ol class="steps">
+      <li>點畫面下方的 <b class="btn">行情</b></li>
+      <li>標題下面切換 <b class="btn">殖利率</b> 或 <b class="btn">KD</b></li>
     </ol>
     <ul>
-      <li>也可以點 <b class="btn">⋯</b>，打開最上面的 <b>隱藏金額</b></li>
-      <li>除權息日、每股股利這些公開資訊照常顯示</li>
-      <li>關掉 App 再打開，還是會維持隱藏</li>
-      <li>只有這台手機會隱藏，Google 試算表裡還是看得到全部的數字</li>
+      <li>每一頁都會列出你的持股和觀察清單，標「持有」或「觀察」；上面的 <b class="btn">全部</b>｜<b class="btn">持有</b>｜<b class="btn">觀察</b> 可以只看其中一邊</li>
+      <li>現價和總覽一樣，見「<a href="#overview">7-1 市值和現價</a>」</li>
     </ul>
+
+    <div class="sub">
+      <h3><span class="tag">9-1</span>觀察清單</h3>
+      <ul>
+        <li>想加一檔（還沒買的也可以）：點右上角的 <b class="btn">新增觀察</b>，打代號或名稱，點清單裡的股票，再點 <b class="btn">儲存</b></li>
+        <li>不想看了：點 <b class="btn">新增觀察</b>，在下面「目前的觀察清單」找到那一檔，點 <b class="btn">移除</b></li>
+        <li>觀察清單全家共用一份</li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">9-2</span>殖利率</h3>
+      <div class="formula"><b>殖利率 =</b><span class="frac"><span>近一年的現金股利</span><span>現價</span></span></div>
+      <div class="formula"><b>暴力年化 =</b><span class="frac"><span>最近一次的股利 × 一年配幾次</span><span>現價</span></span></div>
+      <ul>
+        <li>列表依殖利率由高排到低；上面的選單可以改成依暴力年化、依代號排</li>
+        <li>暴力年化在卡片右下那一格。<b>紅色</b>：最近一次配得比近一年平均多（暴力年化比殖利率高）；<b>綠色</b>：最近配得比較少。年配的兩個一樣，維持黑色；有一次特別多（例如加發）也會變紅，參考就好</li>
+        <li>一年配幾次，是看近 13 個月每次除息相隔多久：大約一個月是月配、三個月是季配、半年是半年配；只有一次的當作年配（剛上市、只配過一次的也會先當成年配）</li>
+        <li>近一年的現金股利照公告的除權息算：月配取最近 12 次、季配 4 次、半年配 2 次、年配 1 次。公告還沒有金額的，用你在「除權息」記的</li>
+        <li>上櫃的 ETF（例如債券 ETF）、興櫃的股票，公告資料裡沒有，殖利率會是「—」；在「除權息」記過它的配息，就會用你記的算</li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">9-3</span>KD</h3>
+      <ul>
+        <li>每一檔的<b>日 KD</b>（9 日，台灣券商常用的算法），每個交易日收盤後更新，盤中不會跟著變；列表上面會寫是哪一天收盤算的</li>
+        <li>右上角的大字是 <b>K 值</b>，由低排到高；上面的選單可以改成由高到低、依代號排</li>
+        <li><b>K 值低於 25：綠色</b>，標「低檔」；<b>高於 75：紅色</b>，標「高檔」。D 值那一格也照同樣的數字上色</li>
+        <li>想改成別的數字：點列表上面說明裡的 <b class="btn">調整</b>（或 <b class="btn">⋯</b> →「KD 標記」），選低於幾、高於幾。只記在這台手機</li>
+        <li><b>黃金交叉</b>（紅色）：K 由下往上穿過 D；<b>死亡交叉</b>（綠色）：K 由上往下穿過 D。看的是最近一個交易日和前一天比</li>
+        <li>和券商 App 的 KD 可能差一點點（小數點後面）；興櫃的股票沒有資料，剛上市不到 9 個交易日的還算不出來</li>
+      </ul>
+    </div>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
-  <section>
-    <h2><span class="no">10</span>遇到問題</h2>
+  <!-- ===== 其他 ===== -->
+  <div class="part">其他</div>
+
+  <section id="sheet">
+    <h2><span class="no">10</span>用 Google 試算表看資料</h2>
     <ul>
-      <li><b>記了一筆交易，總覽卻沒變</b>：打開那筆交易，成交日期下面如果寫「已算在庫存快照裡」，表示它在快照日期當天或以前，已經包含在快照的股數裡</li>
-      <li><b>右上角的鈴鐺出現紅色數字</b>：點鈴鐺打開「訊息」，裡面會寫出需要注意的事，例如同步失敗、試算表哪一列看不懂、庫存快照和交易紀錄對不上、股利算不出來。點有「›」的訊息，會直接打開那一筆資料或試算表，改好之後訊息會變灰、標上「已解決」</li>
-      <li><b>鈴鐺裡的除權息提醒</b>：「除權息和公告不一樣」會寫出哪裡不一樣，點 <b class="btn">改成公告的</b> 或 <b class="btn">保留我的</b>；「有 N 筆除權息可以帶入」是公告裡有、家裡當時持有、還沒記的，勾選後點 <b class="btn">加入勾選的</b>，不需要的勾選後點 <b class="btn">勾選的不用記</b>。最早一期庫存快照以前的不會提醒（看不出當時有沒有持有）</li>
-      <li><b>想請家人幫忙看</b>：打開「訊息」截圖，用 LINE 傳給家人</li>
-      <li><b>跳出「試算表裡少了幾筆資料」</b>：如果是你自己刪的，點 <b class="btn">確定</b>；不是的話點 <b class="btn">取消</b>，資料會保留並寫回試算表</li>
-      <li><b>跳出「試算表找不到了」</b>：試算表不小心被刪掉的話，點 <b class="btn">確定</b> 重新建立一份</li>
-      <li><b>換了新手機</b>：照「1. 第一次設定」做一次，連結同一個 Google 帳號，資料就回來了</li>
-      <li><b>刪掉主畫面的圖示再重新加入</b>：iPhone 要再連結一次 Google 帳號，Android 有時也要。刪掉之前，先確認沒有「還沒同步」的資料</li>
-      <li><b>資料不小心改壞了</b>：用電腦打開試算表，點「檔案」→「版本記錄」→「查看版本記錄」，可以回到之前的樣子</li>
-      <li><b>不小心刪掉試算表</b>：到 Google 雲端硬碟的「垃圾桶」，30 天內都能救回來</li>
+      <li>點 <b class="btn">⋯</b> → <b class="btn">開啟試算表</b>，或在 Google 試算表 App 裡找「股票記錄簿」</li>
+      <li>可以直接在試算表裡新增或修改，下次打開記錄簿就會同步過來</li>
+      <li>「成員」、交易明細的「交易別」、庫存快照的「類別」有下拉選單可以選</li>
+      <li>觀察清單也在試算表裡（「觀察清單」分頁），可以直接填代號和證券</li>
     </ul>
+    <p class="note"><span class="label">注意</span>請不要修改：<b>第一列的標題</b>，以及<b>最右邊灰色的 id 欄</b>。記錄簿要靠它們找到每一筆資料。</p>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
+  </section>
+
+  <section id="faq">
+    <h2><span class="no">11</span>遇到問題</h2>
+    <p class="muted">點問題看怎麼處理。</p>
+    <details>
+      <summary>記了一筆交易，總覽卻沒變</summary>
+      <p>打開那筆交易，成交日期下面如果寫「已算在庫存快照裡」，表示它在快照日期當天或以前，已經包含在快照的股數裡</p>
+    </details>
+    <details>
+      <summary>右上角的鈴鐺出現紅色數字</summary>
+      <p>點鈴鐺打開「訊息」，裡面會寫出需要注意的事，例如同步失敗、試算表哪一列看不懂、庫存快照和交易紀錄對不上、股利算不出來。點有「›」的訊息，會直接打開那一筆資料或試算表，改好之後訊息會變灰、標上「已解決」</p>
+    </details>
+    <details>
+      <summary>鈴鐺裡的除權息提醒</summary>
+      <p>「除權息和公告不一樣」會寫出哪裡不一樣，點 <b class="btn">改成公告的</b> 或 <b class="btn">保留我的</b>；「有 N 筆除權息可以帶入」是公告裡有、家裡當時持有、還沒記的，勾選後點 <b class="btn">加入勾選的</b>，不需要的勾選後點 <b class="btn">勾選的不用記</b>。最早一期庫存快照以前的不會提醒（看不出當時有沒有持有）</p>
+    </details>
+    <details>
+      <summary>想請家人幫忙看</summary>
+      <p>打開「訊息」截圖，用 LINE 傳給家人</p>
+    </details>
+    <details>
+      <summary>跳出「試算表裡少了幾筆資料」</summary>
+      <p>如果是你自己刪的，點 <b class="btn">確定</b>；不是的話點 <b class="btn">取消</b>，資料會保留並寫回試算表</p>
+    </details>
+    <details>
+      <summary>跳出「試算表找不到了」</summary>
+      <p>試算表不小心被刪掉的話，點 <b class="btn">確定</b> 重新建立一份</p>
+    </details>
+    <details>
+      <summary>換了新手機</summary>
+      <p>照「<a href="#setup">1 第一次設定</a>」做一次，連結同一個 Google 帳號，資料就回來了</p>
+    </details>
+    <details>
+      <summary>刪掉主畫面的圖示再重新加入</summary>
+      <p>iPhone 要再連結一次 Google 帳號，Android 有時也要。刪掉之前，先確認沒有「還沒同步」的資料</p>
+    </details>
+    <details>
+      <summary>資料不小心改壞了</summary>
+      <p>用電腦打開試算表，點「檔案」→「版本記錄」→「查看版本記錄」，可以回到之前的樣子</p>
+    </details>
+    <details>
+      <summary>不小心刪掉試算表</summary>
+      <p>到 Google 雲端硬碟的「垃圾桶」，30 天內都能救回來</p>
+    </details>
+    <a class="to-toc" href="#toc">↑ 回目錄</a>
   </section>
 
   <p class="muted footer"><a href="privacy.html">隱私權政策</a></p>
 </main>
+<!-- 列印時把「遇到問題」全部展開，印出來才看得到答案 -->
+<script>addEventListener('beforeprint', () => document.querySelectorAll('details').forEach(d => { d.open = true; }));</script>
 </body>
 </html>
