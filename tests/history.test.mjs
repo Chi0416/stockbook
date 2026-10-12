@@ -39,6 +39,7 @@ function app({ complete = false, history = [] } = {}) {
   const ls = { 'stockbook.v1': JSON.stringify(data) };
   const ctx = vm.createContext({
     PRICE_LIST: prices(complete),
+    document: { getElementById: () => null }, // 帳戶走勢的彈出視窗（trend.js）測試裡用不到
     localStorage: { getItem: k => ls[k] ?? null, setItem: (k, v) => { ls[k] = String(v); }, removeItem: k => { delete ls[k]; } },
   });
   for (const f of FILES) vm.runInContext(readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8'), ctx, { filename: `${f}.js` });
@@ -72,6 +73,15 @@ test('已經有那天的紀錄（自己補的也算）不再記；記過的再�
   assert.deepEqual(plain(History.due()), []);
   Store.addMany('history', [{ id: 'h-m1-2026-10-12', member: 'm1', date: '2026-10-12', cost: 1, value: 1 }]);
   assert.equal(Store.list('history', 'all').filter(r => r.date === '2026-10-12' && r.member === 'm1').length, 1);
+});
+
+test('新增紀錄的表單先帶入：有收盤價的日子兩個都算；查不到收盤價只算付出成本；第一期快照之前都不算', () => {
+  const { History } = app();
+  assert.deepEqual(plain(History.estimate('m1', '2026-09-30')), { cost: 30000, value: 35000 });
+  assert.deepEqual(plain(History.estimate('m1', '2026-09-15')), { cost: 30000, value: null });
+  assert.deepEqual(plain(History.estimate('m2', '2026-08-31')), { cost: null, value: null });
+  assert.deepEqual(plain(History.estimate('', '2026-09-30')), { cost: null, value: null });
+  assert.deepEqual(plain(History.estimate('m1', '')), { cost: null, value: null });
 });
 
 test('走勢圖：目前檢視範圍每天合計；有人只補了市值，那天的付出成本是 null', () => {

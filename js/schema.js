@@ -105,6 +105,9 @@ function snapPlOf(r) {
   return v !== null && typeof r.totalCost === 'number' ? v - Math.round(r.totalCost) : null;
 }
 
+// 新增帳戶紀錄時先帶入的數字（見 history.js 的 estimate）：values 是表單填的（成員 id、日期）
+const histEstimate = v => (typeof History !== 'undefined' ? History.estimate(v.member, v.date) : { cost: null, value: null });
+
 // 帳戶紀錄一筆的損益（市值 − 付出成本）；付出成本空白（只補了市值）時是 null
 const histPlOf = r => (typeof r.value === 'number' && typeof r.cost === 'number' ? Math.round(r.value) - Math.round(r.cost) : null);
 
@@ -442,11 +445,34 @@ const SCHEMAS = {
       { label: ['損益', '報酬率'], sort: 'pl', value: histPlOf, strong: true,
         cell: r => [snapMoney(histPlOf(r)), histRate(r)], tone: histTone },
     ],
+    // 同一位成員同一天只能有一筆
+    unique: ['date', 'member'],
+    uniqueMsg: dup => `${U.fmtDate(dup.date)} 已經有${Store.members().length > 1 ? ` ${Store.memberName(dup.member)} 的` : ''}紀錄了，點那一筆修改就好`,
+    // 選好成員和日期，付出成本、市值先帶入（和總覽的庫存總市值卡片同一種算法，用那天的收盤價）；查不到的自己填
     fields: [
       { key: 'member', label: '成員',     type: 'member', keep: true, full: true },
-      { key: 'date',   label: '日期',     type: 'date', hint: '自己補的話，填每個月最後一個交易日' },
-      { key: 'value',  label: '市值',     type: 'number', hint: '照券商的庫存市值抄' },
-      { key: 'cost',   label: '付出成本', type: 'number', optional: true, hint: '不知道可以空白，走勢圖上那天只畫市值' },
+      { key: 'date',   label: '日期',     type: 'date', hint: '自己補的話，填每個月最後一個交易日',
+        note(v) {
+          if (!v.date || typeof Market === 'undefined' || !Market.ready() || v.date <= Market.date()) return '';
+          return '收盤資料更新後（工作天 15:43、19:43）打開記錄簿會自動記，不用自己新增';
+        } },
+      { key: 'value',  label: '市值',     type: 'number', calc: v => histEstimate(v).value,
+        hint: '有那天的收盤價就自動算好；查不到的照券商的歷史抄',
+        note(v) {
+          const c = histEstimate(v).value;
+          if (c !== null) return U.parseNum(v.value ?? '') === c ? `用 ${U.fmtDate(v.date)} 的收盤價算的，和總覽的庫存總市值同一種算法` : '';
+          return v.member && v.date && typeof Market !== 'undefined' && Market.ready() && v.date < Market.date()
+            ? '查不到這一天的收盤價，照券商的歷史抄' : '';
+        } },
+      { key: 'cost',   label: '付出成本', type: 'number', optional: true, calc: v => histEstimate(v).cost,
+        hint: '不知道可以空白，走勢圖上那天只畫市值',
+        note(v) {
+          if (histEstimate(v).cost !== null) {
+            return U.parseNum(v.cost ?? '') === histEstimate(v).cost ? '照庫存快照和交易明細推算的' : '';
+          }
+          const start = v.member && typeof History !== 'undefined' ? History.startOf(v.member) : null;
+          return start && v.date && v.date < start ? `${U.fmtDate(start)} 第一期庫存快照之前推算不出來` : '';
+        } },
     ],
   },
 };

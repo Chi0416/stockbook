@@ -15,9 +15,11 @@ const History = (() => {
     return first(Store.list('snapshots', member)) || first(Store.list('trades', member));
   }
 
+  const heldOn = (member, date) => (Holdings.memberAll(member, date)?.positions || []).filter(p => p.shares > 0);
+
   // 這位成員這一天的紀錄：{ cost, value }；不能記（還沒有收盤價、沒有持股）時回傳 null
   function measure(member, date) {
-    const held = (Holdings.memberAll(member, date)?.positions || []).filter(p => p.shares > 0);
+    const held = heldOn(member, date);
     let cost = 0;
     let value = 0;
     let priced = 0;
@@ -49,7 +51,20 @@ const History = (() => {
     });
   }
 
-  // 走勢圖（見 overview.js）：目前檢視範圍每一天的合計 [{ date, cost, value }]，日期舊到新
+  // 新增帳戶紀錄的表單先帶入的數字（見 schema.js 的 history）：{ cost, value }，算不出來的是 null
+  //   和自動記的同一種算法，數字和那天收盤後總覽的庫存總市值卡片一樣（只是一位成員的）
+  //   那天的收盤價查不到（更早的日子）：只算付出成本，市值照券商的歷史抄
+  //   第一期庫存快照之前：都推算不出來
+  function estimate(member, date) {
+    const start = member && date ? startOf(member) : null;
+    if (!start || date < start) return { cost: null, value: null };
+    const got = measure(member, date);
+    if (got) return got;
+    const held = heldOn(member, date);
+    return { cost: held.length ? Math.round(held.reduce((s, p) => s + p.cost, 0)) : null, value: null };
+  }
+
+  // 走勢圖（見 trend.js）：目前檢視範圍每一天的合計 [{ date, cost, value }]，日期舊到新
   //   同一天有人只補了市值（付出成本空白）時，那天的 cost 是 null（圖上只畫市值）
   function series() {
     const byDate = new Map();
@@ -63,5 +78,5 @@ const History = (() => {
     return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
   }
 
-  return { due, series };
+  return { due, estimate, series, startOf };
 })();

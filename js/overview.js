@@ -7,7 +7,8 @@
 //   月平均股息：近 12 個月已發放的股息淨值 ÷ 12
 //   下一筆入帳：發放日在今天之後、最近的一筆（同一天有多筆時合計）
 //   即將除權息：持股和觀察清單接下來 30 天要除權息的（見 upcoming.js）
-//   帳戶走勢：庫存總市值卡片最下面點開的折線圖，每天的付出成本和市值（見 trend.js、history.js）
+//   帳戶走勢：點庫存總市值卡片（眼睛以外的地方）彈出折線圖，每天的付出成本和市值（見 trend.js、history.js）
+//     卡片右下角寫「走勢 ›」，看得出來可以點
 //   全家檢視時各成員分別推算後合計，持股卡片下方列出每人的股數
 //   庫存總市值卡片右上角的眼睛：隱藏金額的開關（見 privacy.js），像網路銀行的隱藏餘額
 //   現價：連結 Google 時用試算表的 GOOGLEFINANCE 抓的（見 sync.js），抓不到的、沒連結的用最近一次的收盤價（見 market.js）
@@ -57,14 +58,11 @@ function createOverview() {
     Privacy.toggle();
     kpisEl.querySelector('[data-act="privacy"]')?.focus({ preventScroll: true });
   });
-  // 帳戶走勢的展開／收起（見 trend.js）：只重畫上面的卡片，焦點放回新的按鈕；圖上移動手指換日期
+  // 帳戶走勢（見 trend.js）：點庫存總市值卡片任何地方都打開（眼睛是隱藏金額，不算）
   kpisEl.addEventListener('click', e => {
-    if (!e.target.closest('[data-act="trend"]')) return;
-    Trend.toggle();
-    renderKpis(Holdings.all(U.today()));
-    kpisEl.querySelector('[data-act="trend"]')?.focus({ preventScroll: true });
+    if (!e.target.closest('.kpi.hero') || e.target.closest('[data-act="privacy"]')) return;
+    Trend.open();
   });
-  Trend.bind(kpisEl);
   // 即將除權息的展開／收起（見 upcoming.js）：只重畫上面的卡片，焦點放回新的按鈕
   kpisEl.addEventListener('click', e => {
     if (!e.target.closest('[data-act="upcoming"]')) return;
@@ -132,6 +130,7 @@ function createOverview() {
     } else {
       hero = `<b>—</b><span class="kpi-sub">還沒有交易明細或庫存快照</span>`;
     }
+    hero += '<button type="button" class="trend-hint" data-act="trend">走勢<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>';
 
     let nextTile;
     if (next.length) {
@@ -159,7 +158,7 @@ function createOverview() {
     }
 
     kpisEl.innerHTML = `
-      <div class="kpi wide hero"><small>庫存總市值</small>${eyeHTML()}${hero}${Trend.html(History.series())}</div>
+      <div class="kpi wide hero"><small>庫存總市值</small>${eyeHTML()}${hero}</div>
       <div class="kpi">
         <small>今年現金股利</small>
         <b>${money(sumNet(thisYear))}</b>

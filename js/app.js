@@ -160,6 +160,7 @@
   const refreshAll = () => {
     Object.values(lists).forEach(l => l.refresh());
     Detail.refresh();
+    Trend.refresh();
   };
 
   // ---------- 看哪些成員：在設定的「家庭成員」勾選（見 storage.js 的檢視範圍） ----------
@@ -325,14 +326,13 @@
   });
   $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="kd-marks"]')) openMenu('kd'); });
   // 總覽「即將除權息」最下面的「看全部」：切到股利 → 除權息，最上面是詳細版（見 upcoming.js）
-  //   「帳戶走勢」最下面：切到記帳 → 帳戶紀錄（見 trend.js）
   $('panels').addEventListener('click', e => {
-    const to = e.target.closest('[data-act="upcoming-all"]') ? 'dividends'
-      : e.target.closest('[data-act="history-all"]') ? 'history' : '';
-    if (!to) return;
-    showTab(to);
+    if (!e.target.closest('[data-act="upcoming-all"]')) return;
+    showTab('dividends');
     window.scrollTo(0, 0);
   });
+  // 帳戶走勢（總覽的庫存總市值卡片點了打開）最下面：切到記帳 → 帳戶紀錄
+  Trend.init({ showHistory: () => { showTab('history'); window.scrollTo(0, 0); } });
 
   // ---------- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁說明裡的「調整」打開這一段 ----------
   const starsSet = document.querySelector('.stars-set');
@@ -682,7 +682,7 @@
     if (!due.length) return;
     Store.addMany('history', due);
     lists.history.refresh();
-    lists.overview.refresh();
+    Trend.refresh();
   }
 
   // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和行情

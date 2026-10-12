@@ -838,28 +838,32 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .up-more[aria-expanded="true"] svg { transform: rotate(180deg); }
 .up-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
 
-/* 帳戶走勢（見 trend.js）：庫存總市值卡片最下面的開關，打開時下面是折線圖 */
-.trend-toggle {
+/* 帳戶走勢（見 trend.js）：庫存總市值卡片點了從底部彈出折線圖；卡片右下角的「走勢 ›」讓人看得出來可以點 */
+.kpi.hero { cursor: pointer; }
+.kpi.hero .kpi-sub { padding-right: 60px; }
+.trend-hint {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: 100%;
   height: 40px;
-  margin-top: 8px;
+  padding: 0 8px 0 12px;
   border: 0;
-  border-top: .5px solid var(--border);
+  border-radius: 12px;
   background: none;
   color: var(--accent-text);
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
-.trend-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
-.trend-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-.trend-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
-.trend { padding-top: 4px; }
+.trend-hint svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.trend-hint:active { background: var(--chip-bg); }
+.trend-hint:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.trend-who { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.trend-note { margin: 8px 0; font-size: 13px; color: var(--muted); }
+.trend-more { display: block; margin: 4px 0 8px; font-size: 13px; }
 /* 讀數：日期，下面市值、付出成本、損益；線的顏色只畫在前面的短線，字用一般的顏色 */
 /*   固定三行（日期｜市值、付出成本｜損益），手指移動時高度不變，圖才不會跳 */
 .trend-read { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--muted); }
@@ -873,7 +877,7 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .trend .key.value { background: var(--trend-value); }
 .trend .key.cost { background: var(--trend-cost); }
 /* 圖：線的粗細固定 2px（不跟著框縮放）；手指左右移動換日期，上下照常捲動 */
-.trend-plot { position: relative; height: 150px; margin: 10px 0 0; touch-action: pan-y; cursor: crosshair; outline: none; }
+.trend-plot { position: relative; height: 200px; margin: 12px 0 0; touch-action: pan-y; cursor: crosshair; outline: none; }
 .trend-plot:focus-visible { box-shadow: 0 0 0 2px var(--accent-ring); border-radius: 4px; }
 .trend-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .trend-grid { stroke: var(--border); stroke-width: 1; }
@@ -887,7 +891,6 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .trend-dot.value { background: var(--trend-value); }
 .trend-dot.cost { background: var(--trend-cost); }
 .trend-axis { display: flex; justify-content: space-between; margin: 4px 0 8px; font-size: 11px; color: var(--muted); }
-.trend .link-btn { display: block; margin: 4px 0 2px; font-size: 13px; }
 
 /* 總覽卡片最下面的「看全部」：切到股利 → 除權息 */
 .up-all { display: block; margin: 8px 0 2px; font-size: 13px; }
