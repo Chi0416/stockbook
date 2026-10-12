@@ -63,6 +63,20 @@ const KD_PAGE = (() => {
     return c ? [`strong ${c[0]}`, `${c[1]}<small>${AT[KD.crossAt(m)]}</small>`] : ['', '—'];
   }
   // 算不出 KD 的放最後
+  // 表格：收盤價｜K／D（低檔綠、高檔紅）｜交叉（黃金、死亡，下面寫在低檔、中間、高檔）；點 K／D 在低到高、高到低之間換
+  const zoned = v => `<span class="${KD.zone(v)}">${fmt(v)}</span>`;
+  const table = {
+    cols: [{ label: ['收盤價'] }, { label: ['K', 'D'], sort: ['low', 'high'] }, { label: ['交叉'] }],
+    cells(r) {
+      const { m } = r;
+      const c = CROSS[KD.cross(m)];
+      return [
+        Table.cell(m ? U.fmtNum(m.close, 2) : '—'),
+        Table.cell(`${Stars.mark(r, 'kdLow')}${zoned(m?.k)}`, zoned(m?.d), 'strong'),
+        c ? Table.cell(`${Stars.mark(r, 'golden')}${c[1].slice(0, 2)}`, AT[KD.crossAt(m)], `strong ${c[0]}`) : Table.cell('—'),
+      ];
+    },
+  };
   const byK = dir => (a, b) => (a.k === null) - (b.k === null) || (a.k === null ? 0 : (a.k - b.k) * dir);
 
   function enrich(r) {
@@ -115,6 +129,7 @@ const KD_PAGE = (() => {
 
   return {
     title: 'KD',
+    table,
     sorts: [['low', 'K 值低到高', byK(1)], ['high', 'K 值高到低', byK(-1)], ['code', '依代號', null]],
     enrich, cardHTML, introHTML,
     note, crossCell, // 詳細頁（detail.js）也用

@@ -23,6 +23,7 @@
 //   period:      列表篩選與分組用的日期欄位；unit 為 month（年月）或 day（單日）
 //                groupSuffix 是分組標題後面的說明，日期在今天之後時改用 futureSuffix
 //   card:        列表卡片上的代號、標題、標籤、右上角主要數字，其餘欄位顯示在卡片下方
+//   table:       列表預設畫成表格時的欄位（格式見 list.js；篩選列的「詳細」換回卡片）
 //   status:      沒有標籤欄位時，卡片左上角的狀態標籤：回傳 { label, cls, pending } 或 null
 //                cls 是標籤樣式（pending 為虛線）；pending 為 true 時金額變淡、合計另外列出
 //   intro:       列表最上面的一段說明（有資料時才顯示）
@@ -116,6 +117,14 @@ const SCHEMAS = {
     title: '交易明細',
     period: { key: 'date', unit: 'month', label: '年月' },
     card: { code: 'code', title: 'name', badge: 'type', primary: 'settle' },
+    // 照券商 App 的對帳單：買進付出的錢前面加負號、綠色，賣出拿回的錢紅色
+    table: [
+      { label: ['數量', '單價'], keys: ['shares', 'price'] },
+      { label: ['應收付'], sort: 'settle', strong: true,
+        cell: (r, v) => [`${/買/.test(r.type) && typeof r.settle === 'number' ? '−' : ''}${v('settle')}`],
+        tone: r => (/買/.test(r.type) ? 'down' : /賣/.test(r.type) ? 'up' : '') },
+      { label: ['日期'], date: 'date' },
+    ],
     fields: [
       { key: 'member', label: '成員',     type: 'member', keep: true, full: true },
       { key: 'date',   label: '成交日期', type: 'date', keep: true,
@@ -157,6 +166,11 @@ const SCHEMAS = {
     intro: '這裡是照券商 App「綜合損益」抄的庫存，不會跟著交易明細改變。加上之後的買賣、除息算出來的目前持股，請看「總覽」。',
     empty: '還沒有庫存快照<br>點右上角「＋ 新增」，照券商 App 的「綜合損益」一檔填一筆<br>不填也可以，總覽會直接加總交易明細',
     card: { code: 'code', title: 'name', badge: 'type', primary: 'totalCost' },
+    table: [
+      { label: ['餘額', '均價'], keys: ['shares', 'avgCost'] },
+      { label: ['付出', '成本'], keys: ['totalCost'], strong: true },
+      { label: ['快照日'], date: 'date' },
+    ],
     fields: [
       { key: 'member',      label: '成員',         type: 'member', keep: true, full: true },
       // 「昨日餘額」是前一個交易日收盤後的股數：快照日期填前一個交易日，今天的買賣才不會被當成已經算在快照裡
@@ -231,6 +245,12 @@ const SCHEMAS = {
     top: { html: () => Upcoming.pageHTML(), act: (name, value) => Upcoming.pageAct(name, value) },
     period: { key: 'exDate', unit: 'month', label: '年月', groupSuffix: '除權息', futureSuffix: '預計除權息' },
     card: { code: 'code', title: 'name', primary: 'cash' },
+    // 都是每股；股票股利是 0 的不寫
+    table: [
+      { label: ['現金', '股票'], sort: 'cash', cell: (r, v) => [v('cash'), r.stock ? v('stock') : ''] },
+      { label: ['除權息日'], date: 'exDate' },
+      { label: ['發放日'], date: 'payDate' },
+    ],
     // 除權息日當天就算已除息（當天以後買的拿不到這次股利）；已除息還沒發放時金額已確定，不變淡
     status(r) {
       const stage = dividendStage(r);

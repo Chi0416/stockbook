@@ -24,7 +24,7 @@ const VIEWS = {
     // 明細畫成表格（見 list.js）：證券／代號 | 每股／股數 | 股息淨值 | 發放日，點表頭排序
     table: [
       { label: ['每股', '股數'], keys: ['cash', 'shares'] },
-      { label: ['股息', '淨值'], keys: ['net'], strong: true },
+      { label: ['股息', '淨值'], keys: ['net'], strong: true, tone: () => 'up' },
       { label: ['發放日'], date: 'payDate' },
     ],
     fields: [

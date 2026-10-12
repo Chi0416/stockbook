@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="記錄簿">
   <!-- 加到主畫面時的名稱與圖示 -->
-  <link rel="manifest" href="manifest.json?v=2026.10.12.1">
+  <link rel="manifest" href="manifest.json?v=2026.10.12.2">
   <link rel="icon" type="image/png" href="icons/book-192.png">
   <link rel="apple-touch-icon" href="icons/book-180.png">
   <title>股票記錄簿</title>
@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/style.css?v=2026.10.12.1">
+  <link rel="stylesheet" href="css/style.css?v=2026.10.12.2">
 </head>
 <body>
   <div class="app">
@@ -110,6 +110,11 @@
         <span class="switch-text"><b>隱藏金額</b><small>只顯示除權息日、每股股利這些公開資訊，自己的金額、股數都變成 ***</small></span>
         <input id="hide-amounts" type="checkbox" role="switch">
       </label>
+      <!-- 詳細卡片（見 table.js 的 Cards）：清單用表格還是卡片，全部頁面一起換 -->
+      <label class="switch-row">
+        <span class="switch-text"><b>詳細卡片</b><small>清單改成一筆一張卡片，每一筆的資料都寫出來；關掉是精簡的表格，一個畫面放得下比較多筆</small></span>
+        <input id="show-cards" type="checkbox" role="switch">
+      </label>
 
       <!-- 家庭成員：勾選要顯示哪些人（見 app.js），和隱藏金額一樣是「畫面要顯示什麼」，放在前面 -->
       <h3 id="members-head" class="section-head">家庭成員</h3>
@@ -176,7 +181,7 @@
 
       <!-- 每次更新網站時改這裡，用來確認手機上開的是不是新版
            css、js 網址後面的 ?v= 也要一起改成同一個版本號，瀏覽器才會重新下載（tests/version.test.mjs 會檢查） -->
-      <p class="note muted">版本 2026.10.12.1</p>
+      <p class="note muted">版本 2026.10.12.2</p>
     </div>
   </dialog>
 
@@ -208,33 +213,34 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/util.js?v=2026.10.12.1"></script>
-  <script src="js/privacy.js?v=2026.10.12.1"></script>
-  <script src="js/stocklist.js?v=2026.10.12.1"></script>
-  <script src="js/stocksearch.js?v=2026.10.12.1"></script>
-  <script src="js/announced.js?v=2026.10.12.1"></script>
-  <script src="js/market.js?v=2026.10.12.1"></script>
-  <script src="js/schema.js?v=2026.10.12.1"></script>
-  <script src="js/storage.js?v=2026.10.12.1"></script>
-  <script src="js/holdings.js?v=2026.10.12.1"></script>
-  <script src="js/views.js?v=2026.10.12.1"></script>
-  <script src="js/stats.js?v=2026.10.12.1"></script>
-  <script src="js/list.js?v=2026.10.12.1"></script>
-  <script src="js/overview.js?v=2026.10.12.1"></script>
-  <script src="js/cash.js?v=2026.10.12.1"></script>
-  <script src="js/yield.js?v=2026.10.12.1"></script>
-  <script src="js/kd.js?v=2026.10.12.1"></script>
-  <script src="js/eps.js?v=2026.10.12.1"></script>
-  <script src="js/stars.js?v=2026.10.12.1"></script>
-  <script src="js/upcoming.js?v=2026.10.12.1"></script>
-  <script src="js/form.js?v=2026.10.12.1"></script>
-  <script src="js/detail.js?v=2026.10.12.1"></script>
-  <script src="js/config.js?v=2026.10.12.1"></script>
-  <script src="js/google.js?v=2026.10.12.1"></script>
-  <script src="js/sheet.js?v=2026.10.12.1"></script>
-  <script src="js/sync.js?v=2026.10.12.1"></script>
-  <script src="js/inbox.js?v=2026.10.12.1"></script>
-  <script src="js/app.js?v=2026.10.12.1"></script>
+  <script src="js/util.js?v=2026.10.12.2"></script>
+  <script src="js/privacy.js?v=2026.10.12.2"></script>
+  <script src="js/stocklist.js?v=2026.10.12.2"></script>
+  <script src="js/stocksearch.js?v=2026.10.12.2"></script>
+  <script src="js/announced.js?v=2026.10.12.2"></script>
+  <script src="js/market.js?v=2026.10.12.2"></script>
+  <script src="js/schema.js?v=2026.10.12.2"></script>
+  <script src="js/storage.js?v=2026.10.12.2"></script>
+  <script src="js/holdings.js?v=2026.10.12.2"></script>
+  <script src="js/views.js?v=2026.10.12.2"></script>
+  <script src="js/stats.js?v=2026.10.12.2"></script>
+  <script src="js/table.js?v=2026.10.12.2"></script>
+  <script src="js/list.js?v=2026.10.12.2"></script>
+  <script src="js/overview.js?v=2026.10.12.2"></script>
+  <script src="js/cash.js?v=2026.10.12.2"></script>
+  <script src="js/yield.js?v=2026.10.12.2"></script>
+  <script src="js/kd.js?v=2026.10.12.2"></script>
+  <script src="js/eps.js?v=2026.10.12.2"></script>
+  <script src="js/stars.js?v=2026.10.12.2"></script>
+  <script src="js/upcoming.js?v=2026.10.12.2"></script>
+  <script src="js/form.js?v=2026.10.12.2"></script>
+  <script src="js/detail.js?v=2026.10.12.2"></script>
+  <script src="js/config.js?v=2026.10.12.2"></script>
+  <script src="js/google.js?v=2026.10.12.2"></script>
+  <script src="js/sheet.js?v=2026.10.12.2"></script>
+  <script src="js/sync.js?v=2026.10.12.2"></script>
+  <script src="js/inbox.js?v=2026.10.12.2"></script>
+  <script src="js/app.js?v=2026.10.12.2"></script>
   <!-- Google 登入元件（連結 Google 帳號時才用到，不擋住畫面載入） -->
   <script src="https://accounts.google.com/gsi/client" async></script>
 </body>

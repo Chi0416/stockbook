@@ -21,7 +21,8 @@ const OVERVIEW = {
 };
 
 function createOverview() {
-  const state = { keyword: '' };
+  // sort／desc：表格依哪一欄排序（預設代號小到大，和券商 App 一樣）
+  const state = { keyword: '', sort: 'code', desc: false };
 
   const el = document.createElement('section');
   el.className = 'panel';
@@ -40,6 +41,15 @@ function createOverview() {
   const listEl = el.querySelector('.list');
 
   keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; renderList(); });
+  // 表頭排序：換一欄時代號小到大、其他大到小，再點一次反過來
+  listEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-act="sort"]');
+    if (!btn) return;
+    const k = btn.dataset.value;
+    state.desc = state.sort === k ? !state.desc : k !== 'code';
+    state.sort = k;
+    renderList();
+  });
   // 切換後每一頁都會重畫（app.js），眼睛按鈕也換了一個，焦點放回新的按鈕
   kpisEl.addEventListener('click', e => {
     if (!e.target.closest('[data-act="privacy"]')) return;
@@ -253,6 +263,44 @@ function createOverview() {
       </div>`;
   }
 
+  // 表格（照券商 App 的綜合損益）：證券／代號｜股數／市值｜損益／報酬率；抓不到現價時市值、損益是「—」
+  //   全家每個人各幾股、股數怎麼算的，設定裡打開「詳細卡片」看；股數算出來是負的紅字照樣寫
+  function figures(p) {
+    const price = priceOf(p.code);
+    const value = price !== null && p.shares > 0 ? p.shares * price : null;
+    const pl = value === null ? null : Math.round(value - p.cost);
+    return { value, pl, rate: pl !== null && p.cost > 0 ? pl / p.cost : null };
+  }
+
+  function rowHTML(p) {
+    const { value, pl, rate } = figures(p);
+    const tone = Privacy.hidden || !pl ? '' : pl > 0 ? 'up' : 'down';
+    const bad = (p.parts || [p]).filter(x => x.shares < 0);
+    const note = !bad.length ? ''
+      : p.parts && Store.members().length > 1 ? `${bad.map(x => Store.memberName(x.member)).join('、')}的股數算出來是負的，請檢查資料`
+      : `股數算出來是負的（${Privacy.text(bad[0].formula)}），請檢查資料`;
+    return Table.row({
+      cells: [
+        Table.name(p.name, p.code),
+        Table.cell(shares(p.shares), value === null ? '—' : money(value)),
+        Table.cell(pl === null ? '—' : Privacy.num(U.fmtNum(pl)),
+          rate === null ? '—' : Privacy.num(`${U.fmtNum(U.round(rate * 100, 2), 2)}%`), `strong ${tone}`),
+      ],
+      note,
+    });
+  }
+
+  function tableHTML(rows) {
+    const dir = k => (state.sort === k ? (state.desc ? 'desc' : 'asc') : '');
+    const cols = [
+      { label: ['證券', '代號'], sort: 'code', dir: dir('code') },
+      { label: ['股數', '市值'], sort: 'shares', dir: dir('shares') },
+      { label: ['損益', '報酬率'], sort: 'pl', dir: dir('pl') },
+    ];
+    const val = state.sort === 'code' ? p => p.code : state.sort === 'shares' ? p => p.shares : p => figures(p).pl;
+    return Table.html(cols, Table.sort(rows.slice(), val, state.desc).map(rowHTML));
+  }
+
   function renderList(holdings = Holdings.all(U.today())) {
     if (!holdings) {
       countEl.textContent = '';
@@ -265,7 +313,7 @@ function createOverview() {
     const rows = all.filter(p => !kw || text(p).toLowerCase().includes(kw));
     countEl.textContent = rows.length === all.length ? `${all.length} 檔` : `${rows.length}／${all.length} 檔`;
     listEl.innerHTML = rows.length
-      ? priceNote(all) + rows.map(cardHTML).join('')
+      ? priceNote(all) + (Cards.on ? rows.map(cardHTML).join('') : tableHTML(rows))
       : `<p class="empty">${all.length ? '沒有符合條件的持股' : '目前沒有持股'}</p>`;
   }
 

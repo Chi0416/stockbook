@@ -305,8 +305,19 @@ const EPS_PAGE = (() => {
   const skippedHTML = (n, wide) => (wide ? `符合的 ${n} 檔都沒有 EPS（ETF、興櫃沒有）`
     : `這裡的 ${n} 檔都沒有 EPS（ETF、興櫃沒有）<br>可以切到「全市場」看上市、上櫃的公司`);
 
+  // 表格：今年累計／去年全年 EPS｜達成率（超前紅、落後綠）｜預估殖利率；進度、股利預估怎麼算的看詳細卡片或點進去
+  const table = {
+    cols: [{ label: ['今年累計', '去年全年'] }, { label: ['達成率'], sort: 'ahead' }, { label: ['預估', '殖利率'], sort: 'fyield' }],
+    cells: ({ e, fy, ...r }) => [
+      Table.cell(fmt(e?.now), fmt(e?.last)),
+      Table.cell(e?.pct == null ? '—' : `${Stars.mark({ e, ...r }, 'eps')}${e.pct}%`, '', `strong ${tone(e)}`),
+      Table.cell(fy == null ? '—' : pct(fy)),
+    ],
+  };
+
   return {
     title: 'EPS',
+    table,
     sorts: [
       ['ahead', '依超前進度', desc(r => (r.e?.rate == null ? null : r.e.rate * 100 - r.e.pace))],
       ['growth', '依同期成長', desc(r => r.e?.growth ?? null)],

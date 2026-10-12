@@ -371,6 +371,18 @@
     toast(hidden ? '已隱藏金額' : '已顯示金額');
   });
 
+  // ---------- 詳細卡片（見 table.js 的 Cards）：設定選單的開關，全部頁面一起換 ----------
+  const cardsSwitch = $('show-cards');
+  if (cardsSwitch) {
+    cardsSwitch.checked = Cards.on;
+    cardsSwitch.addEventListener('change', () => Cards.set(cardsSwitch.checked));
+  }
+  Cards.onChange(on => {
+    if (cardsSwitch) cardsSwitch.checked = on;
+    refreshAll();
+    toast(on ? '已換成詳細卡片' : '已換成精簡表格');
+  });
+
   function download(file) {
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');

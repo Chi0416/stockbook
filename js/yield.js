@@ -144,8 +144,20 @@ const YIELD_PAGE = (() => {
     return `<p class="list-intro">${how}${data ? `<br>${U.esc(data)}` : ''}</p>`;
   }
 
+  // 表格：現價／近一年每股｜殖利率｜暴力年化（紅綠同卡片）；最近一次、下次除息看詳細卡片或點進去
+  const trend = r => (r.ya === null ? '' : r.info.trend > 0 ? 'up' : r.info.trend < 0 ? 'down' : '');
+  const table = {
+    cols: [{ label: ['現價', '近一年'] }, { label: ['殖利率'], sort: 'yield' }, { label: ['暴力', '年化'], sort: 'annual' }],
+    cells: r => [
+      Table.cell(r.price ? U.fmtNum(r.price, 2) : '—', r.info?.count ? U.fmtNum(U.round(r.info.sum, 3)) : '—'),
+      Table.cell(r.y === null ? '—' : `${Stars.mark(r, 'yield')}${pct(r.y)}`, '', 'strong'),
+      Table.cell(r.ya === null ? '—' : `${Stars.mark(r, 'trend')}${pct(r.ya)}`, '', `strong ${trend(r)}`),
+    ],
+  };
+
   return {
     title: '殖利率',
+    table,
     sorts: [['yield', '依殖利率', high('y')], ['annual', '依暴力年化', high('ya')], ['code', '依代號', null]],
     enrich, cardHTML, introHTML,
     notes, // 詳細頁（detail.js）也用

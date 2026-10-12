@@ -131,6 +131,8 @@ function holdTagsHTML(r) {
 
 // 行情的一頁：page 是 YIELD_PAGE、KD_PAGE、EPS_PAGE、STARS_PAGE；和其他列表一樣有 el、refresh、reset、changed
 //   page.sorts：[[值, 選單上的字, 比較的函式]]，第一個是預設；一樣的時候依代號
+//   page.table：預設畫成表格，設定裡打開「詳細卡片」時用 page.cardHTML（見 table.js）：{ cols: [{ label: [上, 下], sort }], cells(r): 證券以外每一格 }
+//     sort 是 page.sorts 的值，點表頭等於在排序選單選那一個；給 [小到大, 大到小] 兩個時，再點一次換另一個（KD 的 K 值）
 //   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片；page.introHTML(rows, 全市場, 沒列出幾檔)：列表上面的說明
 //   page.keep(r)（可以沒有）：這一頁只列哪些（EPS 頁不列 ETF）；全部沒列出時用 page.skippedHTML(幾檔, 全市場) 那句話
 //   openStock(代號)：點卡片時打開詳細頁
@@ -166,13 +168,22 @@ function createMarket(page, { openStock = () => {} } = {}) {
       setRange(btn.dataset.value);
       return;
     }
+    if (btn?.dataset.act === 'sort') {
+      const col = cols().find(c => [].concat(c.sort).includes(btn.dataset.value));
+      const pair = [].concat(col?.sort || btn.dataset.value);
+      state.sort = pair.length > 1 && state.sort === pair[0] ? pair[1] : pair[0];
+      sortSel.value = state.sort;
+      state.limit = STEP;
+      render();
+      return;
+    }
     if (btn?.dataset.act === 'more') {
       state.limit += STEP;
       render();
       return;
     }
     if (btn) return; // 說明裡的「調整」（app.js 打開設定）
-    const card = e.target.closest('.card[data-code]');
+    const card = e.target.closest('.card[data-code], .trow[data-code]');
     if (card) openStock(card.dataset.code);
   });
 
@@ -203,6 +214,20 @@ function createMarket(page, { openStock = () => {} } = {}) {
     my.forEach(r => { if (!Market.get(r.code)) out.push(r); });
     return out;
   }
+
+  // 表格：第一欄是證券／代號（依代號排序），其他欄照 page.table.cols；持有、觀察接在代號後面
+  const cols = () => [{ label: ['證券', '代號'], sort: 'code' }, ...page.table.cols];
+  // 排序的方向：兩個值的欄位前一個是小到大；依代號小到大；其他大到小
+  const dirOf = c => {
+    const pair = [].concat(c.sort || []);
+    if (!pair.includes(state.sort)) return '';
+    return pair.length > 1 ? (state.sort === pair[0] ? 'asc' : 'desc') : state.sort === 'code' ? 'asc' : 'desc';
+  };
+  const tableHTML = rows => Table.html(cols().map(c => ({ ...c, sort: [].concat(c.sort || [])[0], dir: dirOf(c) })),
+    rows.map(r => {
+      const tags = holdTagsHTML(r);
+      return Table.row({ attrs: `data-code="${U.esc(r.code)}"`, cells: [Table.name(r.name, r.code, tags ? ` ${tags}` : ''), ...page.table.cells(r)] });
+    }));
 
   const rangeHTML = () => `
     <div class="seg range" role="group" aria-label="列出哪些股票">
@@ -244,7 +269,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
     const more = wide && all.length > shown.length
       ? `<button type="button" class="wide-btn more-btn" data-act="more">再顯示 ${Math.min(STEP, all.length - shown.length)} 檔（還有 ${U.fmtNum(all.length - shown.length)} 檔）</button>` : '';
     listEl.innerHTML = rangeHTML() + (all.length ? page.introHTML(all, wide, skipped) : '') +
-      (shown.length ? shown.map(page.cardHTML).join('') + more : `<p class="empty">${empty}</p>`);
+      (shown.length ? (Cards.on ? shown.map(page.cardHTML).join('') : tableHTML(shown)) + more : `<p class="empty">${empty}</p>`);
   }
 
   function reset() {

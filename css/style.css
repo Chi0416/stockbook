@@ -353,12 +353,22 @@ body:has(dialog[open]) { overflow: hidden; }
 }
 .trow:last-child { border-radius: 0 0 14px 14px; }
 .trow:active { background: var(--chip-bg); }
+.trow.static { cursor: default; }
+.trow.static:active { background: none; }
 .trow.flash { animation: flash 2s ease-out; }
 .tcell { min-width: 0; text-align: right; font-size: 14px; line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tcell small { display: block; font-size: 14px; color: var(--text-2); }
 .tcell small.year { font-size: 12px; color: var(--muted); }
-.tcell.strong { font-size: 15px; font-weight: 600; color: var(--buy); }
+.tcell.strong { font-size: 15px; font-weight: 600; }
+/* 紅綠：收入、賺錢、超前、高檔紅；付出、賠錢、落後、低檔綠（KD 的 low、high 見 kd.js） */
+.tcell.up, .tcell .up, .tcell .high { color: var(--buy); }
+.tcell.down, .tcell .down, .tcell .low { color: var(--sell); }
+.tcell.up small, .tcell.down small { color: inherit; }
 .trow.pending .tcell.strong { color: var(--muted); }
+/* 達標的星星：小小的放在數字正上方靠右，不佔寬度（欄位不會因為有星星變寬、把名稱擠成兩行），也不會貼到隔壁那一欄 */
+.tcell { position: relative; }
+.tcell .star { position: absolute; top: -9px; right: 0; font-size: 10px; line-height: 1; color: var(--star); }
+.tcell .stars-n { font-size: 13px; color: var(--star); }
 .tname { text-align: left; white-space: normal; }
 .tname b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .tname small { margin-top: 1px; font-size: 13px; color: var(--muted); }
@@ -380,12 +390,14 @@ body:has(dialog[open]) { overflow: hidden; }
 .thead + .trow { border-top: 0; }
 .thead .tcell { font-size: 12px; line-height: 1.3; color: var(--muted); }
 .thead .tname small { margin: 0; font-size: 12px; }
-.th { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0; font: inherit; background: none; border: 0; cursor: pointer; }
+.th { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.th.tname { justify-content: flex-start; }
+span.th { cursor: default; }
 .th span { text-align: right; }
 .sort-ind { flex-shrink: 0; width: 7px; height: 11px; fill: var(--border-strong); }
 .sort-ind .on { fill: var(--accent); }
 @media (hover: hover) {
-  .trow:not(.thead):hover { background: var(--hover); }
+  .trow:not(.thead):not(.static):hover { background: var(--hover); }
   .th:hover { color: var(--text); }
 }
 

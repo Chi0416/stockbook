@@ -3,9 +3,12 @@
 // schema.stats 存在時，合計卡片下方有「明細｜統計」切換（統計畫面見 stats.js）；每次打開 App 都先顯示明細
 // schema.top 存在時，列表最上面另外畫一段（除權息頁的「即將除權息」，見 upcoming.js），搜尋框有打字時不畫
 //   top.html()：畫出來；top.act(名稱, 值)：裡面的按鈕，回傳 { redraw } 重畫、{ added, msg } 新增了一筆（onChanged、toast）
-// schema.table 存在時，明細畫成表格，不用卡片：一筆一列，欄位名稱只寫在表頭，不分日期標題；點表頭排序，再點一次反過來
-//   每一欄：{ label: [上, 下], keys: [上, 下] } 一到兩個值上下疊；{ date: 欄位 } 寫「月/日」、下面小字寫年；strong 是主要的金額
-//   最左邊固定是證券、下面一行代號（看兩位以上成員時加成員），狀態標籤（待除權息、待發放）接在代號後面
+// schema.table 存在時，明細預設畫成表格（見 table.js）：一筆一列，欄位名稱只寫在表頭，不分日期標題；點表頭排序，再點一次反過來
+//   設定裡打開「詳細卡片」時換回卡片（見 table.js 的 Cards）
+//   每一欄：{ label: [上, 下], keys: [上, 下] } 一到兩個值上下疊；{ date: 欄位 } 寫「月/日」、下面小字寫年
+//     cell(r, v)：自己決定上下兩個值（v(欄位) 是畫好的值）；sort：依哪個欄位排序（預設是第一個值）
+//     strong：主要的金額（粗體）；tone(r)：'up' 紅、'down' 綠
+//   最左邊固定是證券、下面一行代號（看兩位以上成員時加成員），狀態標籤（待除權息、待發放）、買賣接在代號後面
 function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = () => {} }) {
   const fields = schema.fields;
   const byKey = Object.fromEntries(fields.map(f => [f.key, f]));
@@ -19,6 +22,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   const table = schema.table;
   const initial = () => ({ period: null, keyword: '', flashId: null, mode: 'list', statsAll: false, statsOpen: new Set(), sort: periodKey, desc: true });
   const state = initial();
+  const asTable = () => table && !Cards.on;
 
   const periodOf = r => {
     const d = String(r[periodKey] ?? '');
@@ -111,7 +115,8 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
       return;
     }
     if (name === 'sort') {
-      state.desc = state.sort === value ? !state.desc : true;
+      // 換一欄時：代號小到大，其他大到小（日期新到舊）
+      state.desc = state.sort === value ? !state.desc : value !== code;
       state.sort = value;
     } else if (name === 'mode') state.mode = value;
     else if (name === 'more') state.statsAll = true;
@@ -159,55 +164,47 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   }
 
   // ---------- 表格 ----------
-  const sortKey = c => c.date || c.keys[0];
-  // 排序的上下兩個小三角形，排序中的那一個用強調色
-  const sortIcon = c => {
-    const on = state.sort === sortKey(c);
-    return `<svg class="sort-ind" viewBox="0 0 8 13" aria-hidden="true"><path class="${on && !state.desc ? 'on' : ''}" d="M4 0 8 5H0Z"/><path class="${on && state.desc ? 'on' : ''}" d="M0 8h8l-4 5Z"/></svg>`;
-  };
-  const headHTML = () => `
-    <div class="trow thead">
-      <span class="tcell tname">證券<small>代號</small></span>
-      ${table.map(c => `<button type="button" class="tcell th" data-act="sort" data-value="${sortKey(c)}"
-        aria-label="依${c.label.join('')}排序">${sortIcon(c)}<span>${c.label.map(U.esc).join('<br>')}</span></button>`).join('')}
-    </div>`;
+  const sortKey = c => c.sort || c.date || c.keys[0];
+  const dirOf = k => (state.sort === k ? (state.desc ? 'desc' : 'asc') : '');
 
-  function rowHTML(r, withMember) {
+  function rowHTML(r, withMember, extra, shownCols) {
     const st = statusOf(r);
-    const sub = [code && r[code], withMember && r.member && Store.memberName(r.member)].filter(Boolean).map(U.esc).join(' · ');
-    const cells = table.map(c => {
-      if (c.date) {
-        const d = String(r[c.date] ?? '');
-        return `<span class="tcell">${d ? `${U.fmtDate(d).slice(5)}<small class="year">${d.slice(0, 4)}</small>` : '—'}</span>`;
-      }
-      const [a, b] = c.keys.map(k => show(byKey[k], r[k]));
-      return `<span class="tcell${c.strong ? ' strong' : ''}">${a}${b === undefined ? '' : `<small>${b}</small>`}</span>`;
-    }).join('');
-    // 算不出來的原因（紅字）整列寬寫在下面；「股數依某天的快照」這種說明不寫，點進去看
-    const warn = note && r.missing && r[note] ? `<span class="trow-note">${U.esc(Privacy.text(r[note]))}</span>` : '';
-    return `
-      <button type="button" class="trow${r.id === state.flashId ? ' flash' : ''}${st?.pending ? ' pending' : ''}" data-id="${U.esc(r.id)}">
-        <span class="tcell tname"><b>${U.esc(r[title])}</b><small>${sub}${st ? ` <span class="badge ${st.cls}">${U.esc(st.label)}</span>` : ''}</small></span>
-        ${cells}${warn}
-      </button>`;
-  }
-
-  function sortRows(rows) {
-    const k = state.sort;
-    const dir = state.desc ? -1 : 1;
-    // 空白的放最後；一樣的時候日期新到舊
-    const val = r => r[k] ?? null;
-    return rows.sort((a, b) => {
-      const x = val(a), y = val(b);
-      if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
-      if (x !== y) return (x < y ? -1 : 1) * dir;
-      const p = String(a[periodKey] ?? ''), q = String(b[periodKey] ?? '');
-      return p < q ? 1 : p > q ? -1 : 0;
+    // 買進、賣出接在代號後面；庫存快照的「現股」每筆都一樣，不寫（卡片上有）
+    const tag = badge ? r[badge] && tone(r[badge]) && { label: r[badge], cls: tone(r[badge]) } : st;
+    const sub = (withMember && r.member ? ` · ${U.esc(Store.memberName(r.member))}` : '') +
+      (tag ? ` <span class="badge ${tag.cls}">${U.esc(tag.label)}</span>` : '');
+    const v = k => show(byKey[k], r[k]);
+    const cells = shownCols.map(c => {
+      if (c.date) return Table.date(String(r[c.date] ?? ''));
+      const [a, b = ''] = c.cell ? c.cell(r, v) : c.keys.map(v);
+      return Table.cell(a, b, [c.strong ? 'strong' : '', c.tone ? c.tone(r) : ''].filter(Boolean).join(' '));
+    });
+    // 紅字（算不出來的原因、庫存快照核對不符）整列寬寫在下面；「股數依某天的快照」這種說明不寫，看詳細卡片
+    const warn = note && r.missing && r[note] ? Privacy.text(r[note]) : extra?.warn ? Privacy.text(extra.text) : '';
+    return Table.row({
+      attrs: `data-id="${U.esc(r.id)}"`,
+      cls: [r.id === state.flashId ? 'flash' : '', st?.pending ? 'pending' : ''].filter(Boolean).join(' '),
+      cells: [Table.name(r[title], code ? r[code] ?? '' : '', sub), ...cells],
+      note: warn,
     });
   }
 
-  const tableHTML = (rows, withMember) =>
-    `<div class="table" style="--tn:${table.length}">${headHTML()}${sortRows(rows).map(r => rowHTML(r, withMember)).join('')}</div>`;
+  function tableHTML(rows, withMember) {
+    const notes = schema.annotate ? schema.annotate(rows) : null;
+    // 分組的說明（庫存快照的核對結果）放在表格上面；看好幾期時前面寫日期
+    const groups = Object.entries(notes?.groups || {}).sort(([a], [b]) => (a < b ? 1 : -1));
+    const groupNotes = groups.map(([g, n]) =>
+      groupNoteHTML(groups.length > 1 ? { ...n, text: `${U.fmtDate(g)} ${n.text}` } : n)).join('');
+    const byField = state.sort === code ? r => U.toHalf(r[code] ?? '').toUpperCase() : r => r[state.sort];
+    // 只看一期庫存快照時，每一列的快照日都一樣，不寫（上面的選單就是那一天）
+    const oneDay = schema.period.unit === 'day' && rows.every(r => r[periodKey] === rows[0][periodKey]);
+    const shownCols = table.filter(c => !(oneDay && c.date === periodKey));
+    const cols = [
+      { label: ['證券', '代號'], sort: code, dir: dirOf(code) },
+      ...shownCols.map(c => ({ label: c.label, sort: sortKey(c), dir: dirOf(sortKey(c)) })),
+    ];
+    return groupNotes + Table.html(cols, Table.sort(rows, byField, state.desc).map(r => rowHTML(r, withMember, notes?.cards?.[r.id], shownCols)));
+  }
 
   // 合計目前篩選範圍內的數字；有 pending（例如還沒入帳）時並列「已入帳 / 待入帳」兩個一樣大的數字；
   // 算不出來的列不計入並提示
@@ -267,7 +264,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
           periodLabel: state.period ? periodLabel(state.period) : '',
           expanded: state.statsAll, open: state.statsOpen, members: Store.members(), showMembers: withMember,
         });
-      } else if (table) {
+      } else if (asTable()) {
         html += tableHTML(rows, withMember);
       } else {
         const notes = schema.annotate ? schema.annotate(rows) : null;

@@ -124,8 +124,21 @@ const STARS_PAGE = (() => {
       '星星一樣多時，殖利率高的在前。點一檔看詳細資料。</p>';
   }
 
+  // 表格：星星｜殖利率／暴力年化｜K 值／EPS 達成率（顏色同各頁）；哪幾項達標看詳細卡片或點進去
+  //   星星只畫拿到的幾顆（☆ 很佔寬度，會把名稱擠成兩行），一顆都沒有是「—」
+  const tint = (cls, v) => (cls ? `<span class="${cls}">${v}</span>` : v);
+  const table = {
+    cols: [{ label: ['星星'], sort: 'stars' }, { label: ['殖利率', '暴力年化'] }, { label: ['K 值', '達成率'] }],
+    cells: r => [
+      Table.cell(r.n ? `<span class="stars-n">${'★'.repeat(r.n)}</span>` : '—'),
+      Table.cell(pct(r.y), tint(r.ya === null ? '' : r.info?.trend > 0 ? 'up' : r.info?.trend < 0 ? 'down' : '', pct(r.ya))),
+      Table.cell(tint(KD.zone(r.k), fmt(r.k)), tint(EPS_PAGE.tone(r.e), r.e?.pct == null ? '—' : `${r.e.pct}%`)),
+    ],
+  };
+
   return {
     title: '★ 星星',
+    table,
     sorts: [
       ['stars', '依星星', (a, b) => b.n - a.n || (b.y ?? -1) - (a.y ?? -1)],
       ['code', '依代號', null],
