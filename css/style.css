@@ -321,6 +321,74 @@ body:has(dialog[open]) { overflow: hidden; }
 .card-note { display: block; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .card-note.warn { color: var(--danger); }
 
+/* ---------- 表格列表（schema.table，見 list.js）：一筆一列，欄位名稱只在表頭寫一次 ----------
+   每一列用 subgrid 共用同一組欄寬（依最寬的內容），最左邊的證券吃掉剩下的寬度，太長換行 */
+.table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(var(--tn), auto);
+  margin-top: 4px;
+  background: var(--surface);
+  border: .5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.trow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-top: .5px solid var(--border);
+  cursor: pointer;
+}
+@supports not (grid-template-columns: subgrid) {
+  .trow { grid-template-columns: minmax(0, 1fr) repeat(var(--tn), 4.6em); }
+}
+.trow:last-child { border-radius: 0 0 14px 14px; }
+.trow:active { background: var(--chip-bg); }
+.trow.flash { animation: flash 2s ease-out; }
+.tcell { min-width: 0; text-align: right; font-size: 14px; line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tcell small { display: block; font-size: 14px; color: var(--text-2); }
+.tcell small.year { font-size: 12px; color: var(--muted); }
+.tcell.strong { font-size: 15px; font-weight: 600; color: var(--buy); }
+.trow.pending .tcell.strong { color: var(--muted); }
+.tname { text-align: left; white-space: normal; }
+.tname b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.tname small { margin-top: 1px; font-size: 13px; color: var(--muted); }
+.tname .badge { display: inline-block; margin-left: 2px; padding: 1px 5px; font-size: 11px; vertical-align: 1px; }
+.trow-note { grid-column: 1 / -1; margin-top: 4px; font-size: 12px; color: var(--danger); white-space: normal; }
+/* 表頭：捲動時黏在篩選列下面；欄位名稱上下兩行對應每一列上下兩個值 */
+.thead {
+  position: sticky;
+  top: 62px;
+  z-index: 3;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-top: 0;
+  border-bottom: .5px solid var(--border);
+  border-radius: 14px 14px 0 0;
+  background: var(--surface);
+  cursor: default;
+}
+.thead + .trow { border-top: 0; }
+.thead .tcell { font-size: 12px; line-height: 1.3; color: var(--muted); }
+.thead .tname small { margin: 0; font-size: 12px; }
+.th { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0; font: inherit; background: none; border: 0; cursor: pointer; }
+.th span { text-align: right; }
+.sort-ind { flex-shrink: 0; width: 7px; height: 11px; fill: var(--border-strong); }
+.sort-ind .on { fill: var(--accent); }
+@media (hover: hover) {
+  .trow:not(.thead):hover { background: var(--hover); }
+  .th:hover { color: var(--text); }
+}
+
 /* 殖利率卡片（見 yield.js）：右上角的殖利率大一點；下面的說明一行一句 */
 .card-primary b.yield-pct { font-size: 20px; }
 .yield-card .card-note + .card-note { margin-top: 3px; }

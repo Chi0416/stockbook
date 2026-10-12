@@ -21,6 +21,12 @@ const VIEWS = {
     //   label：每月圖的標題（「2026 年每月股息」）；ranking：排行的標題
     stats: { label: '股息', ranking: '股息來源排行' },
     empty: '還沒有股利<br>在上面的「除權息」新增後，會自動算在這裡',
+    // 明細畫成表格（見 list.js）：證券／代號 | 每股／股數 | 股息淨值 | 發放日，點表頭排序
+    table: [
+      { label: ['每股', '股數'], keys: ['cash', 'shares'] },
+      { label: ['股息', '淨值'], keys: ['net'], strong: true },
+      { label: ['發放日'], date: 'payDate' },
+    ],
     fields: [
       { key: 'code',    label: '代號',       type: 'text' },
       { key: 'name',    label: '證券',       type: 'text' },
