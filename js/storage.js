@@ -175,6 +175,16 @@ const Store = (() => {
       changed();
     },
 
+    // 一次新增好幾筆（App 自動記的帳戶紀錄）：已經有同一個 id 的不加；只存一次、通知一次
+    addMany(table, recs) {
+      const have = new Set(data[table].map(r => r.id));
+      const add = recs.filter(r => !have.has(r.id)).map(rec => ({ id: U.uid(), ...rec }));
+      if (!add.length) return;
+      add.forEach(r => { data[table].push(r); mark(table, r.id); });
+      persist();
+      changed();
+    },
+
     // 一次改好幾筆（App 自動補的資料，例如庫存快照的收盤價）：changes 是 [{ id, values }]，只存一次、通知一次
     updateMany(table, changes) {
       let n = 0;

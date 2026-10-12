@@ -1,5 +1,6 @@
 // 產生 shared/prices.json：每一檔最近一個交易日的收盤價和日 KD，行情頁的 KD、抓不到即時現價時的收盤價用（見 js/market.js）
 //   另外存最近兩個月的月底收盤價（months），庫存快照晚幾天才打開 App，也補得到月底那天的收盤價（見 market.js 的 closeOn）
+//   complete：上市、上櫃都有最近一個交易日的資料（下午那次櫃買中心的常常還沒出來）；完整時，那天沒有成交的（暫停交易）收盤價也算數
 //   上市：證交所「每日收盤行情」https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX（全部，不含權證、牛熊證）
 //   上櫃：櫃買中心「上櫃股票每日收盤行情」https://www.tpex.org.tw/www/zh-tw/afterTrading/otc（所有證券，不含權證、牛熊證）
 //     不用「上櫃股票行情」（afterTrading/dailyQuotes）：一定連權證一起回來，一天 2 MB 多，從 GitHub 抓要十幾分鐘
@@ -86,6 +87,7 @@ for (let t = Date.parse(today), n = 0; counts.length < DAYS; t -= DAY) {
   counts.push([date, a ? a.length : 0, b ? b.length : 0]);
 }
 const latest = counts[0][0];
+const complete = counts[0][1] > 0 && counts[0][2] > 0;
 console.log(`${counts[counts.length - 1][0]} ～ ${latest} 共 ${counts.length} 個交易日`);
 // 上市、上櫃各自最近有資料的那一天（下午執行時，櫃買中心的資料可能還沒出來）
 [['上市', 1, 1000], ['上櫃', 2, 700]].forEach(([what, i, min]) => {
@@ -129,8 +131,9 @@ if (before && rows.length < before * 0.9) {
 
 mkdirSync(new URL('./', OUT), { recursive: true });
 writeFileSync(OUT, `{
-  "note": "收盤價和日 KD（9、3、3）：證交所每日收盤行情、櫃買中心上櫃股票行情，最近 ${DAYS} 個交易日算出來的。由 tools/update-prices.mjs 產生，GitHub 每個工作天收盤後自動更新，不要手動修改。每一檔：[收盤價, K, D, 前一個交易日的 K, 前一個交易日的 D]，成交不到 9 天的 K、D 是 null；date 那天沒有成交的，最後多一個最近一次成交的日期。months 是最近 ${MONTHS} 個月的月底（每個月最後一個交易日）收盤價",
+  "note": "收盤價和日 KD（9、3、3）：證交所每日收盤行情、櫃買中心上櫃股票行情，最近 ${DAYS} 個交易日算出來的。由 tools/update-prices.mjs 產生，GitHub 每個工作天收盤後自動更新，不要手動修改。每一檔：[收盤價, K, D, 前一個交易日的 K, 前一個交易日的 D]，成交不到 9 天的 K、D 是 null；date 那天沒有成交的，最後多一個最近一次成交的日期。months 是最近 ${MONTHS} 個月的月底（每個月最後一個交易日）收盤價。complete 是 date 那天上市、上櫃的資料都有了",
   "date": "${latest}",
+  "complete": ${complete},
   "rows": {
 ${rows.map(([c, r]) => `    ${JSON.stringify(c)}: ${JSON.stringify(r)}`).join(',\n')}
   },

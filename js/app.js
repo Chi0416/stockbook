@@ -82,7 +82,7 @@
   //     其他的先顯示第一頁（記帳先顯示交易明細，免得把交易記成快照）；點目前這一格只捲回最上面
   const GROUPS = [
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
-    { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照']] },
+    { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照'], ['history', '帳戶紀錄']] },
     { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
     { key: 'market', label: '行情', remember: true, pages: [['yield', '殖利率'], ['kd', 'KD'], ['eps', 'EPS'], ['stars', '★ 星星']] },
   ];
@@ -93,7 +93,7 @@
   const groupOf = key => GROUPS.find(g => g.key === key || g.pages.some(([k]) => k === key));
   // 新增按鈕：這一頁新增到哪張表、按鈕上寫什麼（手機上也寫出來）；總覽沒有新增按鈕
   const ADD = {
-    trades: ['trades', '交易'], snapshots: ['snapshots', '快照'],
+    trades: ['trades', '交易'], snapshots: ['snapshots', '快照'], history: ['history', '紀錄'],
     cashDividends: ['dividends', '除權息'], dividends: ['dividends', '除權息'],
     yield: ['watch', '觀察'], kd: ['watch', '觀察'], eps: ['watch', '觀察'], stars: ['watch', '觀察'],
   };
@@ -325,9 +325,12 @@
   });
   $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="kd-marks"]')) openMenu('kd'); });
   // 總覽「即將除權息」最下面的「看全部」：切到股利 → 除權息，最上面是詳細版（見 upcoming.js）
+  //   「帳戶走勢」最下面：切到記帳 → 帳戶紀錄（見 trend.js）
   $('panels').addEventListener('click', e => {
-    if (!e.target.closest('[data-act="upcoming-all"]')) return;
-    showTab('dividends');
+    const to = e.target.closest('[data-act="upcoming-all"]') ? 'dividends'
+      : e.target.closest('[data-act="history-all"]') ? 'history' : '';
+    if (!to) return;
+    showTab(to);
     window.scrollTo(0, 0);
   });
 
@@ -650,14 +653,19 @@
     window.addEventListener('online', () => Announced.refresh());
   }
 
-  // 庫存快照的收盤價：還沒有、收盤資料裡有快照日期那一天的，自動補上（見 market.js 的 closeOn），之後就是存下來的數字，不會再變
-  //   收盤資料下載好、試算表的資料讀回來時檢查；自己填過的不動
+  // App 自己補資料（快照的收盤價、帳戶紀錄）的時機：收盤資料下載好、試算表的資料讀回來時
   //   連結 Google 時，這次打開 App 要先從試算表讀回最新的資料才補（免得用這台裝置舊的那份蓋掉別台改過的）；
   //   登入過期時不補（修改資料會跳出 Google 登入視窗，不是使用者點的不能跳）
-  function fillPrices() {
-    if (!Market.ready()) return;
+  function canAutoSave() {
+    if (!Market.ready()) return false;
     const st = Sync.state();
-    if (st.linked && (!st.problemsAt || st.needLogin)) return;
+    return !st.linked || (st.problemsAt > 0 && !st.needLogin);
+  }
+
+  // 庫存快照的收盤價：還沒有、收盤資料裡有快照日期那一天的，自動補上（見 market.js 的 closeOn），之後就是存下來的數字，不會再變
+  //   自己填過的不動
+  function fillPrices() {
+    if (!canAutoSave()) return;
     const changes = Store.list('snapshots', 'all')
       .filter(r => typeof r.price !== 'number')
       .map(r => ({ id: r.id, values: { price: Market.closeOn(r.code, r.date) } }))
@@ -665,6 +673,16 @@
     if (!changes.length) return;
     Store.updateMany('snapshots', changes);
     lists.snapshots.refresh();
+  }
+
+  // 帳戶紀錄：收盤資料裡有收盤價的日子，每位成員記一筆付出成本和市值（見 history.js）；和收盤價一樣的時機、一樣的條件
+  function recordHistory() {
+    if (!canAutoSave()) return;
+    const due = History.due();
+    if (!due.length) return;
+    Store.addMany('history', due);
+    lists.history.refresh();
+    lists.overview.refresh();
   }
 
   // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和行情
@@ -676,6 +694,7 @@
     refreshMarket();
     Detail.refresh();
     fillPrices();
+    recordHistory();
   });
   Market.load();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Market.refresh(); });
@@ -699,6 +718,7 @@
       refreshAll();
       Inbox.checkData();
       fillPrices();
+      recordHistory();
       if (menu.open) {
         renderMembers();
         renderBackupInfo();

@@ -285,5 +285,5 @@ const Holdings = (() => {
   // 成員在 date（含當天）時用來推算持股的快照日期；沒有快照時為 null
   const snapDate = (member, date) => snapDateBefore(member, date, true);
 
-  return { codeOf, position, entitled, all, heldCodes, check, snapDate };
+  return { codeOf, position, entitled, memberAll, all, heldCodes, check, snapDate };
 })();

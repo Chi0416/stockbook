@@ -88,7 +88,8 @@ const Market = (() => {
   // 某一天收盤後的價格（庫存快照的收盤價，見 schema.js、app.js 的 fillPrices）：沒有那一天的資料時回傳 null
   //   有的：最近一個交易日（date），最近兩個月的月底（months）
   //   快照日期是週末時用前一個交易日的（中間只隔週末才算；隔了平日可能是那天的資料還沒出來，不能用前一天的）
-  //   最近一個交易日沒有成交的（暫停交易、櫃買中心的資料還沒出來）不算，等晚上那次更新
+  //   最近一個交易日沒有成交的：上市、上櫃的資料都有了（complete）才算暫停交易，用之前最近一次成交的收盤價；
+  //     還沒齊的可能是櫃買中心的資料還沒出來，不算，等晚上那次更新
   function closeOn(code, date) {
     const iso = U.parseDate(date ?? '');
     if (!data || !iso) return null;
@@ -101,10 +102,13 @@ const Market = (() => {
       return true;
     };
     const r = data.rows[k];
-    if (r && !r[5] && near(data.date)) return r[0];
+    if (r && (!r[5] || data.complete) && near(data.date)) return r[0];
     const m = Object.entries(data.months || {}).find(([d, rows]) => typeof rows?.[k] === 'number' && near(d));
     return m ? m[1][k] : null;
   }
+
+  // 有收盤價的日子（帳戶紀錄用，見 history.js）：最近一個交易日、最近兩個月的月底
+  const closeDates = () => (data ? [data.date, ...Object.keys(data.months || {})] : []);
 
   // 今年的日期只寫月/日
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
@@ -133,7 +137,7 @@ const Market = (() => {
   }
 
   return {
-    get, quote, closeOn, priceNote, waiting, load, refresh,
+    get, quote, closeOn, closeDates, priceNote, waiting, load, refresh,
     // 資料裡的每一檔（行情的「全市場」）
     codes: () => (data ? Object.keys(data.rows) : []),
     date: () => (data ? data.date : ''),

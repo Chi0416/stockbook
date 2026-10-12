@@ -25,6 +25,8 @@
 //   card:        列表卡片上的代號、標題、標籤、右上角主要數字，其餘欄位顯示在卡片下方
 //                card.calc：另外算出來、不是欄位的數字，接在欄位後面：[{ label, value(r) 畫好的值, tone(r) 'up' 紅、'down' 綠 }]
 //   table:       列表預設畫成表格時的欄位（格式見 list.js；篩選列的「詳細」換回卡片）
+//   name:        表格最左邊一欄不是證券／代號時（帳戶紀錄寫日期）：{ label: [上, 下], cell(r) 回傳 [粗體, 下面小字], card(r) 卡片的標題 }
+//   search:      搜尋框的提示字（沒有時是「搜尋代號或證券」）
 //   status:      沒有標籤欄位時，卡片左上角的狀態標籤：回傳 { label, cls, pending } 或 null
 //                cls 是標籤樣式（pending 為虛線）；pending 為 true 時金額變淡、合計另外列出
 //   intro:       列表最上面的一段說明（有資料時才顯示）
@@ -103,13 +105,17 @@ function snapPlOf(r) {
   return v !== null && typeof r.totalCost === 'number' ? v - Math.round(r.totalCost) : null;
 }
 
+// 帳戶紀錄一筆的損益（市值 − 付出成本）；付出成本空白（只補了市值）時是 null
+const histPlOf = r => (typeof r.value === 'number' && typeof r.cost === 'number' ? Math.round(r.value) - Math.round(r.cost) : null);
+
 // 代號在股票清單（stocklist.js）和自己記過的資料裡都查不到時提醒；只是提醒，照樣可以儲存
 //   打到 4 碼才檢查，打字途中不提醒；瀏覽器還拿著舊版程式、沒有清單時不提醒
 function codeNote(v) {
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
   const code = key(v.code);
   if (code.length < 4 || typeof STOCK_LIST === 'undefined' || STOCK_LIST.names[code]) return '';
-  const known = Object.keys(SCHEMAS).some(t => Store.list(t, 'all').some(r => key(r.code) === code));
+  const known = Object.keys(SCHEMAS).filter(t => SCHEMAS[t].fields.some(f => f.key === 'code'))
+    .some(t => Store.list(t, 'all').some(r => key(r.code) === code));
   return known ? '' : '股票清單裡查不到這個代號，請確認有沒有打錯（剛上市的可能還沒收錄）';
 }
 
@@ -155,6 +161,14 @@ function snapRate(r) {
 // 賺的紅、賠的綠；隱藏金額時不上色（看顏色就知道賺賠，和總覽一樣）
 function snapTone(r) {
   const pl = snapPlOf(r);
+  return Privacy.hidden || !pl ? '' : pl > 0 ? 'up' : 'down';
+}
+
+// 帳戶紀錄表格、卡片上的損益、報酬率、顏色
+const histPct = (pl, cost) => (pl === null || !(cost > 0) ? '—' : Privacy.num(`${U.fmtNum(U.round(pl / cost * 100, 2), 2)}%`));
+const histRate = r => histPct(histPlOf(r), r.cost);
+function histTone(r) {
+  const pl = histPlOf(r);
   return Privacy.hidden || !pl ? '' : pl > 0 ? 'up' : 'down';
 }
 
@@ -402,6 +416,37 @@ const SCHEMAS = {
         hint: '月退是先收原價、下個月才退，提領時用原價算' },
       { key: 'minFee',    label: '整股最低手續費', type: 'number', default: 20, hint: '一張以上，元' },
       { key: 'oddMinFee', label: '零股最低手續費', type: 'number', default: 1, hint: '不到一張，元' },
+    ],
+  },
+
+  // 帳戶紀錄：每位成員每個交易日的付出成本、市值，看帳戶的走勢用（總覽的「帳戶走勢」）
+  //   收盤資料更新後打開 App，用收盤價自動記（見 history.js）；記下來就固定了，不會跟著之後補記的交易改
+  //   以前的可以自己補：券商只留一年、而且只看得到市值，付出成本可以空白
+  history: {
+    title: '帳戶紀錄',
+    period: { key: 'date', unit: 'month', label: '年月' },
+    intro: '收盤資料更新後打開記錄簿，會用收盤價自動記下每位成員那天的付出成本和市值，走勢圖在「總覽」。以前的可以點右上角自己補，付出成本不知道可以空白。',
+    empty: '還沒有帳戶紀錄<br>有持股的話，收盤資料更新後打開記錄簿就會自動記一筆<br>以前的可以點右上角「＋ 新增紀錄」自己補',
+    search: '搜尋成員',
+    name: {
+      label: ['日期'],
+      cell: r => [`${U.fmtDate(r.date).slice(5)} ${U.weekday(r.date)}`, String(r.date).slice(0, 4)],
+      card: r => `${U.fmtDate(r.date)} ${U.weekday(r.date)}`,
+    },
+    card: { primary: 'value', calc: [
+      { label: '損益', value: r => snapMoney(histPlOf(r)), tone: histTone },
+      { label: '報酬率', value: histRate, tone: histTone },
+    ] },
+    table: [
+      { label: ['付出成本', '市值'], keys: ['cost', 'value'] },
+      { label: ['損益', '報酬率'], sort: 'pl', value: histPlOf, strong: true,
+        cell: r => [snapMoney(histPlOf(r)), histRate(r)], tone: histTone },
+    ],
+    fields: [
+      { key: 'member', label: '成員',     type: 'member', keep: true, full: true },
+      { key: 'date',   label: '日期',     type: 'date', hint: '自己補的話，填每個月最後一個交易日' },
+      { key: 'value',  label: '市值',     type: 'number', hint: '照券商的庫存市值抄' },
+      { key: 'cost',   label: '付出成本', type: 'number', optional: true, hint: '不知道可以空白，走勢圖上那天只畫市值' },
     ],
   },
 };

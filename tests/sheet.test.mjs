@@ -34,6 +34,10 @@ const sample = () => ({
   cashPools: [
     { id: 'c1', member: 'm1', code: '0050', name: '元大台灣50', discount: 2.8, rebate: '月退', minFee: 20, oddMinFee: 1 },
   ],
+  history: [
+    { id: 'h-m1-2026-09-30', member: 'm1', date: '2026-09-30', value: 1518300, cost: 1367670 },
+    { id: 'h2', member: 'm2', date: '2025-12-31', value: 650000, cost: null }, // 自己補的，只有市值
+  ],
 });
 
 // 試算表讀回來時尾端空白格會被省略，模擬這個行為
@@ -369,6 +373,7 @@ test('完全空白的試算表：建立預設成員「我」', () => {
   const r = plain(Sheet.fromValues({
     成員: [['名稱', 'id']], 交易明細: [Sheet.TAB.trades.headers], 庫存快照: [Sheet.TAB.snapshots.headers],
     除權息: [Sheet.TAB.dividends.headers], 觀察清單: [Sheet.TAB.watch.headers], 現金單: [Sheet.TAB.cashPools.headers],
+    帳戶紀錄: [Sheet.TAB.history.headers],
   }));
   assert.deepEqual(r.problems, []);
   assert.deepEqual(r.data.members, [{ id: 'me', name: '我' }]);
@@ -377,9 +382,9 @@ test('完全空白的試算表：建立預設成員「我」', () => {
 
 test('建立試算表：分頁、格式、下拉選單、保護', () => {
   const body = plain(Sheet.createBody());
-  assert.deepEqual(body.sheets.map(s => s.properties.title), ['交易明細', '庫存快照', '除權息', '觀察清單', '現金單', '成員', '_meta']);
-  // 觀察清單、現金單加在最後：既有分頁的 id 不變
-  assert.deepEqual(['trades', 'snapshots', 'dividends', 'watch', 'cashPools'].map(t => Sheet.TAB[t].sheetId), [2, 3, 4, 5, 6]);
+  assert.deepEqual(body.sheets.map(s => s.properties.title), ['交易明細', '庫存快照', '除權息', '觀察清單', '現金單', '帳戶紀錄', '成員', '_meta']);
+  // 觀察清單、現金單、帳戶紀錄加在最後：既有分頁的 id 不變
+  assert.deepEqual(['trades', 'snapshots', 'dividends', 'watch', 'cashPools', 'history'].map(t => Sheet.TAB[t].sheetId), [2, 3, 4, 5, 6, 7]);
   assert.equal(body.properties.locale, 'zh_TW');
   assert.equal(body.sheets.at(-1).properties.hidden, true);
 
@@ -399,7 +404,7 @@ test('建立試算表：分頁、格式、下拉選單、保護', () => {
   const lists = reqs.filter(r => r.setDataValidation?.range.sheetId === trades).map(r => r.setDataValidation.rule);
   assert.ok(lists.every(rule => rule.strict === false));
   assert.ok(lists.some(rule => rule.condition.type === 'ONE_OF_LIST' && rule.condition.values.map(v => v.userEnteredValue).join() === '普買,普賣'));
-  assert.equal(reqs.filter(r => r.addProtectedRange).length, 12); // 6 個分頁 × 標題列與 id 欄
+  assert.equal(reqs.filter(r => r.addProtectedRange).length, 14); // 7 個分頁 × 標題列與 id 欄
   assert.ok(reqs.filter(r => r.addProtectedRange).every(r => r.addProtectedRange.protectedRange.warningOnly));
 });
 

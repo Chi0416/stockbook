@@ -10,6 +10,7 @@
 //     value(r)：排序用的值不是欄位、要另外算時（例如庫存快照的損益）
 //     strong：主要的金額（粗體）；tone(r)：'up' 紅、'down' 綠
 //   最左邊固定是證券、下面一行代號（看兩位以上成員時加成員），狀態標籤（待除權息、待發放）、買賣接在代號後面
+//     schema.name 有給時最左邊改寫別的（帳戶紀錄寫日期，見 schema.js），點表頭依日期排序
 function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = () => {} }) {
   const fields = schema.fields;
   const byKey = Object.fromEntries(fields.map(f => [f.key, f]));
@@ -17,6 +18,9 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   const { code, title, badge, primary, note } = schema.card;
   // 成員不放在卡片下方，看兩位以上成員時改成卡片名稱上面的標籤
   const gridFields = fields.filter(f => f.type !== 'member' && ![periodKey, code, title, badge, primary].includes(f.key));
+  // 最左邊一欄（表格）、卡片的標題：[粗體, 下面小字]
+  const nameOf = r => (schema.name ? schema.name.cell(r) : [r[title], code ? r[code] ?? '' : '']);
+  const nameSort = schema.name ? periodKey : code;
   const getRows = schema.rows || (() => Store.list(tableKey));
   // mode：'list' 明細、'stats' 統計；statsAll：排行已經點開「其他 N 檔」；statsOpen：排行裡展開了每一次配息的代號
   // sort／desc：表格依哪一欄排序（預設日期新到舊）
@@ -79,7 +83,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   el.innerHTML = `
     <div class="filterbar">
       <select class="f-period" aria-label="${schema.period.label}"></select>
-      <input class="f-keyword" type="search" placeholder="搜尋代號或證券" autocomplete="off" enterkeyhint="search">
+      <input class="f-keyword" type="search" placeholder="${U.esc(schema.search || '搜尋代號或證券')}" autocomplete="off" enterkeyhint="search">
       <span class="count"></span>
     </div>
     <div class="list"></div>`;
@@ -159,7 +163,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
     return `
       <button type="button" class="card${r.id === state.flashId ? ' flash' : ''}${st?.pending ? ' pending' : ''}" data-id="${U.esc(r.id)}">
         <span class="card-top">
-          <span class="card-title">${tags ? `<span class="card-tags">${tags}</span>` : ''}${code && r[code] ? `<span class="card-code">${U.esc(r[code])}</span>` : ''}${U.esc(r[title])}</span>
+          <span class="card-title">${tags ? `<span class="card-tags">${tags}</span>` : ''}${code && r[code] ? `<span class="card-code">${U.esc(r[code])}</span>` : ''}${U.esc(schema.name ? schema.name.card(r) : r[title])}</span>
           <span class="card-primary"><small>${cardLabel(pf)}</small><b>${show(pf, r[primary])}</b></span>
         </span>
         ${grid ? `<span class="card-grid">${grid}</span>` : ''}
@@ -189,7 +193,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
     return Table.row({
       attrs: `data-id="${U.esc(r.id)}"`,
       cls: [r.id === state.flashId ? 'flash' : '', st?.pending ? 'pending' : ''].filter(Boolean).join(' '),
-      cells: [Table.name(r[title], code ? r[code] ?? '' : '', sub), ...cells],
+      cells: [Table.name(...nameOf(r), sub), ...cells],
       note: warn,
     });
   }
@@ -207,7 +211,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
     const oneDay = schema.period.unit === 'day' && rows.every(r => r[periodKey] === rows[0][periodKey]);
     const shownCols = table.filter(c => !(oneDay && c.date === periodKey));
     const cols = [
-      { label: ['證券', '代號'], sort: code, dir: dirOf(code) },
+      { label: schema.name ? schema.name.label : ['證券', '代號'], sort: nameSort, dir: dirOf(nameSort) },
       ...shownCols.map(c => ({ label: c.label, sort: sortKey(c), dir: dirOf(sortKey(c)) })),
     ];
     return groupNotes + Table.html(cols, Table.sort(rows, byField, state.desc).map(r => rowHTML(r, withMember, notes?.cards?.[r.id], shownCols)));

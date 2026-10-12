@@ -4,12 +4,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const { date, rows, months } = JSON.parse(readFileSync(new URL('../shared/prices.json', import.meta.url), 'utf8'));
+const { date, complete, rows, months } = JSON.parse(readFileSync(new URL('../shared/prices.json', import.meta.url), 'utf8'));
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isKD = v => v === null || (typeof v === 'number' && v >= 0 && v <= 100);
 
 test('上市、上櫃的股票和 ETF 都有，權證不收', () => {
   assert.ok(isDate(date));
+  assert.equal(typeof complete, 'boolean');
   const codes = Object.keys(rows);
   assert.ok(codes.length > 2000, `${codes.length} 檔`);
   for (const code of ['2330', '0050', '00878', '6488', '00679B']) assert.ok(rows[code], code);
