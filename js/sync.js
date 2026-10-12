@@ -302,6 +302,15 @@ const Sync = (() => {
       .filter(c => handled(c.table) && !overwritten.has(`${c.tab}:${c.row}`))
       .forEach(c => writes.push({ range: a1(c.tab, `${Sheet.colLetter(c.col)}${c.row}`), values: [[c.value]] }));
 
+    // 試算表還沒有的新欄位（例如庫存快照的收盤價）：先插好欄、寫好標題，下面整列寫回時才寫得進去（見 sheet.js 的 addColumns）
+    const adds = parsed.adds.filter(a => handled(a.table));
+    if (adds.length) {
+      await api(`${Google.SHEETS}/${meta.id}:batchUpdate`, {
+        method: 'POST',
+        body: { requests: adds.flatMap(a => Sheet.addColumnRequests(meta.sheetIds[a.tab], a)) },
+      });
+    }
+
     // 順序：先改既有的列（不影響列號）→ 由下往上刪（前面的列號才不會跑掉）→ 最後才新增
     if (writes.length) {
       await api(`${Google.SHEETS}/${meta.id}/values:batchUpdate`, {

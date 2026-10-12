@@ -1,5 +1,5 @@
 // 持股推算（總覽的持股、累積現金股利的基準日股數）的測試：node --test tests/
-//   App 的程式（util.js、schema.js、storage.js、holdings.js、views.js）照瀏覽器的方式放進 vm 環境執行
+//   App 的程式（util.js、privacy.js、schema.js、storage.js、holdings.js、views.js）照瀏覽器的方式放進 vm 環境執行
 //   每個測試用一份新的資料（放在模擬的 localStorage 裡）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const ROOT = new URL('../', import.meta.url);
-const FILES = ['util', 'schema', 'storage', 'holdings', 'views'];
+const FILES = ['util', 'privacy', 'schema', 'storage', 'holdings', 'views'];
 
 // data：成員、交易明細、庫存快照、除權息；scope：檢視哪些成員（預設全家；勾選的 id 陣列存成 JSON，舊版存一個 id）
 function app({ members = [{ id: 'me', name: '我' }], trades = [], snapshots = [], dividends = [] } = {}, scope = 'all') {
@@ -174,8 +174,9 @@ test('核對：第一期快照之前的交易可以慢慢補，比快照少是�
   const checks = plain(Holdings.check()).map(c => [c.code, c.status, c.expected, c.actual]);
   assert.deepEqual(checks, [['0050', 'partial', 1000, 3000], ['00919', 'ok', 10000, 10000], ['00878', 'diff', 5000, 1000]]);
 
-  const notes = plain(SCHEMAS.snapshots.annotate([{ date: '2026-08-31' }]));
-  assert.deepEqual(notes.groups['2026-08-31'], { text: '核對：1 檔對不上，1 檔更早的交易還沒補齊', warn: true, lines: [] });
+  const notes = plain(SCHEMAS.snapshots.annotate([partial, full, over]));
+  assert.deepEqual(notes.groups['2026-08-31'],
+    { text: '核對：1 檔對不上，1 檔更早的交易還沒補齊', warn: true, lines: [], sum: '合計：成本 627,600' });
   assert.deepEqual(notes.cards[partial.id], {
     warn: false, text: '更早的交易還沒補齊：推算 1,000 股（從 0 開始 + 買進 1,000），快照是 3,000 股，還差 2,000 股',
   });

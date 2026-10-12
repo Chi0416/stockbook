@@ -23,6 +23,7 @@
 //   period:      列表篩選與分組用的日期欄位；unit 為 month（年月）或 day（單日）
 //                groupSuffix 是分組標題後面的說明，日期在今天之後時改用 futureSuffix
 //   card:        列表卡片上的代號、標題、標籤、右上角主要數字，其餘欄位顯示在卡片下方
+//                card.calc：另外算出來、不是欄位的數字，接在欄位後面：[{ label, value(r) 畫好的值, tone(r) 'up' 紅、'down' 綠 }]
 //   table:       列表預設畫成表格時的欄位（格式見 list.js；篩選列的「詳細」換回卡片）
 //   status:      沒有標籤欄位時，卡片左上角的狀態標籤：回傳 { label, cls, pending } 或 null
 //                cls 是標籤樣式（pending 為虛線）；pending 為 true 時金額變淡、合計另外列出
@@ -31,6 +32,7 @@
 //   annotate:    列表的補充說明：annotate(rows) 回傳 { groups: { 分組值: { text, warn, lines } }, cards: { 記錄 id: { text, warn } } }
 //                groups 顯示在分組標題下方，cards 顯示在卡片最下方
 //   was:         這個欄位以前在試算表上的標題（改名前），讀得到舊標題的試算表，同步時改成新標題
+//   since:       試算表格式第幾版加的欄位：試算表沒有這一欄時，同步時在 id 欄前面插進去（見 sheet.js 的 addColumns）
 //   （資料表）formTitle: 表單標題用的名稱（「新增觀察的股票」），沒有時用 title
 //   （資料表）noList:    不用一般的列表，畫面另外畫（觀察清單在行情的每一頁，見 market.js）
 //   （資料表）unique:    不能和其他筆重複的欄位（觀察清單的同一檔股票只能加一次），儲存時擋下來
@@ -89,6 +91,18 @@ function avgCostOf(v) {
   return shares && cost !== null ? U.round(cost / shares, 2) : null;
 }
 
+// 庫存快照的收盤價：收盤資料裡有快照日期那一天的就帶入（見 market.js 的 closeOn），沒有時回傳 null
+function snapCloseOf(v) {
+  return typeof Market !== 'undefined' && Market.closeOn ? Market.closeOn(v.code, v.date) : null;
+}
+
+// 一筆庫存快照當時的市值（昨日餘額 × 收盤價）、損益（市值 − 付出成本，和總覽的損益試算一樣）；沒有收盤價時是 null
+const snapValueOf = r => (typeof r.price === 'number' && typeof r.shares === 'number' ? Math.round(r.shares * r.price) : null);
+function snapPlOf(r) {
+  const v = snapValueOf(r);
+  return v !== null && typeof r.totalCost === 'number' ? v - Math.round(r.totalCost) : null;
+}
+
 // 代號在股票清單（stocklist.js）和自己記過的資料裡都查不到時提醒；只是提醒，照樣可以儲存
 //   打到 4 碼才檢查，打字途中不提醒；瀏覽器還拿著舊版程式、沒有清單時不提醒
 function codeNote(v) {
@@ -110,6 +124,38 @@ function memberNameError(name) {
   if (name === '全家') return '「全家」是設定裡勾選全部成員用的，請換一個名字';
   if (/[、,，;；\n]/.test(name)) return '名字不能有頓號、逗號、分號';
   return '';
+}
+
+// 一期庫存快照的合計：「合計：成本 X、市值 Y、損益 Z（R%）」，數字已經依隱藏金額處理過
+//   市值、損益只算有收盤價的；都還沒有時，快照日期在收盤資料之後的寫「收盤價等收盤資料更新後自動補上」
+function snapSum(rows, date) {
+  if (!rows.length) return '';
+  const fmt = n => Privacy.num(U.fmtNum(n));
+  const cost = rows.reduce((s, r) => s + (typeof r.totalCost === 'number' ? Math.round(r.totalCost) : 0), 0);
+  const priced = rows.filter(r => snapPlOf(r) !== null);
+  const missing = rows.length - priced.length;
+  if (!priced.length) {
+    const later = typeof Market !== 'undefined' && Market.ready() && date > Market.date();
+    return `合計：成本 ${fmt(cost)}${later ? '；收盤價等收盤資料更新後自動補上' : ''}`;
+  }
+  const value = priced.reduce((s, r) => s + snapValueOf(r), 0);
+  const pl = priced.reduce((s, r) => s + snapPlOf(r), 0);
+  const base = priced.reduce((s, r) => s + Math.round(r.totalCost), 0);
+  const rate = base > 0 ? `（${Privacy.num(`${U.fmtNum(U.round(pl / base * 100, 2), 2)}%`)}）` : '';
+  return `合計：成本 ${fmt(cost)}、市值 ${fmt(value)}、損益 ${fmt(pl)}${rate}` +
+    (missing ? `；${missing} 檔沒有收盤價，市值和損益沒有算進去` : '');
+}
+
+// 庫存快照表格、卡片上算出來的金額、報酬率（隱藏金額時是 ***，算不出來是 —）
+const snapMoney = n => (n === null ? '—' : Privacy.num(U.fmtNum(n)));
+function snapRate(r) {
+  const pl = snapPlOf(r);
+  return pl === null || !(r.totalCost > 0) ? '—' : Privacy.num(`${U.fmtNum(U.round(pl / r.totalCost * 100, 2), 2)}%`);
+}
+// 賺的紅、賠的綠；隱藏金額時不上色（看顏色就知道賺賠，和總覽一樣）
+function snapTone(r) {
+  const pl = snapPlOf(r);
+  return Privacy.hidden || !pl ? '' : pl > 0 ? 'up' : 'down';
 }
 
 const SCHEMAS = {
@@ -165,10 +211,18 @@ const SCHEMAS = {
     defaultLatest: true,
     intro: '這裡是照券商 App「綜合損益」抄的庫存，不會跟著交易明細改變。加上之後的買賣、除息算出來的目前持股，請看「總覽」。',
     empty: '還沒有庫存快照<br>點右上角「＋ 新增」，照券商 App 的「綜合損益」一檔填一筆<br>不填也可以，總覽會直接加總交易明細',
-    card: { code: 'code', title: 'name', badge: 'type', primary: 'totalCost' },
+    // 詳細卡片：欄位下面再一排快照那天的現值、損益、報酬率
+    card: { code: 'code', title: 'name', badge: 'type', primary: 'totalCost', calc: [
+      { label: '現值', value: r => snapMoney(snapValueOf(r)) },
+      { label: '損益', value: r => snapMoney(snapPlOf(r)), tone: snapTone },
+      { label: '報酬率', value: snapRate, tone: snapTone },
+    ] },
+    // 照券商 App 的庫存損益：現值（市值）、損益用快照存的收盤價算，是快照那天的，不會跟著現在的股價變
+    //   付出成本、收盤價、成本均價看詳細卡片
     table: [
-      { label: ['餘額', '均價'], keys: ['shares', 'avgCost'] },
-      { label: ['付出', '成本'], keys: ['totalCost'], strong: true },
+      { label: ['庫存股', '現值'], sort: 'shares', cell: (r, v) => [v('shares'), snapMoney(snapValueOf(r))] },
+      { label: ['損益', '報酬率'], sort: 'pl', value: snapPlOf, strong: true,
+        cell: r => [snapMoney(snapPlOf(r)), snapRate(r)], tone: snapTone },
       { label: ['快照日'], date: 'date' },
     ],
     fields: [
@@ -187,17 +241,34 @@ const SCHEMAS = {
           const c = avgCostOf(v);
           return c !== null && U.parseNum(v.avgCost ?? '') === c ? '自動算的（付出成本 ÷ 昨日餘額），請自行和券商 App 核對' : '';
         } },
+      // 快照日期收盤後的價格，用來算那天的市值和損益；收盤資料有那一天的就自動補上（見 app.js 的 fillPrices）
+      //   補上之後就是存下來的數字，不會跟著股價變；不用 GOOGLEFINANCE 的現價（盤中會變，也不是快照那天的）
+      { key: 'price',     label: '收盤價',   type: 'number', digits: 2, optional: true, public: true, since: 5, calc: snapCloseOf,
+        hint: '不用填，App 會自動補上快照日期的收盤價',
+        note(v) {
+          const c = snapCloseOf(v);
+          const cur = U.parseNum(v.price ?? '');
+          if (c !== null) return cur === c ? `${U.fmtDate(v.date)} 的收盤價，自動帶入的` : '';
+          if (cur !== null || !v.code || !v.date || typeof Market === 'undefined' || !Market.ready()) return '';
+          return v.date > Market.date() ? '收盤資料更新後（工作天 15:43、19:43）自動補上'
+            : '收盤資料裡沒有這一天的價格，要的話自己填';
+        } },
     ],
     // 核對（見 holdings.js 的 check）：前一期快照（第一期從 0 開始）＋期間的買賣與配股，應該等於這一期的股數
     //   分組標題下方寫整期的結果；對不上的卡片寫出算式；快照裡沒有、但推算還有股數的另外列在分組說明
     //   第一期之前的交易還沒補齊的卡片寫出還差幾股（不是警告，可以慢慢補）
+    // 合計（sum）：這一期的成本、市值、損益，寫在核對結果下面
     annotate(rows) {
-      if (typeof Holdings.check !== 'function') return null; // 瀏覽器快取到舊版 holdings.js 時略過
       const dates = new Set(rows.map(r => r.date));
-      const results = Holdings.check().filter(c => dates.has(c.date));
-      const who = c => (Store.shown().length > 1 ? `${Store.memberName(c.member)} ` : '');
       const groups = {};
       const cards = {};
+      dates.forEach(date => {
+        const sum = snapSum(rows.filter(r => r.date === date), date);
+        if (sum) groups[date] = { text: '', warn: false, lines: [], sum };
+      });
+      if (typeof Holdings.check !== 'function') return { groups, cards }; // 瀏覽器快取到舊版 holdings.js 時略過
+      const results = Holdings.check().filter(c => dates.has(c.date));
+      const who = c => (Store.shown().length > 1 ? `${Store.memberName(c.member)} ` : '');
       dates.forEach(date => {
         const list = results.filter(c => c.date === date);
         const diff = list.filter(c => c.status === 'diff');
@@ -211,6 +282,7 @@ const SCHEMAS = {
         if (skip) parts.push(`${skip} 檔還沒有交易紀錄，沒有核對`);
         if (!parts.length) return;
         groups[date] = {
+          ...groups[date],
           text: `核對：${parts.join('，')}`,
           warn: diff.length > 0,
           lines: diff.filter(c => !c.recId).map(c =>

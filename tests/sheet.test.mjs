@@ -22,7 +22,7 @@ const sample = () => ({
     { id: 't2', member: 'm2', date: '2026-09-15', type: '普賣', code: '00878', name: '國泰永續高股息', shares: 2000, price: 22.31, fee: 63, tax: 44, settle: 44513 },
   ],
   snapshots: [
-    { id: 's1', member: 'm1', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, totalCost: 934800, avgCost: 22.26 },
+    { id: 's1', member: 'm1', date: '2026-08-31', type: '現股', code: '0056', name: '元大高股息', shares: 42000, totalCost: 934800, avgCost: 22.26, price: 36.15 },
   ],
   dividends: [
     { id: 'd1', code: '00919', name: '群益台灣精選高息', exDate: '2026-09-16', payDate: '2026-10-15', cash: 0.866, stock: 0 },
@@ -237,10 +237,48 @@ test('舊的庫存快照（版本 4 以前）：標題改成券商 App「綜合�
     [1, 'C', '類別'], [1, 'F', '昨日餘額'], [1, 'H', '付出成本'], [1, 'G', '成本均價'],
   ]);
   assert.deepEqual(r.moves, [{ table: 'snapshots', tab: '庫存快照', from: 6, to: 8 }]);
+  // 收盤價（版本 5 加的）插在 id 欄前面
+  assert.deepEqual(r.adds.map(a => [a.tab, a.col, a.field.label]), [['庫存快照', 9, '收盤價']]);
   // 寫回時依改名後的標題對應欄位，累計配息（App 不認得）不動
   const row = plain(Sheet.encodeRow('snapshots', s, sample().members, r.headers['庫存快照']));
-  assert.deepEqual(row.slice(5), [42000, 32.56, 1367670, null, 's1']);
-  assert.deepEqual(plain(Sheet.metaValues()), [['version', 4]]);
+  assert.deepEqual(row.slice(5), [42000, 32.56, 1367670, null, '', 's1']);
+});
+
+test('版本 4 的庫存快照：沒有收盤價這一欄時插在 id 欄前面，寫回時寫得進去；已經有了就不插', () => {
+  const v = withTab('庫存快照', [
+    ['成員', '快照日期', '類別', '代號', '證券', '昨日餘額', '付出成本', '成本均價', 'id'],
+    ['爸爸', Sheet.toSerial('2026-08-31'), '現股', '0056', '元大高股息', 42000, 934800, 22.26, 's1'],
+  ]);
+  v._meta = [['version', 4]];
+  const r = plain(Sheet.fromValues(v));
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.broken, []);
+  assert.equal(r.data.snapshots[0].price, null);
+  assert.deepEqual(r.adds.map(a => [a.tab, a.col]), [['庫存快照', 8]]);
+  assert.deepEqual(r.headers['庫存快照'].slice(7), ['成本均價', '收盤價', 'id']);
+  const row = plain(Sheet.encodeRow('snapshots', { ...r.data.snapshots[0], price: 36.15 }, sample().members, r.headers['庫存快照']));
+  assert.deepEqual(row.slice(5), [42000, 934800, 22.26, 36.15, 's1']);
+  // 插欄、寫標題、兩位小數的格式一起送出
+  const reqs = plain(Sheet.addColumnRequests(7, r.adds[0]));
+  assert.deepEqual(reqs[0].insertDimension, { range: { sheetId: 7, dimension: 'COLUMNS', startIndex: 8, endIndex: 9 }, inheritFromBefore: true });
+  assert.deepEqual(reqs[1].updateCells.start, { sheetId: 7, rowIndex: 0, columnIndex: 8 });
+  assert.equal(reqs[1].updateCells.rows[0].values[0].userEnteredValue.stringValue, '收盤價');
+  assert.equal(reqs[2].repeatCell.cell.userEnteredFormat.numberFormat.pattern, '#,##0.00##');
+  // 已經有收盤價（新版建立的、插過的）：不插
+  const v5 = asRead(plain(Sheet.toValues(sample())));
+  assert.deepEqual(plain(Sheet.fromValues(v5)).adds, []);
+  assert.deepEqual(plain(Sheet.metaValues()), [['version', 5]]);
+});
+
+test('長輩把 id 欄搬到中間：收盤價接在最後一欄後面，不動其他欄', () => {
+  const v = withTab('庫存快照', [
+    ['id', '成員', '快照日期', '類別', '代號', '證券', '昨日餘額', '付出成本', '成本均價', '備註'],
+    ['s1', '爸爸', Sheet.toSerial('2026-08-31'), '現股', '0056', '元大高股息', 42000, 934800, 22.26, '老爸的'],
+  ]);
+  const r = plain(Sheet.fromValues(v));
+  assert.deepEqual(r.adds.map(a => [a.tab, a.col]), [['庫存快照', 10]]);
+  const row = plain(Sheet.encodeRow('snapshots', { ...r.data.snapshots[0], price: 36.15 }, sample().members, r.headers['庫存快照']));
+  assert.deepEqual([row[0], row[9], row[10]], ['s1', null, 36.15]);
 });
 
 test('基準日股數：各種寫法', () => {
@@ -298,8 +336,9 @@ test('缺欄位、缺分頁、沒有 id 欄', () => {
     '庫存快照第 1 列：找不到「類別」欄，請把標題改回「類別」',
     '除權息：找不到「除權息」分頁或分頁是空的',
   ]);
+  // id 寫在原本的最後一欄後面，之後收盤價插在 id 前面（缺欄位的表同步時不插，見 sync.js）
   assert.deepEqual(r.addIdHeader, [{ tab: '庫存快照', col: 8 }]);
-  assert.equal(r.headers['庫存快照'][8], 'id');
+  assert.deepEqual(r.headers['庫存快照'].slice(8), ['收盤價', 'id']);
   assert.deepEqual(r.data.dividends, []);
   assert.deepEqual(r.broken, ['snapshots', 'dividends']);
 });

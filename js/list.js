@@ -7,6 +7,7 @@
 //   設定裡打開「詳細卡片」時換回卡片（見 table.js 的 Cards）
 //   每一欄：{ label: [上, 下], keys: [上, 下] } 一到兩個值上下疊；{ date: 欄位 } 寫「月/日」、下面小字寫年
 //     cell(r, v)：自己決定上下兩個值（v(欄位) 是畫好的值）；sort：依哪個欄位排序（預設是第一個值）
+//     value(r)：排序用的值不是欄位、要另外算時（例如庫存快照的損益）
 //     strong：主要的金額（粗體）；tone(r)：'up' 紅、'down' 綠
 //   最左邊固定是證券、下面一行代號（看兩位以上成員時加成員），狀態標籤（待除權息、待發放）、買賣接在代號後面
 function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = () => {} }) {
@@ -56,8 +57,10 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   const statusOf = r => (schema.status ? schema.status(r) : null);
   const isPending = r => !!statusOf(r)?.pending;
   // schema.annotate 的補充說明（例如庫存快照的核對結果）：分組標題下方一段、卡片最下方一行
+  //   sum 是分組的合計（庫存快照這一期的成本、市值、損益），寫在最下面，核對不符時也不用紅字
   const groupNoteHTML = n => (n
-    ? `<p class="group-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}${(n.lines || []).map(l => `<span>${U.esc(Privacy.text(l))}</span>`).join('')}</p>`
+    ? `<p class="group-note${n.warn ? ' warn' : ''}">${U.esc(n.text)}${(n.lines || []).map(l => `<span>${U.esc(Privacy.text(l))}</span>`).join('')}` +
+      `${n.sum ? `<span class="group-sum">${U.esc(n.sum)}</span>` : ''}</p>`
     : '');
   const cardNoteHTML = n => (n ? `<span class="card-note${n.warn ? ' warn' : ''}">${U.esc(Privacy.text(n.text))}</span>` : '');
   const introHTML = schema.intro ? `<p class="list-intro">${U.esc(schema.intro)}</p>` : '';
@@ -142,7 +145,9 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   function cardHTML(r, withMember, extra) {
     const pf = byKey[primary];
     const grid = gridFields.map(f =>
-      `<span class="cell"><small>${cardLabel(f)}</small><span>${show(f, r[f.key])}</span></span>`).join('');
+      `<span class="cell"><small>${cardLabel(f)}</small><span>${show(f, r[f.key])}</span></span>`).join('') +
+      (schema.card.calc || []).map(c =>
+        `<span class="cell${c.tone && c.tone(r) ? ` ${c.tone(r)}` : ''}"><small>${U.esc(c.label)}</small><span>${c.value(r)}</span></span>`).join('');
     // 標籤：有 badge 欄位用欄位的值；沒有時用狀態標籤（例如「待除權息」虛線、「待發放」實心）
     const st = statusOf(r);
     const tag = badge
@@ -193,9 +198,11 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
     const notes = schema.annotate ? schema.annotate(rows) : null;
     // 分組的說明（庫存快照的核對結果）放在表格上面；看好幾期時前面寫日期
     const groups = Object.entries(notes?.groups || {}).sort(([a], [b]) => (a < b ? 1 : -1));
-    const groupNotes = groups.map(([g, n]) =>
-      groupNoteHTML(groups.length > 1 ? { ...n, text: `${U.fmtDate(g)} ${n.text}` } : n)).join('');
-    const byField = state.sort === code ? r => U.toHalf(r[code] ?? '').toUpperCase() : r => r[state.sort];
+    const dated = (g, n) => (n.text ? { ...n, text: `${U.fmtDate(g)} ${n.text}` } : { ...n, sum: `${U.fmtDate(g)} ${n.sum}` });
+    const groupNotes = groups.map(([g, n]) => groupNoteHTML(groups.length > 1 ? dated(g, n) : n)).join('');
+    const valueCol = table.find(c => c.value && sortKey(c) === state.sort);
+    const byField = state.sort === code ? r => U.toHalf(r[code] ?? '').toUpperCase()
+      : valueCol ? valueCol.value : r => r[state.sort];
     // 只看一期庫存快照時，每一列的快照日都一樣，不寫（上面的選單就是那一天）
     const oneDay = schema.period.unit === 'day' && rows.every(r => r[periodKey] === rows[0][periodKey]);
     const shownCols = table.filter(c => !(oneDay && c.date === periodKey));

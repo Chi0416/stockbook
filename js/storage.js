@@ -175,6 +175,21 @@ const Store = (() => {
       changed();
     },
 
+    // 一次改好幾筆（App 自動補的資料，例如庫存快照的收盤價）：changes 是 [{ id, values }]，只存一次、通知一次
+    updateMany(table, changes) {
+      let n = 0;
+      changes.forEach(({ id, values }) => {
+        const i = data[table].findIndex(r => r.id === id);
+        if (i < 0) return;
+        data[table][i] = { ...data[table][i], ...values, id };
+        mark(table, id);
+        n++;
+      });
+      if (!n) return;
+      persist();
+      changed();
+    },
+
     remove(table, id) {
       data[table] = data[table].filter(r => r.id !== id);
       mark(table, id, true);

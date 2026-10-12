@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const { date, rows } = JSON.parse(readFileSync(new URL('../shared/prices.json', import.meta.url), 'utf8'));
+const { date, rows, months } = JSON.parse(readFileSync(new URL('../shared/prices.json', import.meta.url), 'utf8'));
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isKD = v => v === null || (typeof v === 'number' && v >= 0 && v <= 100);
 
@@ -30,4 +30,17 @@ test('每一檔：[收盤價, K, D, 前一天的 K, 前一天的 D]，最近一�
 test('大部分的股票都算得出 KD', () => {
   const all = Object.values(rows);
   assert.ok(all.filter(r => r[1] !== null).length > all.length * 0.95);
+});
+
+test('最近兩個月的月底收盤價（庫存快照用）：{ 日期: { 代號: 收盤價 } }，日期在 date 之前、新的在前', () => {
+  const dates = Object.keys(months);
+  assert.equal(dates.length, 2);
+  assert.ok(dates.every(d => isDate(d) && d < date), dates.join());
+  assert.ok(dates[0] > dates[1] && dates[0].slice(0, 7) !== dates[1].slice(0, 7), dates.join());
+  for (const d of dates) {
+    const list = Object.entries(months[d]);
+    assert.ok(list.length > 2000, `${d} ${list.length} 檔`);
+    assert.ok(list.every(([c, v]) => /^[0-9A-Z]{4,6}$/.test(c) && typeof v === 'number' && v > 0), d);
+    for (const code of ['2330', '0050']) assert.ok(months[d][code], `${d} ${code}`);
+  }
 });

@@ -257,6 +257,7 @@ body:has(dialog[open]) { overflow: hidden; }
 .group-note { margin: -4px 4px 10px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .group-note.warn { color: var(--danger); }
 .group-note span { display: block; margin-top: 2px; }
+.group-note.warn .group-sum { color: var(--muted); }
 
 .card {
   display: block;
@@ -542,8 +543,8 @@ span.th { cursor: default; }
 .detail-card { margin: 0; cursor: default; }
 .detail-card:active { background: var(--surface); }
 .detail-card .card-grid:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-.detail-card .cell.up > span { color: var(--buy); }
-.detail-card .cell.down > span { color: var(--sell); }
+.detail-card .cell.up > span, .card-grid .cell.up > span { color: var(--buy); }
+.detail-card .cell.down > span, .card-grid .cell.down > span { color: var(--sell); }
 /* 配息紀錄：一次一行的表（除權息日｜發放｜現金｜配股｜合計），金額靠右對齊、上下對齊好比較；合計用粗體 */
 .ev-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .ev-table th { padding: 0 0 8px; font-size: 11px; font-weight: 400; color: var(--muted); text-align: left; }

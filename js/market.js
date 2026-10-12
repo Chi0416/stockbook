@@ -14,9 +14,11 @@
 //     第一次下載好、或下載到不一樣的資料時通知 onChange（app.js 重畫總覽和行情）
 //   現價（quote）：連結 Google 時用 GOOGLEFINANCE 抓的（見 sync.js，盤中會跟著變）；
 //     抓不到的（上櫃常常抓不到）、沒連結 Google 的，用最近一次的收盤價
+//   某一天的收盤價（closeOn）：庫存快照的收盤價用，只有最近一個交易日和最近兩個月的月底（months）
 const Market = (() => {
   const FILE = 'shared/prices.json';
   const AGAIN = 30 * 60000;
+  const DAY = 86400000;
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
 
   // 測試時直接放一份全域的 PRICE_LIST，不用下載
@@ -83,6 +85,27 @@ const Market = (() => {
     return m ? { price: m.close, close: m.date } : { price: null, close: '' };
   }
 
+  // 某一天收盤後的價格（庫存快照的收盤價，見 schema.js、app.js 的 fillPrices）：沒有那一天的資料時回傳 null
+  //   有的：最近一個交易日（date），最近兩個月的月底（months）
+  //   快照日期是週末時用前一個交易日的（中間只隔週末才算；隔了平日可能是那天的資料還沒出來，不能用前一天的）
+  //   最近一個交易日沒有成交的（暫停交易、櫃買中心的資料還沒出來）不算，等晚上那次更新
+  function closeOn(code, date) {
+    const iso = U.parseDate(date ?? '');
+    if (!data || !iso) return null;
+    const k = key(code);
+    const near = from => {
+      if (from > iso) return false;
+      for (let t = Date.parse(from) + DAY; t <= Date.parse(iso); t += DAY) {
+        if (![0, 6].includes(new Date(t).getUTCDay())) return false;
+      }
+      return true;
+    };
+    const r = data.rows[k];
+    if (r && !r[5] && near(data.date)) return r[0];
+    const m = Object.entries(data.months || {}).find(([d, rows]) => typeof rows?.[k] === 'number' && near(d));
+    return m ? m[1][k] : null;
+  }
+
   // 今年的日期只寫月/日
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
 
@@ -110,7 +133,7 @@ const Market = (() => {
   }
 
   return {
-    get, quote, priceNote, waiting, load, refresh,
+    get, quote, closeOn, priceNote, waiting, load, refresh,
     // 資料裡的每一檔（行情的「全市場」）
     codes: () => (data ? Object.keys(data.rows) : []),
     date: () => (data ? data.date : ''),

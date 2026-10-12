@@ -13,8 +13,9 @@
 //     3（2026-10-06）：交易明細的應收付金額搬到最後面（交易稅後面），和表單的順序一樣（見 MOVES）
 //     4（2026-10-06）：庫存快照照券商 App 的「綜合損益」改名（交易別→類別、庫存餘額→昨日餘額、總投資成本→付出成本、
 //        平均成本價格→成本均價），成本均價搬到付出成本後面；「累計配息」拿掉了，舊的那一欄留著不動（App 不讀）
+//     5（2026-10-12）：庫存快照加「收盤價」（快照日期的收盤價，App 自動補上），插在 id 欄前面（見 addColumns）
 const Sheet = (() => {
-  const VERSION = 4;
+  const VERSION = 5;
   const ID = 'id';
   const MEMBERS = { title: '成員', sheetId: 1, headers: ['名稱', ID] };
   const META = { title: '_meta', sheetId: 99 };
@@ -256,6 +257,7 @@ const Sheet = (() => {
     lost.forEach(f => problem(ctx, tab, 1, `找不到「${f.label}」欄，請把標題改回「${f.label}」`));
     if (lost.length) ctx.broken.push(t);
     const idCol = idColumn(tab, idx, header, ctx);
+    addColumns(t, tab, at, ctx);
     // 改名前的標題：同步時改成新的（headers 先換掉，寫回資料時才對得上欄位）
     fields.filter(f => at[f.key] && at[f.key].label !== f.label).forEach(f => {
       ctx.headers[tab][at[f.key].col] = f.label;
@@ -294,6 +296,39 @@ const Sheet = (() => {
     return rows;
   }
 
+  // 新版加的欄位（schema 的 since）：試算表沒有這一欄時補上，記在 adds（{ table, tab, col, field }，由 sync.js 插欄、寫標題）
+  //   id 欄在最後面（平常的樣子）時插在 id 欄前面，否則接在最後一欄後面；headers 先插好，寫回資料時才對得上欄位
+  //   不看格式版本：長輩刪掉這一欄也會補回來（App 自動補的收盤價存不進去的話，每次同步都會再補一次）
+  //   id 欄的位置在插欄之前：id 要先寫好（見 sync.js），其他要改的格子（改名的標題、換算的金額、搬欄）都在 id 欄前面，位置不受影響
+  function addColumns(t, tab, at, ctx) {
+    const header = ctx.headers[tab];
+    SCHEMAS[t].fields.filter(f => f.since && !at[f.key]).forEach(f => {
+      const id = header.indexOf(ID);
+      const col = id === header.length - 1 ? id : header.length;
+      header.splice(col, 0, f.label);
+      ctx.adds.push({ table: t, tab, col, field: f });
+    });
+  }
+
+  // 補欄位的 spreadsheets.batchUpdate requests：插一欄（格式跟著左邊那一欄）、寫標題、設數字格式
+  //   同一次的插欄、寫標題一起送出，不會插了欄卻沒有標題（下次又再插一欄）
+  function addColumnRequests(sheetId, { col, field }) {
+    const nf = numberFormat(field);
+    return [
+      { insertDimension: { range: { sheetId, dimension: 'COLUMNS', startIndex: col, endIndex: col + 1 }, inheritFromBefore: col > 0 } },
+      { updateCells: {
+        start: { sheetId, rowIndex: 0, columnIndex: col },
+        rows: [{ values: [{ userEnteredValue: { stringValue: field.label } }] }],
+        fields: 'userEnteredValue',
+      } },
+      ...(nf ? [{ repeatCell: {
+        range: { sheetId, startRowIndex: 1, startColumnIndex: col, endColumnIndex: col + 1 },
+        cell: { userEnteredFormat: { numberFormat: nf } },
+        fields: 'userEnteredFormat.numberFormat',
+      } }] : []),
+    ];
+  }
+
   // 格式升級時要搬的欄，讓試算表的順序和表單一樣（資料依標題對應，搬不搬都讀得到）
   //   版本比 before 舊的試算表：key 那一欄在 after 那幾欄前面時，搬到它們後面；之後長輩自己調的順序不動
   //   每個分頁最多搬一欄（同一次搬兩欄時，第二欄的位置會跑掉）
@@ -323,12 +358,12 @@ const Sheet = (() => {
   //   rowOf[分頁][id] 是那一筆在第幾列；headers[分頁] 是標題列（補上 id 欄之後）
   //   broken 是缺分頁或缺欄位的資料表：讀到的資料不完整，同步時不要拿來取代 App 裡的資料
   //   version 是試算表目前的格式版本；rewrites 是舊格式要改寫的格子 [{ table, tab, row, col, value }]（改名的標題、換算過的金額）
-  //   moves 是舊格式要搬的欄（見 MOVES）
+  //   moves 是舊格式要搬的欄（見 MOVES）；adds 是試算表還沒有、要補上的欄（見 addColumns）
   // knownMembers：「成員」分頁讀不到時改用這份名單（App 裡現有的成員），名字才對得回原本的 id
   function fromValues(byTitle, knownMembers = []) {
     const ctx = {
       members: [], newMembers: [], problems: [], idFixes: [], addIdHeader: [], rowOf: {}, headers: {}, broken: [],
-      version: metaVersion(byTitle[META.title]), rewrites: [], moves: [],
+      version: metaVersion(byTitle[META.title]), rewrites: [], moves: [], adds: [],
     };
     readMembers(byTitle[MEMBERS.title], ctx);
     if (!ctx.members.length && knownMembers.length) {
@@ -339,8 +374,8 @@ const Sheet = (() => {
     TABLES.forEach(t => { data[t] = readTable(t, byTitle[TAB[t].title], ctx); });
     firstMember(ctx);
     data.members = ctx.members;
-    const { problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites, moves } = ctx;
-    return { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites, moves };
+    const { problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites, moves, adds } = ctx;
+    return { data, problems, newMembers, idFixes, addIdHeader, rowOf, headers, broken, version, rewrites, moves, adds };
   }
 
   // 「交易明細第 12 列：成交日期看不懂（2026/13/01）」
@@ -434,6 +469,6 @@ const Sheet = (() => {
     VERSION, ID, MEMBERS, META, PRICES, TAB,
     toSerial, fromSerial, colLetter,
     encodeRow, toValues, fromValues, problemText,
-    createBody, setupRequests, metaValues, priceValues, readRanges,
+    createBody, setupRequests, addColumnRequests, metaValues, priceValues, readRanges,
   };
 })();

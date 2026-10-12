@@ -650,6 +650,23 @@
     window.addEventListener('online', () => Announced.refresh());
   }
 
+  // 庫存快照的收盤價：還沒有、收盤資料裡有快照日期那一天的，自動補上（見 market.js 的 closeOn），之後就是存下來的數字，不會再變
+  //   收盤資料下載好、試算表的資料讀回來時檢查；自己填過的不動
+  //   連結 Google 時，這次打開 App 要先從試算表讀回最新的資料才補（免得用這台裝置舊的那份蓋掉別台改過的）；
+  //   登入過期時不補（修改資料會跳出 Google 登入視窗，不是使用者點的不能跳）
+  function fillPrices() {
+    if (!Market.ready()) return;
+    const st = Sync.state();
+    if (st.linked && (!st.problemsAt || st.needLogin)) return;
+    const changes = Store.list('snapshots', 'all')
+      .filter(r => typeof r.price !== 'number')
+      .map(r => ({ id: r.id, values: { price: Market.closeOn(r.code, r.date) } }))
+      .filter(c => c.values.price !== null);
+    if (!changes.length) return;
+    Store.updateMany('snapshots', changes);
+    lists.snapshots.refresh();
+  }
+
   // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和行情
   //   除權息頁最上面的即將除權息也有「約佔現價幾 %」
   Market.onChange(() => {
@@ -658,6 +675,7 @@
     lists.cash.refresh();
     refreshMarket();
     Detail.refresh();
+    fillPrices();
   });
   Market.load();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Market.refresh(); });
@@ -680,6 +698,7 @@
       renderScopeBar();
       refreshAll();
       Inbox.checkData();
+      fillPrices();
       if (menu.open) {
         renderMembers();
         renderBackupInfo();

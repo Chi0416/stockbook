@@ -1,4 +1,5 @@
 // 產生 shared/prices.json：每一檔最近一個交易日的收盤價和日 KD，行情頁的 KD、抓不到即時現價時的收盤價用（見 js/market.js）
+//   另外存最近兩個月的月底收盤價（months），庫存快照晚幾天才打開 App，也補得到月底那天的收盤價（見 market.js 的 closeOn）
 //   上市：證交所「每日收盤行情」https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX（全部，不含權證、牛熊證）
 //   上櫃：櫃買中心「上櫃股票每日收盤行情」https://www.tpex.org.tw/www/zh-tw/afterTrading/otc（所有證券，不含權證、牛熊證）
 //     不用「上櫃股票行情」（afterTrading/dailyQuotes）：一定連權證一起回來，一天 2 MB 多，從 GitHub 抓要十幾分鐘
@@ -13,6 +14,7 @@ import { kd } from './kd.mjs';
 
 const OUT = new URL('../shared/prices.json', import.meta.url);
 const DAYS = 60;
+const MONTHS = 2; // 存幾個月的月底收盤價
 const DAY = 86400000;
 const UA = { 'User-Agent': 'Mozilla/5.0' };
 const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
@@ -103,6 +105,16 @@ const rows = [...bars.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([code
   if (days[last].date !== latest) row.push(days[last].date); // 最近一天沒有成交（暫停交易、櫃買中心的資料還沒出來）
   return [code, row];
 });
+// ---------- 最近兩個月的月底收盤價：{ 日期: { 代號: 收盤價 } } ----------
+//   月底是每個月最後一個交易日；這個月還沒過完（後面還沒有下個月的交易日）的不算
+//   那天沒有成交的，用那天之前最近一次成交的收盤價；那天之前都沒有成交（還沒上市）的不列
+const monthEnds = counts.map(c => c[0]).filter((d, i, all) => i > 0 && all[i - 1].slice(0, 7) !== d.slice(0, 7)).slice(0, MONTHS);
+const months = monthEnds.map(m => [m, Object.fromEntries([...bars.entries()]
+  .sort(([a], [b]) => (a < b ? -1 : 1))
+  .map(([code, list]) => [code, list.find(b => b.date <= m)?.close])
+  .filter(([, close]) => close !== undefined))]);
+console.log(`月底收盤價：${months.map(([m, r]) => `${m} ${Object.keys(r).length} 檔`).join('、')}`);
+
 for (const code of ['2330', '0050', '00878', '6488', '00679B']) {
   if (!rows.some(([c]) => c === code)) throw new Error(`資料裡沒有 ${code}，可能有問題`);
 }
@@ -117,10 +129,13 @@ if (before && rows.length < before * 0.9) {
 
 mkdirSync(new URL('./', OUT), { recursive: true });
 writeFileSync(OUT, `{
-  "note": "收盤價和日 KD（9、3、3）：證交所每日收盤行情、櫃買中心上櫃股票行情，最近 ${DAYS} 個交易日算出來的。由 tools/update-prices.mjs 產生，GitHub 每個工作天收盤後自動更新，不要手動修改。每一檔：[收盤價, K, D, 前一個交易日的 K, 前一個交易日的 D]，成交不到 9 天的 K、D 是 null；date 那天沒有成交的，最後多一個最近一次成交的日期",
+  "note": "收盤價和日 KD（9、3、3）：證交所每日收盤行情、櫃買中心上櫃股票行情，最近 ${DAYS} 個交易日算出來的。由 tools/update-prices.mjs 產生，GitHub 每個工作天收盤後自動更新，不要手動修改。每一檔：[收盤價, K, D, 前一個交易日的 K, 前一個交易日的 D]，成交不到 9 天的 K、D 是 null；date 那天沒有成交的，最後多一個最近一次成交的日期。months 是最近 ${MONTHS} 個月的月底（每個月最後一個交易日）收盤價",
   "date": "${latest}",
   "rows": {
 ${rows.map(([c, r]) => `    ${JSON.stringify(c)}: ${JSON.stringify(r)}`).join(',\n')}
+  },
+  "months": {
+${months.map(([m, r]) => `    ${JSON.stringify(m)}: ${JSON.stringify(r)}`).join(',\n')}
   }
 }
 `);
