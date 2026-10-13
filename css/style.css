@@ -884,6 +884,8 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .trend-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .trend-line.value { stroke: var(--trend-value); }
 .trend-line.cost { stroke: var(--trend-cost); }
+.trend-line.gap { stroke-dasharray: 4 5; stroke-linecap: butt; } /* 中間隔很久沒記的那一段 */
+.trend-live { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px dashed var(--border-strong); border-radius: 6px; font-size: 11px; line-height: 16px; color: var(--muted); }
 .trend-tick { position: absolute; left: 0; transform: translateY(-100%); padding-bottom: 1px; font-size: 11px; line-height: 1.2; color: var(--muted); pointer-events: none; }
 .trend-mark { position: absolute; inset: 0; pointer-events: none; }
 .trend-cross { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: var(--border-strong); }

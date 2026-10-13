@@ -35,8 +35,9 @@ const sample = () => ({
     { id: 'c1', member: 'm1', code: '0050', name: '元大台灣50', discount: 2.8, rebate: '月退', minFee: 20, oddMinFee: 1 },
   ],
   history: [
-    { id: 'h-m1-2026-09-30', member: 'm1', date: '2026-09-30', value: 1518300, cost: 1367670 },
-    { id: 'h2', member: 'm2', date: '2025-12-31', value: 650000, cost: null }, // 自己補的，只有市值
+    { id: 'h-m1-2026-09-30', member: 'm1', date: '2026-09-30', value: 1518300, cost: 1367670, status: '' },
+    { id: 'h2', member: 'm2', date: '2025-12-31', value: 650000, cost: null, status: '' }, // 自己補的，只有市值
+    { id: 'h3', member: 'm1', date: '2026-10-13', value: 1520000, cost: 1367670, status: '盤中' }, // 盤中先記的
   ],
 });
 
@@ -271,7 +272,20 @@ test('版本 4 的庫存快照：沒有收盤價這一欄時插在 id 欄前面�
   // 已經有收盤價（新版建立的、插過的）：不插
   const v5 = asRead(plain(Sheet.toValues(sample())));
   assert.deepEqual(plain(Sheet.fromValues(v5)).adds, []);
-  assert.deepEqual(plain(Sheet.metaValues()), [['version', 5]]);
+  assert.deepEqual(plain(Sheet.metaValues()), [['version', 6]]);
+});
+
+test('版本 5 的帳戶紀錄：沒有狀態這一欄時插在 id 欄前面，「盤中」寫得進去', () => {
+  const v = withTab('帳戶紀錄', [
+    ['成員', '日期', '市值', '付出成本', 'id'],
+    ['爸爸', Sheet.toSerial('2026-10-13'), 1520000, 1367670, 'h3'],
+  ]);
+  v._meta = [['version', 5]];
+  const r = plain(Sheet.fromValues(v));
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.adds.map(a => [a.tab, a.col, a.field.label]), [['帳戶紀錄', 4, '狀態']]);
+  const row = plain(Sheet.encodeRow('history', { ...r.data.history[0], status: '盤中' }, sample().members, r.headers['帳戶紀錄']));
+  assert.deepEqual(row.slice(2), [1520000, 1367670, '盤中', 'h3']);
 });
 
 test('長輩把 id 欄搬到中間：收盤價接在最後一欄後面，不動其他欄', () => {

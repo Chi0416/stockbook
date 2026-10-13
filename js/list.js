@@ -17,7 +17,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
   const periodKey = schema.period.key;
   const { code, title, badge, primary, note } = schema.card;
   // 成員不放在卡片下方，看兩位以上成員時改成卡片名稱上面的標籤
-  const gridFields = fields.filter(f => f.type !== 'member' && ![periodKey, code, title, badge, primary].includes(f.key));
+  const gridFields = fields.filter(f => f.type !== 'member' && !f.auto && ![periodKey, code, title, badge, primary].includes(f.key));
   // 最左邊一欄（表格）、卡片的標題：[粗體, 下面小字]
   const nameOf = r => (schema.name ? schema.name.cell(r) : [r[title], code ? r[code] ?? '' : '']);
   const nameSort = schema.name ? periodKey : code;

@@ -42,9 +42,10 @@ const Form = (() => {
 
   // perMember 欄位（例如基準日股數）展開成每位成員各一格數字欄位；
   // 儲存時再合併成 { 成員 id: 數字 } 放回原本的 key（group）
+  //   App 自己填的欄位（auto）不顯示
   function expandFields(fields) {
     const members = Store.members();
-    return fields.flatMap(f => (f.type !== 'perMember' ? [f] : members.map((m, j) => ({
+    return fields.filter(f => !f.auto).flatMap(f => (f.type !== 'perMember' ? [f] : members.map((m, j) => ({
       ...f,
       type: 'number',
       key: `${f.key}.${m.id}`,
@@ -612,12 +613,14 @@ const Form = (() => {
   // ---------- 動作 ----------
   function save() {
     combos.forEach(c => { if (c.editing) commitCombo(c); });
-    const { rec, firstBad } = collect();
+    const { rec: filled, firstBad } = collect();
     if (firstBad) {
       firstBad.scrollIntoView({ block: 'center', behavior: 'smooth' });
       firstBad.focus({ preventScroll: true });
       return;
     }
+    // 存之前讓資料表改一下（帳戶紀錄依日期標上「盤中」）
+    const rec = ctx.schema.beforeSave ? ctx.schema.beforeSave(filled) : filled;
     // 已經有了（觀察清單的同一檔股票）：寫在那一格下面，不存
     const dup = duplicateOf(rec);
     if (dup) {

@@ -676,11 +676,14 @@
   }
 
   // 帳戶紀錄：收盤資料裡有收盤價的日子，每位成員記一筆付出成本和市值（見 history.js）；和收盤價一樣的時機、一樣的條件
+  //   盤中先記的，收盤資料有那一天了就換成收盤價
   function recordHistory() {
     if (!canAutoSave()) return;
     const due = History.due();
-    if (!due.length) return;
-    Store.addMany('history', due);
+    const settle = History.settle();
+    if (!due.length && !settle.length) return;
+    if (due.length) Store.addMany('history', due);
+    if (settle.length) Store.updateMany('history', settle);
     lists.history.refresh();
     Trend.refresh();
   }

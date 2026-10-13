@@ -35,6 +35,8 @@
 //                groups 顯示在分組標題下方，cards 顯示在卡片最下方
 //   was:         這個欄位以前在試算表上的標題（改名前），讀得到舊標題的試算表，同步時改成新標題
 //   since:       試算表格式第幾版加的欄位：試算表沒有這一欄時，同步時在 id 欄前面插進去（見 sheet.js 的 addColumns）
+//   auto:        App 自己填的欄位，表單上不顯示（帳戶紀錄的「盤中」，見 beforeSave）
+//   （資料表）beforeSave: 表單儲存前改一下這一筆：beforeSave(rec) 回傳要存的那一筆
 //   （資料表）formTitle: 表單標題用的名稱（「新增觀察的股票」），沒有時用 title
 //   （資料表）noList:    不用一般的列表，畫面另外畫（觀察清單在行情的每一頁，見 market.js）
 //   （資料表）unique:    不能和其他筆重複的欄位（觀察清單的同一檔股票只能加一次），儲存時擋下來
@@ -106,7 +108,7 @@ function snapPlOf(r) {
 }
 
 // 新增帳戶紀錄時先帶入的數字（見 history.js 的 estimate）：values 是表單填的（成員 id、日期）
-const histEstimate = v => (typeof History !== 'undefined' ? History.estimate(v.member, v.date) : { cost: null, value: null });
+const histEstimate = v => (typeof History !== 'undefined' ? History.estimate(v.member, v.date) : { cost: null, value: null, live: false });
 
 // 帳戶紀錄一筆的損益（市值 − 付出成本）；付出成本空白（只補了市值）時是 null
 const histPlOf = r => (typeof r.value === 'number' && typeof r.cost === 'number' ? Math.round(r.value) - Math.round(r.cost) : null);
@@ -428,7 +430,7 @@ const SCHEMAS = {
   history: {
     title: '帳戶紀錄',
     period: { key: 'date', unit: 'month', label: '年月' },
-    intro: '收盤資料更新後打開記錄簿，會用收盤價自動記下每位成員那天的付出成本和市值，走勢圖在「總覽」。以前的可以點右上角自己補，付出成本不知道可以空白。',
+    intro: '收盤資料更新後打開記錄簿，會用收盤價自動記下每位成員那天的付出成本和市值，走勢圖在「總覽」。今天還沒收盤也可以先記，收盤後會自動換成收盤價；以前的可以點右上角自己補，付出成本不知道可以空白。',
     empty: '還沒有帳戶紀錄<br>有持股的話，收盤資料更新後打開記錄簿就會自動記一筆<br>以前的可以點右上角「＋ 新增紀錄」自己補',
     search: '搜尋成員',
     name: {
@@ -445,22 +447,28 @@ const SCHEMAS = {
       { label: ['損益', '報酬率'], sort: 'pl', value: histPlOf, strong: true,
         cell: r => [snapMoney(histPlOf(r)), histRate(r)], tone: histTone },
     ],
+    // 今天還沒收盤時記的：日期後面標「盤中」（虛線），收盤後換成收盤價就拿掉（見 history.js 的 settle）
+    status: r => (r.status === History.LIVE ? { label: '盤中', cls: '', pending: true } : null),
+    // 存檔時依日期標上「盤中」：今天還沒收盤記的才是；改成別的日期就拿掉
+    beforeSave: rec => ({ ...rec, status: History.statusOf(rec.date) }),
     // 同一位成員同一天只能有一筆
     unique: ['date', 'member'],
     uniqueMsg: dup => `${U.fmtDate(dup.date)} 已經有${Store.members().length > 1 ? ` ${Store.memberName(dup.member)} 的` : ''}紀錄了，點那一筆修改就好`,
-    // 選好成員和日期，付出成本、市值先帶入（和總覽的庫存總市值卡片同一種算法，用那天的收盤價）；查不到的自己填
+    // 選好成員和日期，付出成本、市值先帶入（和總覽的庫存總市值卡片同一種算法，用那天的收盤價；今天還沒收盤用現價）；查不到的自己填
     fields: [
       { key: 'member', label: '成員',     type: 'member', keep: true, full: true },
       { key: 'date',   label: '日期',     type: 'date', hint: '自己補的話，填每個月最後一個交易日',
         note(v) {
           if (!v.date || typeof Market === 'undefined' || !Market.ready() || v.date <= Market.date()) return '';
-          return '收盤資料更新後（工作天 15:43、19:43）打開記錄簿會自動記，不用自己新增';
+          if (v.date > U.today()) return '這一天還沒到';
+          return '還沒收盤，先記盤中的數字；收盤資料更新後（工作天 15:43、19:43）打開記錄簿，會自動換成收盤價';
         } },
       { key: 'value',  label: '市值',     type: 'number', calc: v => histEstimate(v).value,
         hint: '有那天的收盤價就自動算好；查不到的照券商的歷史抄',
         note(v) {
-          const c = histEstimate(v).value;
-          if (c !== null) return U.parseNum(v.value ?? '') === c ? `用 ${U.fmtDate(v.date)} 的收盤價算的，和總覽的庫存總市值同一種算法` : '';
+          const { value: c, live } = histEstimate(v);
+          if (c !== null && U.parseNum(v.value ?? '') !== c) return '';
+          if (c !== null) return live ? '用現在的價格算的，和總覽的庫存總市值一樣' : `用 ${U.fmtDate(v.date)} 的收盤價算的，和總覽的庫存總市值同一種算法`;
           return v.member && v.date && typeof Market !== 'undefined' && Market.ready() && v.date < Market.date()
             ? '查不到這一天的收盤價，照券商的歷史抄' : '';
         } },
@@ -473,6 +481,8 @@ const SCHEMAS = {
           const start = v.member && typeof History !== 'undefined' ? History.startOf(v.member) : null;
           return start && v.date && v.date < start ? `${U.fmtDate(start)} 第一期庫存快照之前推算不出來` : '';
         } },
+      // 「盤中」：今天還沒收盤記的，收盤後自動換成收盤價就清掉；App 自己填（表單上沒有），試算表上看得到
+      { key: 'status', label: '狀態',     type: 'text', optional: true, auto: true, since: 6 },
     ],
   },
 };

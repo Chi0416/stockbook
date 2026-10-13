@@ -268,7 +268,7 @@ test('連結：雲端沒有試算表時建立一份，寫入這台裝置的資�
   assert.deepEqual(fake.files[id].appProperties, { stockbook: '1' });
   assert.deepEqual(fake.values(id, '庫存快照')[1].slice(0, 5), ['我', d.Sheet.toSerial('2026-08-31'), '現股', '0056', '元大高股息']);
   assert.deepEqual(fake.values(id, '成員'), [['名稱', 'id'], ['我', 'me']]);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 5]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 6]]);
 });
 
 test('新增、修改、刪除都寫回試算表的同一列', async () => {
@@ -312,7 +312,7 @@ test('舊格式的試算表（版本 1）：同步一次改好標題、成交金
     ['我', d.Sheet.toSerial('2026-10-05'), '普賣', '2501', '國建', 6000, 20.4, 174, 367, 121859, 's1'],
   ];
   assert.deepEqual(fake.values(id, '交易明細'), expected);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 5]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 6]]);
   assert.deepEqual(plain(d.Store.list('trades', 'all')).map(t => [t.id, t.settle, 'amount' in t]), [['b1', 163933, false], ['s1', 121859, false]]);
 
   await d.Sync.syncNow();
@@ -336,7 +336,7 @@ test('版本 2 的試算表：應收付金額搬到交易稅後面；同一次�
     ['我', d.Sheet.toSerial('2026-08-03'), '普買', '00878', '國泰永續高股息', 5000, 32.74, 233, 0, 163933, 'b1'],
     ['我', d.Sheet.toSerial('2026-09-01'), '普買', '0050', '元大台灣50', 1000, 96.5, 137, 0, 96637, t.id],
   ]);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 5]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 6]]);
   assert.deepEqual(plain(d.Store.list('trades', 'all')).map(x => x.settle).sort(), [163933, 96637].sort());
 });
 
@@ -352,7 +352,7 @@ test('版本 4 的試算表：庫存快照補上收盤價這一欄（插在 id �
   assert.equal(d.Sync.state().error, '');
   assert.deepEqual(plain(d.Sync.state().problems), []);
   assert.deepEqual(fake.values(id, '庫存快照'), [[...head, '收盤價', 'id'], [...cells, '', s.id]]);
-  assert.deepEqual(fake.values(id, '_meta'), [['version', 5]]);
+  assert.deepEqual(fake.values(id, '_meta'), [['version', 6]]);
   assert.equal(d.Store.list('snapshots', 'all')[0].price, null);
 
   // App 補上收盤價（見 app.js 的 fillPrices）：寫進收盤價那一欄，id 不動

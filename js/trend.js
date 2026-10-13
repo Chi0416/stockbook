@@ -6,6 +6,8 @@
 //     紀錄不多時（POINTS 筆以內）每一筆畫一個小點、下面寫日期，看得出來有哪幾天；多的時候只寫頭尾的日期
 //   讀數：平常是最近一天，手指（滑鼠）在圖上移動時換成最近的那一天；鍵盤左右鍵也可以換
 //   只補了市值的日子（付出成本空白）付出成本那條線斷開
+//   兩筆之間隔了 GAP 天以上（中間沒記）：那一段畫虛線，看得出來中間有空檔（月底到月底一個月左右，照樣是實線）
+//   盤中先記、還沒換成收盤價的那天，讀數的日期後面寫「盤中」
 //   隱藏金額時數字都是 ***，線照畫（看不出金額）
 //   最下面連到「記帳 → 帳戶紀錄」，每一天的數字在那裡
 const Trend = (() => {
@@ -14,6 +16,8 @@ const Trend = (() => {
   const H = 400;
   const RANGES = [['1m', '1 個月', 1], ['3m', '3 個月', 3], ['1y', '1 年', 12], ['all', '全部', 0]];
   const POINTS = 7;
+  const GAP = 40;
+  const days = (a, b) => (Date.parse(b) - Date.parse(a)) / 86400000;
   let range = 'all';
   let points = []; // 目前畫的資料 [{ date, cost, value, x, yv, yc }]，移動時用
   let hooks = { showHistory() {} };
@@ -49,7 +53,7 @@ const Trend = (() => {
     const pl = p.cost === null ? null : Math.round(p.value) - Math.round(p.cost);
     const tone = Privacy.hidden || !pl ? '' : pl > 0 ? 'up' : 'down';
     const rate = pl !== null && p.cost > 0 ? `（${Privacy.num(`${U.fmtNum(U.round(pl / p.cost * 100, 2), 2)}%`)}）` : '';
-    return `<span class="trend-date">${p.date.slice(0, 4)}/${md(p.date)}</span>` +
+    return `<span class="trend-date">${p.date.slice(0, 4)}/${md(p.date)}${p.live ? '<span class="trend-live">盤中</span>' : ''}</span>` +
       `<span class="trend-item"><i class="key value"></i>市值 <strong>${money(p.value)}</strong></span>` +
       `<span class="trend-item"><i class="key cost"></i>付出成本 <strong>${money(p.cost)}</strong></span>` +
       `<span class="trend-item pl">損益 <strong class="${tone}">${money(pl)}${rate}</strong></span>`; // 沒有付出成本時寫 —
@@ -63,11 +67,11 @@ const Trend = (() => {
       `<span class="trend-dot value" style="left:${pct(p.x, W)};top:${pct(p.yv, H)}"></span>`;
   }
 
-  // 一條線：沒有值的地方斷開
-  const path = key => points.reduce((d, p, i) => {
-    if (p[key] === null) return d;
-    const prev = i > 0 && points[i - 1][key] !== null;
-    return `${d}${prev ? 'L' : 'M'}${U.round(p.x, 1)} ${U.round(p[key], 1)}`;
+  // 一條線：沒有值的地方斷開；隔了 GAP 天以上的那一段放進虛線（dashed 為 true 時只畫這些段）
+  const path = (key, dashed = false) => points.reduce((d, p, i) => {
+    const q = points[i - 1];
+    if (!q || p[key] === null || q[key] === null || (days(q.date, p.date) >= GAP) !== dashed) return d;
+    return `${d}M${U.round(q.x, 1)} ${U.round(q[key], 1)}L${U.round(p.x, 1)} ${U.round(p[key], 1)}`;
   }, '');
 
   function chartHTML(series) {
@@ -97,7 +101,9 @@ const Trend = (() => {
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
           ${grid.map(v => `<line class="trend-grid" x1="0" x2="${W}" y1="${U.round(y(v), 1)}" y2="${U.round(y(v), 1)}" vector-effect="non-scaling-stroke"/>`).join('')}
           <path class="trend-line cost" d="${path('yc')}" vector-effect="non-scaling-stroke"/>
+          <path class="trend-line cost gap" d="${path('yc', true)}" vector-effect="non-scaling-stroke"/>
           <path class="trend-line value" d="${path('yv')}" vector-effect="non-scaling-stroke"/>
+          <path class="trend-line value gap" d="${path('yv', true)}" vector-effect="non-scaling-stroke"/>
         </svg>
         ${grid.map(v => `<span class="trend-tick" style="top:${U.round(y(v) / H * 100, 3)}%">${tickText(v)}</span>`).join('')}
         ${dots}
