@@ -949,10 +949,10 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 @media (hover: hover) {
   .card.static:hover { border-color: var(--border); box-shadow: var(--shadow); }
 }
-/* 寬螢幕：主角一列，其餘三格並排 */
+/* 寬螢幕：主角一列，其餘三格並排；即將除權息內容多，和主角一樣佔滿一列 */
 @media (min-width: 960px) {
   .kpis { grid-template-columns: repeat(3, 1fr); }
-  .kpi.wide:not(.hero) { grid-column: auto; }
+  .kpi.wide:not(.hero):not(.upcoming) { grid-column: auto; }
 }
 
 /* 分頁有 5 個時，手機上「累積現金股利」不要折成兩行 */
