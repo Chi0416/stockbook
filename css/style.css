@@ -890,7 +890,15 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .trend-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
 .trend-dot.value { background: var(--trend-value); }
 .trend-dot.cost { background: var(--trend-cost); }
-.trend-axis { display: flex; justify-content: space-between; margin: 4px 0 8px; font-size: 11px; color: var(--muted); }
+/* 每一筆的小點（紀錄不多時，見 trend.js）：比目前那一天的點小一號 */
+.trend-pt { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.trend-pt.value { background: var(--trend-value); }
+.trend-pt.cost { background: var(--trend-cost); }
+/* 日期：寫在點的正下方，頭尾靠邊 */
+.trend-axis { position: relative; height: 16px; margin: 4px 0 8px; font-size: 11px; line-height: 16px; color: var(--muted); }
+.trend-axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.trend-axis span.first { transform: none; }
+.trend-axis span.last { transform: translateX(-100%); }
 
 /* 總覽卡片最下面的「看全部」：切到股利 → 除權息 */
 .up-all { display: block; margin: 8px 0 2px; font-size: 13px; }
