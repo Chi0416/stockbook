@@ -1,4 +1,4 @@
-// 收盤價和日 KD（shared/prices.json，由 tools/update-prices.mjs 產生）的格式：node --test tests/*.test.mjs
+// 收盤價和日 KD（shared/prices.json）、K 線（shared/candles.json），都由 tools/update-prices.mjs 產生，的格式：node --test tests/*.test.mjs
 //   GitHub 每天自動更新時也會先跑這個，格式不對就不存（見 .github/workflows/update-prices.yml）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,4 +44,32 @@ test('最近兩個月的月底收盤價（庫存快照用）：{ 日期: { 代�
     assert.ok(list.every(([c, v]) => /^[0-9A-Z]{4,6}$/.test(c) && typeof v === 'number' && v > 0), d);
     for (const code of ['2330', '0050']) assert.ok(months[d][code], `${d} ${code}`);
   }
+});
+
+test('K 線（月線扣抵用）：days 新的在前；每一檔照 days 的順序，最近 20 個有成交的是 [開, 高, 低, 收]，再往前 19 個只有收盤價', () => {
+  const k = JSON.parse(readFileSync(new URL('../shared/candles.json', import.meta.url), 'utf8'));
+  assert.equal(k.date, date);
+  assert.equal(k.days.length, 60);
+  assert.equal(k.days[0], date);
+  assert.ok(k.days.every((d, i) => isDate(d) && (i === 0 || d < k.days[i - 1])), k.days.join());
+  const list = Object.entries(k.rows);
+  assert.ok(list.length > 2000, `${list.length} 檔`);
+  const ok = v => typeof v === 'number' && v > 0;
+  for (const [code, r] of list) {
+    assert.match(code, /^[0-9A-Z]{4,6}$/, code);
+    assert.ok(r.length > 0 && r.length <= k.days.length, code);
+    assert.notEqual(r[r.length - 1], null, code);
+    const traded = r.filter(v => v !== null);
+    assert.ok(traded.length <= 39, code); // 湊滿就停
+    traded.forEach((v, i) => {
+      if (i < 20) {
+        assert.ok(Array.isArray(v) && v.length === 4 && v.every(ok), `${code} 第 ${i + 1} 天`);
+        assert.ok(v[1] >= Math.max(v[0], v[3]) && v[2] <= Math.min(v[0], v[3]), `${code} 第 ${i + 1} 天：最高、最低不對`);
+      } else assert.ok(ok(v), `${code} 第 ${i + 1} 天`);
+    });
+  }
+  // 最近一天有成交的，收盤價和 prices.json 一樣
+  for (const code of ['2330', '0050']) assert.equal(k.rows[code][0][3], rows[code][0], code);
+  // 大部分的股票都算得出月線（20 天有成交）
+  assert.ok(list.filter(([, r]) => r.filter(v => v !== null).length >= 20).length > list.length * 0.95);
 });

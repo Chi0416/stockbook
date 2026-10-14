@@ -26,6 +26,7 @@
   --star: #c48a12; /* 星星（見 stars.js） */
   --trend-value: #c96442; /* 帳戶走勢的兩條線（見 trend.js）：市值、付出成本，淺色、深色都驗過色盲分得出來 */
   --trend-cost: #2a78d6;
+  --ma-line: #2a78d6; /* K 線圖的月線（見 ma.js）：藍色，和紅綠的 K 棒分得開 */
   /* 統計長條：已入帳、待入帳（淡一階，對白底還有 2:1 的對比） */
   --bar: #c96442;
   --bar-pend: #df9c83;
@@ -66,6 +67,7 @@
     --star: #e8b54a;
     --trend-value: #d4714f;
     --trend-cost: #3987e5;
+    --ma-line: #3987e5;
     --bar: #d97757;
     --bar-pend: #8f5a47;
     --shadow: 0 1px 2px rgba(0, 0, 0, .2);
@@ -549,6 +551,70 @@ span.th { cursor: default; }
 .detail-card .card-grid:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .detail-card .cell.up > span, .card-grid .cell.up > span { color: var(--buy); }
 .detail-card .cell.down > span, .card-grid .cell.down > span { color: var(--sell); }
+/* 月線扣抵（見 detail.js 的 maHTML）：最上面一行「今天的價格」和輸入框；字 16px，iPhone 點了才不會自動放大 */
+.ma-price { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--text-2); }
+.ma-price input {
+  width: 128px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.ma-price input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+/* 結果和輸入框之間照樣一條分隔線（.detail-card 的第一排本來不畫） */
+.ma-card .ma-out > .card-grid:first-child { margin-top: 12px; padding-top: 12px; border-top: .5px solid var(--border); }
+.ma-card .cell.strong > span { color: var(--text); font-weight: 600; }
+.ma-card .cell.strong.up > span { color: var(--buy); }
+.ma-card .cell.strong.down > span { color: var(--sell); }
+/* K 線圖（見 ma.js 的 chartHTML）：K 棒收盤比開盤高紅、低綠、一樣灰；月線藍色實線，假設的那一段虛線
+   要扣的 6 根後面淺色底、上面寫「扣抵」；最後一根右邊一條點線，右邊是假設的（輸入的價格一個點，價格不變淡淡的點線） */
+.kc { margin-top: 12px; padding-top: 10px; border-top: .5px solid var(--border); }
+/* 讀數（點哪一根看哪一天）：固定一行高，換日期時圖不會跳 */
+.kc-read { display: flex; gap: 0 10px; height: 18px; margin-bottom: 2px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.kc-read b { font-weight: 600; color: var(--text); }
+.kc-read b.up { color: var(--buy); }
+.kc-read b.down { color: var(--sell); }
+.kc-read .kc-date { color: var(--text-2); }
+.kc-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); }
+.kc-key { display: inline-block; width: 14px; height: 0; margin-right: 4px; vertical-align: 4px; border-top: 2px solid var(--ma-line); }
+.kc-key.dash { border-top-style: dashed; }
+.kc-plot { position: relative; height: 180px; margin-top: 8px; touch-action: pan-y; cursor: crosshair; outline: none; }
+.kc-plot:focus-visible { box-shadow: 0 0 0 2px var(--accent-ring); border-radius: 4px; }
+.kc-mark { position: absolute; inset: 0; pointer-events: none; }
+.kc-cross { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: var(--border-strong); }
+.kc-mdot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--ma-line); box-shadow: 0 0 0 2px var(--surface); }
+.kc-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.kc-grid { stroke: var(--border); stroke-width: 1; }
+.kc-band { fill: var(--chip-bg); }
+.kc-now { stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.kc-wick { stroke-width: 1; }
+.kc-wick.up { stroke: var(--buy); }
+.kc-wick.down { stroke: var(--sell); }
+.kc-wick.flat { stroke: var(--muted); }
+.kc-body.up { fill: var(--buy); }
+.kc-body.down { fill: var(--sell); }
+.kc-body.flat { fill: var(--muted); }
+.kc-ma { fill: none; stroke: var(--ma-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.kc-ma.dash { stroke-dasharray: 5 4; stroke-linecap: butt; }
+.kc-level { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.kc-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+/* 格線的數字：K 棒會畫到左邊，數字墊一層底色才看得清楚 */
+.kc-tick { position: absolute; left: 0; transform: translateY(-100%); margin-top: -1px; padding: 0 3px 0 0; border-radius: 3px; background: var(--surface); font-size: 11px; line-height: 1.2; color: var(--muted); pointer-events: none; }
+.kc-band-label { position: absolute; top: 2px; font-size: 11px; color: var(--muted); text-align: center; pointer-events: none; }
+.kc-axis { position: relative; height: 16px; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.kc-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.kc-axis .first { transform: none; }
+.kc-axis .last { right: 0; transform: none; }
+/* 接下來 5 天的扣抵值：固定五格，和近 5 年的 EPS 一樣小一號 */
+.card-grid.ma-next { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 10px; padding-top: 10px; }
+.ma-next .cell > span { font-size: 13px; }
 /* 配息紀錄：一次一行的表（除權息日｜發放｜現金｜配股｜合計），金額靠右對齊、上下對齊好比較；合計用粗體 */
 .ev-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .ev-table th { padding: 0 0 8px; font-size: 11px; font-weight: 400; color: var(--muted); text-align: left; }

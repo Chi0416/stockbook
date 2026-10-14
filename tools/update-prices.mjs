@@ -1,21 +1,26 @@
 // 產生 shared/prices.json：每一檔最近一個交易日的收盤價和日 KD，行情頁的 KD、抓不到即時現價時的收盤價用（見 js/market.js）
 //   另外存最近兩個月的月底收盤價（months），庫存快照晚幾天才打開 App，也補得到月底那天的收盤價（見 market.js 的 closeOn）
+// 同時產生 shared/candles.json：每一檔最近 20 天的 K 線（開高低收）和算月線要的收盤價，詳細頁的月線扣抵用（見 js/candles.js、js/ma.js）
+//   比較大（約 1 MB），所以另外一個檔案，打開詳細頁才下載；總覽、行情列表只用 prices.json
 //   complete：上市、上櫃都有最近一個交易日的資料（下午那次櫃買中心的常常還沒出來）；完整時，那天沒有成交的（暫停交易）收盤價也算數
 //   上市：證交所「每日收盤行情」https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX（全部，不含權證、牛熊證）
 //   上櫃：櫃買中心「上櫃股票每日收盤行情」https://www.tpex.org.tw/www/zh-tw/afterTrading/otc（所有證券，不含權證、牛熊證）
 //     不用「上櫃股票行情」（afterTrading/dailyQuotes）：一定連權證一起回來，一天 2 MB 多，從 GitHub 抓要十幾分鐘
-//   一次抓一天的全市場，從今天往回抓到湊滿 60 個交易日，每次都從頭算 KD（算法見 kd.mjs）
+//   一次抓一天的全市場，從今天往回抓到湊滿 60 個交易日，每次都從頭算 KD（算法見 kd.mjs）、K 線也每次重寫
 //     不用記上一次的結果：哪天沒更新到，下一次會自己補回來
 //     KD 一天接一天算，第一天要假設前一天是 50；算了 50 天以上，和券商從上市第一天算起的已經一樣
-//   GitHub 每個工作天收盤後自動執行，有變才存進 repo（見 .github/workflows/update-prices.yml）；App 打開時自己下載，不用改版本號
+//   GitHub 每個工作天收盤後自動執行，有變才存進 repo（見 .github/workflows/update-prices.yml）；App 用到時自己下載，不用改版本號
 //     要馬上更新：GitHub 的 Actions →「更新收盤價和 KD」→ Run workflow（或 gh workflow run update-prices.yml）
-//     本機也可以執行（node tools/update-prices.mjs，大約 4 分鐘），但不要自己推這個檔案，免得和 GitHub 推的衝突
+//     本機也可以執行（node tools/update-prices.mjs，大約 4 分鐘），但不要自己推這兩個檔案，免得和 GitHub 推的衝突
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { kd } from './kd.mjs';
 
 const OUT = new URL('../shared/prices.json', import.meta.url);
+const CANDLE_OUT = new URL('../shared/candles.json', import.meta.url);
 const DAYS = 60;
 const MONTHS = 2; // 存幾個月的月底收盤價
+const CANDLES = 20; // K 線畫幾天（一個月線的長度：最左邊那根就是接下來要扣的）
+const MA = 20;      // 月線幾天：最早那根 K 棒的月線要再往前 19 天的收盤價
 const DAY = 86400000;
 const UA = { 'User-Agent': 'Mozilla/5.0' };
 const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
@@ -45,15 +50,15 @@ function columns(fields, names, label) {
   return at;
 }
 
-// 一天的資料：[{ code, high, low, close }]；休市、資料還沒出來時回傳 null
+// 一天的資料：[{ code, open, high, low, close }]；休市、資料還沒出來時回傳 null
 async function twse(date) {
   const label = `證交所 ${date}`;
   const j = await getJSON(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=${date.replace(/-/g, '')}&type=ALLBUT0999&response=json`, label);
   if (j.stat !== 'OK') return null; // 「很抱歉，沒有符合條件的資料!」
   const t = (j.tables || []).find(x => /每日收盤行情/.test(x.title || ''));
   if (!t) throw new Error(`${label}：找不到每日收盤行情，網站格式可能改了`);
-  const [c, h, l, p] = columns(t.fields, ['證券代號', '最高價', '最低價', '收盤價'], label);
-  return t.data.map(r => ({ code: String(r[c]).trim().toUpperCase(), high: num(r[h]), low: num(r[l]), close: num(r[p]) }));
+  const [c, o, h, l, p] = columns(t.fields, ['證券代號', '開盤價', '最高價', '最低價', '收盤價'], label);
+  return t.data.map(r => ({ code: String(r[c]).trim().toUpperCase(), open: num(r[o]), high: num(r[h]), low: num(r[l]), close: num(r[p]) }));
 }
 
 // type=EW：不含權證、牛熊證；萬一又混進來，7 開頭的六碼（例如 710001、71234P）也不收
@@ -63,9 +68,9 @@ async function tpex(date) {
   const t = (j.tables || [])[0];
   if (!t || !Array.isArray(t.data)) throw new Error(`${label}：找不到上櫃股票每日收盤行情，網站格式可能改了`);
   if (!t.data.length) return null; // 休市、資料還沒出來：0 筆
-  const [c, h, l, p] = columns(t.fields, ['代號', '最高', '最低', '收盤'], label);
+  const [c, o, h, l, p] = columns(t.fields, ['代號', '開盤', '最高', '最低', '收盤'], label);
   return t.data
-    .map(r => ({ code: String(r[c]).trim().toUpperCase(), high: num(r[h]), low: num(r[l]), close: num(r[p]) }))
+    .map(r => ({ code: String(r[c]).trim().toUpperCase(), open: num(r[o]), high: num(r[h]), low: num(r[l]), close: num(r[p]) }))
     .filter(r => !/^7\d{4}[0-9A-Z]$/.test(r.code));
 }
 
@@ -82,7 +87,7 @@ for (let t = Date.parse(today), n = 0; counts.length < DAYS; t -= DAY) {
   const day = [...(a || []), ...(b || [])].filter(r => r.code && r.close !== null && r.high !== null && r.low !== null);
   day.forEach(r => {
     if (!bars.has(r.code)) bars.set(r.code, []);
-    bars.get(r.code).push({ date, high: r.high, low: r.low, close: r.close });
+    bars.get(r.code).push({ date, open: r.open ?? r.close, high: r.high, low: r.low, close: r.close });
   });
   counts.push([date, a ? a.length : 0, b ? b.length : 0]);
 }
@@ -116,6 +121,22 @@ const months = monthEnds.map(m => [m, Object.fromEntries([...bars.entries()]
   .map(([code, list]) => [code, list.find(b => b.date <= m)?.close])
   .filter(([, close]) => close !== undefined))]);
 console.log(`月底收盤價：${months.map(([m, r]) => `${m} ${Object.keys(r).length} 檔`).join('、')}`);
+// ---------- K 線：days 是抓到的每個交易日（新的在前），每一檔照 days 的順序，那天沒有成交是 null ----------
+//   最近 20 個有成交的日子寫 [開, 高, 低, 收]，再往前 19 個只寫收盤價（最早那幾根 K 棒的月線要用，圖上不畫）；湊滿就停
+//   中間有幾天沒成交的往前多找幾天（多幾個 null）；最後面一連串的 null（那時還沒上市）不寫
+const days = counts.map(c => c[0]);
+const candles = [...bars.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([code, list]) => {
+  const on = new Map(list.map(b => [b.date, b]));
+  const row = [];
+  for (let i = 0, n = 0; i < days.length && n < CANDLES + MA - 1; i++) {
+    const b = on.get(days[i]);
+    row.push(!b ? null : n < CANDLES ? [b.open, b.high, b.low, b.close] : b.close);
+    if (b) n++;
+  }
+  while (row.length && row[row.length - 1] === null) row.pop();
+  return [code, row];
+}).filter(([, row]) => row.length);
+console.log(`K 線：${candles.length} 檔`);
 
 for (const code of ['2330', '0050', '00878', '6488', '00679B']) {
   if (!rows.some(([c]) => c === code)) throw new Error(`資料裡沒有 ${code}，可能有問題`);
@@ -143,3 +164,14 @@ ${months.map(([m, r]) => `    ${JSON.stringify(m)}: ${JSON.stringify(r)}`).join(
 }
 `);
 console.log(`共 ${rows.length} 檔，已寫入 shared/prices.json`);
+
+writeFileSync(CANDLE_OUT, `{
+  "note": "K 線（開盤、最高、最低、收盤）：和 prices.json 同一份證交所、櫃買中心的每日收盤行情，由 tools/update-prices.mjs 產生，不要手動修改。days 是這 ${DAYS} 個交易日（新的在前）；rows 每一檔照 days 的順序：最近 ${CANDLES} 個有成交的日子是 [開, 高, 低, 收]，再往前 ${MA - 1} 個只有收盤價（算最早那幾根的 ${MA} 日均線），沒有成交是 null，湊滿就不再往前",
+  "date": "${latest}",
+  "days": ${JSON.stringify(days)},
+  "rows": {
+${candles.map(([c, r]) => `    ${JSON.stringify(c)}: ${JSON.stringify(r)}`).join(',\n')}
+  }
+}
+`);
+console.log(`K 線 ${candles.length} 檔，已寫入 shared/candles.json`);
