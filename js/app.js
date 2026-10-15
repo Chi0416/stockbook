@@ -19,7 +19,7 @@
 
   // ---------- 列表與表單 ----------
   // 持股總覽、資料表與推算頁面都有列表；推算頁面點卡片時開啟來源資料表的編輯表單
-  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, cash: CASH_PAGE, yield: YIELD_PAGE, kd: KD_PAGE, eps: EPS_PAGE, kline: KLINE_PAGE, stars: STARS_PAGE };
+  const PAGES = { overview: OVERVIEW, ...SCHEMAS, ...VIEWS, cash: CASH_PAGE, yield: YIELD_PAGE, kd: KD_PAGE, eps: EPS_PAGE, kline: KLINE_PAGE, etfs: ETF_PAGE, stars: STARS_PAGE };
   const lists = {};
   let current = 'overview';
 
@@ -37,14 +37,15 @@
 
   // 行情：每個指標一頁，加上把星星加起來的★ 星星；點卡片打開那一檔的詳細頁（見 market.js、detail.js）
   //   K 線頁點一列打開大圖（見 kline.js），上一檔、下一檔照列表的順序
-  const MARKET = ['yield', 'kd', 'eps', 'kline', 'stars'];
+  const MARKET = ['yield', 'kd', 'eps', 'kline', 'etfs', 'stars'];
   const openStock = code => Detail.open(code);
   lists.yield = createMarket(YIELD_PAGE, { openStock });
   lists.kd = createMarket(KD_PAGE, { openStock });
   lists.eps = createMarket(EPS_PAGE, { openStock });
   lists.kline = createMarket(KLINE_PAGE, { openStock: code => KLine.open(code, lists.kline.codes()) });
+  lists.etfs = createMarket(ETF_PAGE, { openStock }); // 被幾檔 ETF 持有（見 etf.js）
   lists.stars = createMarket(STARS_PAGE, { openStock });
-  $('panels').append(lists.yield.el, lists.kd.el, lists.eps.el, lists.kline.el, lists.stars.el);
+  $('panels').append(lists.yield.el, lists.kd.el, lists.eps.el, lists.kline.el, lists.etfs.el, lists.stars.el);
   const refreshMarket = () => MARKET.forEach(k => lists[k].refresh());
 
   // 新增、修改、刪除之後（表單、詳細頁的加入觀察清單）：相關的頁面重畫
@@ -78,7 +79,7 @@
   Form.init({ toast, onChanged });
   Detail.init({ toast, onChanged });
   KLine.init();
-  // ETF 成分股（見 etf.js）：第一次切到行情的「成分股」才下載，下載好了行情每一頁重畫
+  // ETF 成分股（見 etf.js）：第一次切到行情的「成分股」、ETF 頁才下載，下載好了行情每一頁重畫
   Etf.onChange(refreshMarket);
   // K 線資料（見 candles.js）：打開 K 線頁、詳細頁、大圖時才下載，下載好了重畫用到的地方
   Candles.onChange(() => {
@@ -95,7 +96,7 @@
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照'], ['history', '帳戶紀錄']] },
     { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
-    { key: 'market', label: '行情', remember: true, pages: [['yield', '殖利率'], ['kd', 'KD'], ['kline', 'K 線'], ['eps', 'EPS'], ['stars', '★ 星星']] },
+    { key: 'market', label: '行情', remember: true, pages: [['yield', '殖利率'], ['kd', 'KD'], ['kline', 'K 線'], ['eps', 'EPS'], ['etfs', 'ETF'], ['stars', '★ 星星']] },
   ];
   let lastPages = {};
   try { lastPages = JSON.parse(localStorage.getItem(PAGES_KEY)) || {}; } catch (_) {}
@@ -106,7 +107,7 @@
   const ADD = {
     trades: ['trades', '交易'], snapshots: ['snapshots', '快照'], history: ['history', '紀錄'],
     cashDividends: ['dividends', '除權息'], dividends: ['dividends', '除權息'],
-    yield: ['watch', '觀察'], kd: ['watch', '觀察'], eps: ['watch', '觀察'], kline: ['watch', '觀察'], stars: ['watch', '觀察'],
+    yield: ['watch', '觀察'], kd: ['watch', '觀察'], eps: ['watch', '觀察'], kline: ['watch', '觀察'], etfs: ['watch', '觀察'], stars: ['watch', '觀察'],
   };
   const tabBtns = [...document.querySelectorAll('.tabbar [data-tab]')];
   const subtabsEl = $('subtabs');
@@ -151,6 +152,7 @@
     tabBtns.forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === group.key)));
     Object.entries(lists).forEach(([k, l]) => { l.el.hidden = k !== key; });
     if (key === 'kline') Candles.need(); // K 線資料用到時才下載
+    if (key === 'etfs') Etf.need(); // ETF 成分股也是
     try {
       localStorage.setItem(TAB_KEY, key);
       localStorage.setItem(PAGES_KEY, JSON.stringify(lastPages));

@@ -179,14 +179,19 @@ body:has(dialog[open]) { overflow: hidden; }
 /* 底線樣式：選中的那一頁深色粗字加橘色底線；和頁面裡「明細｜統計」的膠囊切換看得出是不同層 */
 .subtabs {
   display: flex;
-  gap: 28px;
+  gap: clamp(14px, 5vw, 28px); /* 行情有 6 頁：手機上縮小間距才放得下，再窄就左右滑 */
+  overflow-x: auto;
+  scrollbar-width: none;
   margin: 6px 0 0;
   border-bottom: .5px solid var(--border);
 }
+.subtabs::-webkit-scrollbar { display: none; }
 .subtabs button {
   position: relative;
+  flex-shrink: 0;
   height: 44px;
   padding: 0 2px;
+  white-space: nowrap;
   border: 0;
   background: none;
   color: var(--muted);
@@ -491,6 +496,11 @@ span.th { cursor: default; }
 }
 .etf-pick:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .etf-src { margin: 6px 4px 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+/* ETF 頁（見 etf.js 的 ETF_PAGE）：哪幾檔 ETF 持有，一個一個小框，太多就換行 */
+.etf-by-cell { text-align: left; white-space: normal; }
+.etf-by { display: flex; flex-wrap: wrap; gap: 3px; max-width: 132px; }
+.etf-by span { padding: 1px 5px; border-radius: 5px; background: var(--chip-bg); font-size: 12px; line-height: 1.5; color: var(--text-2); }
+.etf-by-cell small { font-size: 13px; color: var(--muted); }
 .etf-w { margin-left: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .card-tags .etf-w { margin-left: 0; align-self: center; }
 

@@ -10,13 +10,13 @@
   <!-- 給家人看的步驟；字比較大，也可以直接列印
        分成四個大區：開始使用（只做一次）、平常怎麼用、各頁怎麼看（照畫面下方的四格）、其他
        段落編號連續（1–11），小卡編號是「段落-第幾張」；改了段落順序，目錄、開頭的四格和文中的「見『…』」都要跟著改 -->
-  <link rel="stylesheet" href="css/page.css?v=2026.10.15.8">
+  <link rel="stylesheet" href="css/page.css?v=2026.10.15.10">
 </head>
 <body>
 <main>
   <a class="back" href="./">‹ 回到記錄簿</a>
   <h1>股票記錄簿 使用說明</h1>
-  <p class="lead">記錄股票的買賣、庫存和股利，也可以看殖利率、KD、K 線、EPS，用自己定的條件幫股票打星星。資料存在你自己的 Google 雲端硬碟，手機和電腦都能看到同一份。</p>
+  <p class="lead">記錄股票的買賣、庫存和股利，也可以看殖利率、KD、K 線、EPS、被哪些 ETF 持有，用自己定的條件幫股票打星星。資料存在你自己的 Google 雲端硬碟，手機和電腦都能看到同一份。</p>
 
   <!-- 畫面下方的四格（圖示和 index.html 的 .tabbar 一樣），點了跳到那一頁的說明 -->
   <p class="muted">畫面下方有四格，點一格看那一頁的說明：</p>
@@ -35,7 +35,7 @@
     </a>
     <a href="#market">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 17.5 9 11.5l4 4 7.5-8.5"/><path d="M15.5 7h5v5"/></svg>
-      <b>行情</b><small>殖利率、KD、K 線<br>EPS、星星</small>
+      <b>行情</b><small>殖利率、KD、K 線<br>EPS、ETF、星星</small>
     </a>
   </div>
   <p class="muted">記帳、股利、行情裡面各有幾頁，在標題下面切換。股利和行情會回到上次看的那一頁；記帳每次都先打開交易明細。</p>
@@ -371,7 +371,7 @@
     <h2><span class="no">9</span>行情</h2>
     <ol class="steps">
       <li>點畫面下方的 <b class="btn">行情</b></li>
-      <li>標題下面切換 <b class="btn">殖利率</b>、<b class="btn">KD</b>、<b class="btn">K 線</b>、<b class="btn">EPS</b> 或 <b class="btn">★ 星星</b></li>
+      <li>標題下面切換 <b class="btn">殖利率</b>、<b class="btn">KD</b>、<b class="btn">K 線</b>、<b class="btn">EPS</b>、<b class="btn">ETF</b> 或 <b class="btn">★ 星星</b></li>
     </ol>
     <ul>
       <li>每一頁上面切換 <b class="btn">全部</b>｜<b class="btn">持有</b>｜<b class="btn">觀察</b>｜<b class="btn">全市場</b>｜<b class="btn">成分股</b>，換頁時會留著：
@@ -491,7 +491,20 @@
     </div>
 
     <div class="sub">
-      <h3><span class="tag">9-7</span>★ 星星</h3>
+      <h3><span class="tag">9-7</span>ETF</h3>
+      <p>一檔股票被幾檔 ETF 持有。很多 ETF 都買的股票，通常是比較大、比較穩、或股利比較好的公司，可以拿來篩選。</p>
+      <ul>
+        <li>「ETF」那一欄上面是<b>幾檔</b>，下面是<b>權重加總</b>：這一檔在每一檔持有它的 ETF 裡佔的權重加起來，越高代表 ETF 買得越多；右邊一欄是哪幾檔 ETF</li>
+        <li>預設 <b>ETF 多的在前</b>，一樣多的照權重加總；上面的選單可以改成權重加總高的在前、依代號</li>
+        <li><b>只算收了的 ETF</b>（目前 0050、0056、00878、00919 四檔），所以最多就是 4 檔；列表上面寫收了哪幾檔、哪一天公布的</li>
+        <li><b>全市場</b>只列至少有一檔 ETF 持有的；全部、持有、觀察照樣列出來，沒有 ETF 持有的寫「0 檔」排最後</li>
+        <li>切到 <b class="btn">成分股</b> 選一檔 ETF，可以看它的成分股還被其他哪幾檔 ETF 一起持有</li>
+        <li>點一檔打開詳細資料，和其他頁一樣</li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3><span class="tag">9-8</span>★ 星星</h3>
       <p>自己定幾個條件，每達到一個就給一顆 ★，星星最多的就是最符合你條件的股票。</p>
       <ul>
         <li>條件在 <b class="btn">⋯</b> →「星星條件」打勾、選數字（星星頁說明裡的 <b class="btn">調整</b> 也可以打開），只記在這台手機：
