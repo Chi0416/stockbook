@@ -24,8 +24,7 @@
   --invalid-bg: #f8e5e3;
   --flash: #f3e3c7;
   --star: #c48a12; /* 星星（見 stars.js） */
-  --trend-value: #c96442; /* 帳戶走勢的兩條線（見 trend.js）：市值、付出成本，淺色、深色都驗過色盲分得出來 */
-  --trend-cost: #2a78d6;
+  --trend-value: #c96442; /* 帳戶走勢的市值線（見 trend.js） */
   --ma-line: #2a78d6; /* K 線圖的月線（見 ma.js）：藍色，和紅綠的 K 棒分得開 */
   --ma5-line: #c08414; /* 5 日線：黃色，和月線、K 棒都分得開 */
   /* 統計長條：已入帳、待入帳（淡一階，對白底還有 2:1 的對比） */
@@ -67,7 +66,6 @@
     --flash: #4d3d27;
     --star: #e8b54a;
     --trend-value: #d4714f;
-    --trend-cost: #3987e5;
     --ma-line: #3987e5;
     --ma5-line: #e0ac45;
     --bar: #d97757;
@@ -958,7 +956,7 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .trend-who { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .trend-note { margin: 8px 0; font-size: 13px; color: var(--muted); }
 .trend-more { display: block; margin: 4px 0 8px; font-size: 13px; }
-/* 讀數：日期，下面市值、付出成本、損益；線的顏色只畫在前面的短線，字用一般的顏色 */
+/* 讀數：日期，下面市值、付出成本、損益 */
 /*   固定三行（日期｜市值、付出成本｜損益），手指移動時高度不變，圖才不會跳 */
 .trend-read { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--muted); }
 .trend-date, .trend-item.pl { flex-basis: 100%; }
@@ -967,29 +965,20 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .trend-item strong { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .trend-item strong.up { color: var(--buy); }
 .trend-item strong.down { color: var(--sell); }
-.trend .key { display: inline-block; width: 12px; height: 2px; margin-right: 4px; vertical-align: 4px; border-radius: 1px; }
-.trend .key.value { background: var(--trend-value); }
-.trend .key.cost { background: var(--trend-cost); }
 /* 圖：線的粗細固定 2px（不跟著框縮放）；手指左右移動換日期，上下照常捲動 */
 .trend-plot { position: relative; height: 200px; margin: 12px 0 0; touch-action: pan-y; cursor: crosshair; outline: none; }
 .trend-plot:focus-visible { box-shadow: 0 0 0 2px var(--accent-ring); border-radius: 4px; }
 .trend-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .trend-grid { stroke: var(--border); stroke-width: 1; }
-.trend-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.trend-line.value { stroke: var(--trend-value); }
-.trend-line.cost { stroke: var(--trend-cost); }
+.trend-line { fill: none; stroke: var(--trend-value); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .trend-line.gap { stroke-dasharray: 4 5; stroke-linecap: butt; } /* 中間隔很久沒記的那一段 */
 .trend-live { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px dashed var(--border-strong); border-radius: 6px; font-size: 11px; line-height: 16px; color: var(--muted); }
 .trend-tick { position: absolute; left: 0; transform: translateY(-100%); padding-bottom: 1px; font-size: 11px; line-height: 1.2; color: var(--muted); pointer-events: none; }
 .trend-mark { position: absolute; inset: 0; pointer-events: none; }
 .trend-cross { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: var(--border-strong); }
-.trend-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
-.trend-dot.value { background: var(--trend-value); }
-.trend-dot.cost { background: var(--trend-cost); }
+.trend-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--trend-value); box-shadow: 0 0 0 2px var(--surface); }
 /* 每一筆的小點（紀錄不多時，見 trend.js）：比目前那一天的點小一號 */
-.trend-pt { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
-.trend-pt.value { background: var(--trend-value); }
-.trend-pt.cost { background: var(--trend-cost); }
+.trend-pt { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--trend-value); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
 /* 日期：寫在點的正下方，頭尾靠邊 */
 .trend-axis { position: relative; height: 16px; margin: 4px 0 8px; font-size: 11px; line-height: 16px; color: var(--muted); }
 .trend-axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }

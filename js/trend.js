@@ -1,11 +1,11 @@
 // 帳戶走勢：總覽「庫存總市值」卡片點了，從底部彈出的折線圖（和新增表單一樣；資料是帳戶紀錄，見 history.js）
 //   上面切換期間：1 個月｜3 個月｜1 年｜全部（每次打開都是全部）
-//   兩條線：市值（橘）、付出成本（藍），同一個金額座標；兩條線中間的差就是損益
+//   只畫市值一條線，縱軸照市值的範圍，起伏才看得出來（付出成本通常低很多，一起畫的話縱軸拉太開，市值看起來是平的）
+//     那一天的付出成本、損益寫在上面的讀數
 //   橫軸每一筆紀錄一格、一樣寬，點在格子正中間（和券商 App 的走勢一樣，沒記的日子不留空），手指點哪一格就是哪一天
 //   縱軸三、四條格線，以萬為單位；太靠近上緣的不寫，免得擠到讀數
 //     紀錄不多時（POINTS 筆以內）每一筆畫一個小點、下面寫日期，看得出來有哪幾天；多的時候只寫頭尾的日期
 //   讀數：平常是最近一天，手指（滑鼠）在圖上移動時換成最近的那一天；鍵盤左右鍵也可以換
-//   只補了市值的日子（付出成本空白）付出成本那條線斷開
 //   兩筆之間隔了 GAP 天以上（中間沒記）：那一段畫虛線，看得出來中間有空檔（月底到月底一個月左右，照樣是實線）
 //   盤中先記、還沒換成收盤價的那天，讀數的日期後面寫「盤中」
 //   隱藏金額時數字都是 ***，線照畫（看不出金額）
@@ -19,7 +19,7 @@ const Trend = (() => {
   const GAP = 40;
   const days = (a, b) => (Date.parse(b) - Date.parse(a)) / 86400000;
   let range = 'all';
-  let points = []; // 目前畫的資料 [{ date, cost, value, x, yv, yc }]，移動時用
+  let points = []; // 目前畫的資料 [{ date, cost, value, live, x, y }]，移動時用
   let hooks = { showHistory() {} };
 
   // 三、四條好讀的格線：間隔是 1、2、2.5、5 × 10 的次方
@@ -54,28 +54,27 @@ const Trend = (() => {
     const tone = Privacy.hidden || !pl ? '' : pl > 0 ? 'up' : 'down';
     const rate = pl !== null && p.cost > 0 ? `（${Privacy.num(`${U.fmtNum(U.round(pl / p.cost * 100, 2), 2)}%`)}）` : '';
     return `<span class="trend-date">${p.date.slice(0, 4)}/${md(p.date)}${p.live ? '<span class="trend-live">盤中</span>' : ''}</span>` +
-      `<span class="trend-item"><i class="key value"></i>市值 <strong>${money(p.value)}</strong></span>` +
-      `<span class="trend-item"><i class="key cost"></i>付出成本 <strong>${money(p.cost)}</strong></span>` +
+      `<span class="trend-item">市值 <strong>${money(p.value)}</strong></span>` +
+      `<span class="trend-item">付出成本 <strong>${money(p.cost)}</strong></span>` +
       `<span class="trend-item pl">損益 <strong class="${tone}">${money(pl)}${rate}</strong></span>`; // 沒有付出成本時寫 —
   }
 
-  // 第 i 天的直線和兩個點
+  // 第 i 天的直線和點
   function markHTML(i) {
     const p = points[i];
     return `<span class="trend-cross" style="left:${pct(p.x, W)}"></span>` +
-      (p.yc === null ? '' : `<span class="trend-dot cost" style="left:${pct(p.x, W)};top:${pct(p.yc, H)}"></span>`) +
-      `<span class="trend-dot value" style="left:${pct(p.x, W)};top:${pct(p.yv, H)}"></span>`;
+      `<span class="trend-dot" style="left:${pct(p.x, W)};top:${pct(p.y, H)}"></span>`;
   }
 
-  // 一條線：沒有值的地方斷開；隔了 GAP 天以上的那一段放進虛線（dashed 為 true 時只畫這些段）
-  const path = (key, dashed = false) => points.reduce((d, p, i) => {
+  // 市值的線：隔了 GAP 天以上的那一段放進虛線（dashed 為 true 時只畫這些段）
+  const path = (dashed = false) => points.reduce((d, p, i) => {
     const q = points[i - 1];
-    if (!q || p[key] === null || q[key] === null || (days(q.date, p.date) >= GAP) !== dashed) return d;
-    return `${d}M${U.round(q.x, 1)} ${U.round(q[key], 1)}L${U.round(p.x, 1)} ${U.round(p[key], 1)}`;
+    if (!q || (days(q.date, p.date) >= GAP) !== dashed) return d;
+    return `${d}M${U.round(q.x, 1)} ${U.round(q.y, 1)}L${U.round(p.x, 1)} ${U.round(p.y, 1)}`;
   }, '');
 
   function chartHTML(series) {
-    const vals = series.flatMap(s => [s.value, s.cost]).filter(v => v !== null);
+    const vals = series.map(s => s.value);
     let lo = Math.min(...vals);
     let hi = Math.max(...vals);
     const pad = (hi - lo || hi || 1) * 0.08;
@@ -83,14 +82,13 @@ const Trend = (() => {
     hi += pad;
     const n = series.length;
     const x = i => (i + 0.5) / n * W;
-    const y = v => (v === null ? null : H - (v - lo) / (hi - lo) * H);
-    points = series.map((s, i) => ({ ...s, x: x(i), yv: y(s.value), yc: y(s.cost) }));
+    const y = v => H - (v - lo) / (hi - lo) * H;
+    points = series.map((s, i) => ({ ...s, x: x(i), y: y(s.value) }));
     const grid = ticks(lo, hi).filter(v => y(v) > H * 0.06);
     const last = points.length - 1;
     const few = n <= POINTS;
     // 紀錄不多：每一筆一個小點，日期寫在點的正下方；多的時候只寫頭尾的完整日期（靠邊對齊，才不會超出框）
-    const dots = few ? points.map(p => ['yc', 'yv'].map(k => (p[k] === null ? ''
-      : `<span class="trend-pt ${k === 'yv' ? 'value' : 'cost'}" style="left:${pct(p.x, W)};top:${pct(p[k], H)}"></span>`)).join('')).join('') : '';
+    const dots = few ? points.map(p => `<span class="trend-pt" style="left:${pct(p.x, W)};top:${pct(p.y, H)}"></span>`).join('') : '';
     const labelAt = i => `<span style="left:${pct(points[i].x, W)}"${few ? '' : i === 0 ? ' class="first"' : ' class="last"'}>` +
       `${U.esc(few ? U.fmtDate(points[i].date).slice(5) : U.fmtDate(points[i].date))}</span>`;
     const labels = (few ? points.map((_, i) => i) : [0, last]).filter((i, k, all) => all.indexOf(i) === k).map(labelAt).join('');
@@ -100,10 +98,8 @@ const Trend = (() => {
         aria-label="帳戶走勢，${U.esc(U.fmtDate(series[0].date))} 到 ${U.esc(U.fmtDate(series.at(-1).date))}，共 ${series.length} 天；左右鍵換日期">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
           ${grid.map(v => `<line class="trend-grid" x1="0" x2="${W}" y1="${U.round(y(v), 1)}" y2="${U.round(y(v), 1)}" vector-effect="non-scaling-stroke"/>`).join('')}
-          <path class="trend-line cost" d="${path('yc')}" vector-effect="non-scaling-stroke"/>
-          <path class="trend-line cost gap" d="${path('yc', true)}" vector-effect="non-scaling-stroke"/>
-          <path class="trend-line value" d="${path('yv')}" vector-effect="non-scaling-stroke"/>
-          <path class="trend-line value gap" d="${path('yv', true)}" vector-effect="non-scaling-stroke"/>
+          <path class="trend-line" d="${path()}" vector-effect="non-scaling-stroke"/>
+          <path class="trend-line gap" d="${path(true)}" vector-effect="non-scaling-stroke"/>
         </svg>
         ${grid.map(v => `<span class="trend-tick" style="top:${U.round(y(v) / H * 100, 3)}%">${tickText(v)}</span>`).join('')}
         ${dots}

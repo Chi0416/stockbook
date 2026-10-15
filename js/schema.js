@@ -473,7 +473,7 @@ const SCHEMAS = {
             ? '查不到這一天的收盤價，照券商的歷史抄' : '';
         } },
       { key: 'cost',   label: '付出成本', type: 'number', optional: true, calc: v => histEstimate(v).cost,
-        hint: '不知道可以空白，走勢圖上那天只畫市值',
+        hint: '不知道可以空白，那天就算不出損益',
         note(v) {
           if (histEstimate(v).cost !== null) {
             return U.parseNum(v.cost ?? '') === histEstimate(v).cost ? '照庫存快照和交易明細推算的' : '';

@@ -102,7 +102,7 @@ const History = (() => {
   }
 
   // 走勢圖（見 trend.js）：目前檢視範圍每一天的合計 [{ date, cost, value, live }]，日期舊到新
-  //   同一天有人只補了市值（付出成本空白）時，那天的 cost 是 null（圖上只畫市值）；有人是盤中先記的，live 是 true
+  //   同一天有人只補了市值（付出成本空白）時，那天的 cost 是 null（算不出損益）；有人是盤中先記的，live 是 true
   function series() {
     const byDate = new Map();
     Store.list('history').forEach(r => {
