@@ -78,6 +78,8 @@
   Form.init({ toast, onChanged });
   Detail.init({ toast, onChanged });
   KLine.init();
+  // ETF 成分股（見 etf.js）：第一次切到行情的「成分股」才下載，下載好了行情每一頁重畫
+  Etf.onChange(refreshMarket);
   // K 線資料（見 candles.js）：打開 K 線頁、詳細頁、大圖時才下載，下載好了重畫用到的地方
   Candles.onChange(() => {
     lists.kline.refresh();

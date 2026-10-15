@@ -1,8 +1,10 @@
 // 行情：底部「行情」一格，每個指標一頁（殖利率｜KD｜K 線｜EPS，之後的其他指標往後加，見 app.js 的 GROUPS）
-//   每一頁上面切換「全部｜持有｜觀察｜全市場」（每一頁一起切換）：
+//   每一頁上面切換「全部｜持有｜觀察｜全市場｜成分股」（每一頁一起切換）：
 //     全部：持股和觀察清單，同一檔只列一次，標「持有」或「觀察」；持股跟著設定裡勾的成員，觀察清單全家共用一份
 //     持有、觀察：只看其中一邊（你也持有的觀察清單股票，兩邊都有）
 //     全市場：收盤資料裡的每一檔（上市、上櫃約 2,400 檔），照排序先列前 50 檔，下面「再顯示 50 檔」；搜尋時找全部
+//     成分股：選一檔 ETF，列出它的成分股（見 etf.js），代號後面寫權重；選單下面寫哪家投信、哪一天公布的（不是每天更新，免得誤會）
+//       排序照每一頁自己的，「依代號」在這裡換成「依權重」（大的在前），一樣的時候也照權重
 //   觀察清單在右上角「新增觀察」裡新增、移除（見 form.js），詳細頁裡也可以加入、移除（見 detail.js）
 //   點卡片打開那一檔的詳細頁（見 detail.js）
 //   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）、EPS_PAGE（eps.js）、KLINE_PAGE（kline.js）、STARS_PAGE（stars.js）
@@ -147,13 +149,15 @@ const Market = (() => {
   };
 })();
 
-// 行情每一頁共用的「全部｜持有｜觀察｜全市場」：切換時每一頁一起重畫，換到別頁還是同一個範圍
+// 行情每一頁共用的「全部｜持有｜觀察｜全市場｜成分股」：切換時每一頁一起重畫，換到別頁還是同一個範圍
 const MARKET_VIEW = { range: 'all', pages: [] };
 
 // 持有、觀察的標籤（行情的卡片、詳細頁）：兩邊都有就兩個都標
 //   「觀察」也會列出你持有的觀察清單股票，只標「持有」會看不懂它為什麼在這裡；也提醒買了之後可以從觀察清單移除
+//   看 ETF 的成分股時，最後面寫這一檔佔 ETF 的權重
 function holdTagsHTML(r) {
-  return (r.held ? '<span class="badge member">持有</span>' : '') + (r.watched ? '<span class="badge">觀察</span>' : '');
+  return (r.held ? '<span class="badge member">持有</span>' : '') + (r.watched ? '<span class="badge">觀察</span>' : '') +
+    (typeof r.weight === 'number' ? `<span class="etf-w">${U.fmtNum(r.weight, 2)}%</span>` : '');
 }
 
 // 行情的一頁：page 是 YIELD_PAGE、KD_PAGE、EPS_PAGE、STARS_PAGE；和其他列表一樣有 el、refresh、reset、changed
@@ -164,7 +168,7 @@ function holdTagsHTML(r) {
 //   page.keep(r)（可以沒有）：這一頁只列哪些（EPS 頁不列 ETF）；全部沒列出時用 page.skippedHTML(幾檔, 全市場) 那句話
 //   openStock(代號)：點卡片時打開詳細頁（K 線頁打開大圖，上一檔、下一檔用 view.codes() 目前列出的順序）
 function createMarket(page, { openStock = () => {} } = {}) {
-  const RANGES = [['all', '全部'], ['held', '持有'], ['watch', '觀察'], ['market', '全市場']];
+  const RANGES = [['all', '全部'], ['held', '持有'], ['watch', '觀察'], ['market', '全市場'], ['etf', '成分股']];
   const STEP = 50; // 全市場一次列幾檔
   const state = { keyword: '', sort: page.sorts[0][0], limit: STEP };
   let listed = []; // 目前列出的代號，照畫面上的順序
@@ -189,6 +193,12 @@ function createMarket(page, { openStock = () => {} } = {}) {
   const listEl = el.querySelector('.list');
 
   sortSel.addEventListener('change', () => { state.sort = sortSel.value; state.limit = STEP; render(); });
+  // 成分股：換一檔 ETF，每一頁一起換
+  listEl.addEventListener('change', e => {
+    if (!e.target.matches('.etf-pick')) return;
+    Etf.select(e.target.value);
+    MARKET_VIEW.pages.forEach(p => p.ranged());
+  });
   keywordInput.addEventListener('input', () => { state.keyword = keywordInput.value; state.limit = STEP; render(); });
   listEl.addEventListener('click', e => {
     const btn = e.target.closest('[data-act]');
@@ -219,6 +229,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
   function setRange(range) {
     if (range === MARKET_VIEW.range) return;
     MARKET_VIEW.range = range;
+    if (range === 'etf') Etf.need(); // 第一次切過來才下載，下載好了 app.js 重畫每一頁
     MARKET_VIEW.pages.forEach(p => p.ranged());
   }
 
@@ -243,13 +254,28 @@ function createMarket(page, { openStock = () => {} } = {}) {
     return out;
   }
 
-  // 表格：第一欄是證券／代號（依代號排序），其他欄照 page.table.cols；持有、觀察接在代號後面
-  const cols = () => [{ label: ['證券', '代號'], sort: 'code' }, ...page.table.cols];
-  // 排序的方向：兩個值的欄位前一個是小到大；依代號小到大；其他大到小
+  // ETF 的成分股：照權重（大的在前），持股、觀察清單裡有的照樣標持有、觀察；名稱用證交所的清單
+  function members(my, etf) {
+    const byCode = new Map(my.map(r => [r.code, r]));
+    return etf.holdings.map(([code, weight]) => ({ ...(byCode.get(code) || { code, name: names()[code] || '', held: false, watched: false }), weight }));
+  }
+
+  // 選 ETF 的選單，下面寫成分股是哪家投信、哪一天公布的
+  const etfHTML = etf => `
+    <div class="etf-bar">
+      <select class="etf-pick" aria-label="選一檔 ETF 看成分股">
+        ${Etf.list().map(e => `<option value="${U.esc(e.code)}"${e.code === etf.code ? ' selected' : ''}>${U.esc(e.code)} ${U.esc(e.name)}（${e.holdings.length} 檔）</option>`).join('')}
+      </select>
+      <p class="etf-src">成分股是${U.esc(etf.source)} ${U.esc(U.fmtDate(etf.date))} 公布的，ETF 調整成分股時才更新，權重也是那一天的</p>
+    </div>`;
+
+  // 表格：第一欄是證券／代號（依代號排序；看成分股時是依權重），其他欄照 page.table.cols；持有、觀察接在代號後面
+  const cols = () => [{ label: ['證券', MARKET_VIEW.range === 'etf' ? '權重' : '代號'], sort: 'code' }, ...page.table.cols];
+  // 排序的方向：兩個值的欄位前一個是小到大；依代號小到大（依權重大到小）；其他大到小
   const dirOf = c => {
     const pair = [].concat(c.sort || []);
     if (!pair.includes(state.sort)) return '';
-    return pair.length > 1 ? (state.sort === pair[0] ? 'asc' : 'desc') : state.sort === 'code' ? 'asc' : 'desc';
+    return pair.length > 1 ? (state.sort === pair[0] ? 'asc' : 'desc') : state.sort === 'code' && MARKET_VIEW.range !== 'etf' ? 'asc' : 'desc';
   };
   const tableHTML = rows => Table.html(cols().map(c => ({ ...c, sort: [].concat(c.sort || [])[0], dir: dirOf(c) })),
     rows.map(r => {
@@ -273,11 +299,22 @@ function createMarket(page, { openStock = () => {} } = {}) {
       return;
     }
     const range = MARKET_VIEW.range;
-    const base = wide ? market(my) : my.filter(r => range === 'all' || (range === 'held' ? r.held : r.watched));
+    const etfMode = range === 'etf';
+    sortSel.querySelector('option[value="code"]').textContent = etfMode ? '依權重' : '依代號';
+    const etf = etfMode ? Etf.current() : null;
+    if (etfMode && !etf) {
+      Etf.need();
+      countEl.textContent = '';
+      listEl.innerHTML = rangeHTML() + `<p class="empty">${Etf.waiting()}</p>`;
+      return;
+    }
+    const base = wide ? market(my) : etfMode ? members(my, etf)
+      : my.filter(r => range === 'all' || (range === 'held' ? r.held : r.watched));
     const enriched = base.filter(match).map(page.enrich);
     const all = page.keep ? enriched.filter(page.keep) : enriched;
     const skipped = enriched.length - all.length;
-    const byCode = (a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
+    // 一樣的時候依代號；看成分股時依權重
+    const byCode = etfMode ? (a, b) => b.weight - a.weight : (a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
     const cmp = page.sorts.find(([v]) => v === state.sort)[2];
     all.sort((a, b) => (cmp ? cmp(a, b) : 0) || byCode(a, b));
     const shown = wide ? all.slice(0, state.limit) : all;
@@ -297,7 +334,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
     }
     const more = wide && all.length > shown.length
       ? `<button type="button" class="wide-btn more-btn" data-act="more">再顯示 ${Math.min(STEP, all.length - shown.length)} 檔（還有 ${U.fmtNum(all.length - shown.length)} 檔）</button>` : '';
-    listEl.innerHTML = rangeHTML() + (all.length ? page.introHTML(all, wide, skipped) : '') +
+    listEl.innerHTML = rangeHTML() + (etfMode ? etfHTML(etf) : '') + (all.length ? page.introHTML(all, wide, skipped) : '') +
       (shown.length ? (Cards.on ? shown.map(page.cardHTML).join('') : tableHTML(shown)) + more : `<p class="empty">${empty}</p>`);
   }
 
