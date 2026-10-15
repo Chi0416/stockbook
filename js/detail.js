@@ -1,25 +1,24 @@
 // 一檔股票的詳細資料：行情的卡片點了打開（從底部彈出，和新增表單一樣）
 //   最上面：持有或觀察、星星（達標的條件，見 stars.js）
-//   下面的順序：EPS → 股利預估 → 殖利率 → KD → 月線扣抵 → 我的 → 配息紀錄（先基本面、再技術面；不另外加分區的標題，免得變長）
+//   下面的順序：EPS → 股利預估 → 殖利率 → KD → K 線 → 我的 → 配息紀錄（先基本面、再技術面；不另外加分區的標題，免得變長）
 //     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
 //       放在配息紀錄正上面：領到多少和每次配多少上下並排，好對照
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
 //     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（新的在上面），算法見 eps.js
 //     殖利率：接在股利預估後面，和預估殖利率好比較
-//     月線扣抵：接在 KD 後面，自己輸入今天的價格（一開始帶入現價），算月線會變成多少、往上還是往下彎，下面是 K 線圖（算法、畫法見 ma.js）
-//       K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段
+//     K 線：接在 KD 後面，一張小圖（最近 20 天和月線，見 MA.miniHTML）和月線的方向、扣低幾天（用現價算），點了打開大圖（月線扣抵，見 kline.js）
+//       K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段（app.js 叫 refreshKLine）
 //     配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前；一長串，放最下面才不會把 KD 擠到很下面
 //   和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
 //   最下面可以加入觀察清單、從觀察清單移除（觀察清單全家共用）
 const Detail = (() => {
   const dlg = document.getElementById('stock-sheet');
   // 瀏覽器還拿著舊版 index.html（沒有這個 sheet）時什麼都不做
-  if (!dlg) return { init() {}, open() {}, refresh() {} };
+  if (!dlg) return { init() {}, open() {}, refresh() {}, refreshKLine() {} };
   const titleEl = dlg.querySelector('.sheet-title');
   const bodyEl = dlg.querySelector('.sheet-body');
   let code = null;
-  let typed = null;   // 月線扣抵輸入的價格（字串）；重畫時留著，換一檔、重新打開時清掉
-  let maPrice = null; // 月線扣抵一開始帶入的現價
+  let klPrice = null; // K 線那一段用的現價
   let hooks = { toast() {}, onChanged() {} };
 
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
@@ -36,8 +35,6 @@ const Detail = (() => {
 
   function open(c) {
     code = key(c);
-    typed = null;
-    MA.resetChart();
     Candles.need();
     render();
     if (!dlg.open) dlg.showModal();
@@ -158,47 +155,32 @@ const Detail = (() => {
       </div>`;
   }
 
-  // 月線扣抵：上面一個輸入框（今天的價格），下面是結果；打字時只重畫結果（maOutHTML），輸入框不會失去焦點
-  //   結果一排三格：扣抵值（扣哪一天的）、今天的月線、比前一天變多少（上彎紅、下彎綠）
-  //   再來是 K 線圖，最下面一排接下來 5 天的扣抵值：比輸入的價格低（扣低，價格不變月線會往上彎）紅色、高的綠色
-  //   包在 .ma-sec 裡：K 線資料下載好時只換這一段（maSecHTML）
-  function maHTML(price) {
-    maPrice = price;
-    return `<div class="ma-sec">${maSecHTML()}</div>`;
+  // K 線：小圖和一行月線的方向、扣低幾天（用現價算，和行情的 K 線頁一樣），整張可以點，打開大圖自己打價格
+  //   包在 .kl-sec 裡：K 線資料下載好時只換這一段（refreshKLine）
+  function klHTML(price) {
+    klPrice = price;
+    return `<div class="kl-sec">${klSecHTML()}</div>`;
   }
 
-  function maSecHTML() {
-    const head = `<h3 class="section-head">月線扣抵（${MA.N} 日）</h3>`;
-    const v = typed ?? (maPrice ? String(maPrice) : '');
-    const r = MA.calc(code, U.parseNum(v));
+  function klSecHTML() {
+    const head = '<h3 class="section-head">K 線</h3>';
+    const r = MA.calc(code, klPrice);
     if (r.why) return `${head}<p class="note muted">${U.esc(r.why)}</p>`;
+    if (r.price === null) return `${head}<p class="note muted">沒有現價，算不出月線往哪裡彎</p>`;
+    const TURN = { 1: ['up', '↑ 上彎'], '-1': ['down', '↓ 下彎'], 0: ['', '持平'] };
+    const [cls, text] = TURN[r.dir];
     return `
       ${head}
-      <div class="card static detail-card ma-card">
-        <label class="ma-price"><span>${MA.dayName(r.last)}的價格</span><input type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${U.esc(v)}" data-ma></label>
-        <div class="ma-out">${maOutHTML(r)}</div>
-      </div>`;
+      <button type="button" class="card detail-card kl-entry" data-act="kline" aria-label="看 K 線大圖、月線扣抵">
+        <span class="kl-mini">${MA.miniHTML(r)}</span>
+        <span class="kl-line"><span>月線 <b class="${cls}">${text}</b></span><span>扣低 ${r.low}/${MA.DAYS}</span><span class="kl-go">大圖、月線扣抵 ›</span></span>
+      </button>`;
   }
 
-  function maOutHTML(r) {
-    const tone = d => (d > 0 ? 'up' : d < 0 ? 'down' : '');
-    const ma = v => U.fmtNum(U.round(v, 2), 2);
-    const TURN = { 1: '上彎', '-1': '下彎', 0: '持平' };
-    const diff = r.ma === null ? 0 : U.round(r.ma - r.prev, 4);
-    const change = r.ma === null ? '—' : `${diff > 0 ? '+' : ''}${U.fmtNum(diff, 2)}<small>${TURN[r.dir]}</small>`;
-    const prevDir = r.prevDir === null ? '' : `，${TURN[r.prevDir]}`;
-    // 收盤價照原本的小數位寫（2,385、35.47）：一排五格，補成 2,385.00 會擠成兩行
-    const next = r.next.map(x => cell(md(x.date), U.fmtNum(x.close), r.price === null ? '' : tone(r.price - x.close))).join('');
-    return `
-      <span class="card-grid">
-        ${cell(`扣抵值 ${md(r.deduct.date)}`, U.fmtNum(r.deduct.close))}
-        ${cell('月線', r.ma === null ? '—' : ma(r.ma), 'strong')}
-        ${cell('變化', change, `strong ${tone(r.dir)}`)}
-      </span>
-      <span class="card-note">前一天（${md(r.last)}）的月線 ${ma(r.prev)}${prevDir}</span>
-      <div class="kc">${MA.chartHTML(r)}</div>
-      <span class="card-grid ma-next">${next}</span>
-      <span class="card-note">接下來 ${r.next.length} 天依序要扣的收盤價：比你輸入的價格低（紅）是扣低，價格不變月線就往上彎；高（綠）是扣高</span>`;
+  // K 線資料下載好了：開著的話只重畫 K 線那一段
+  function refreshKLine() {
+    const sec = dlg.open && bodyEl.querySelector('.kl-sec');
+    if (sec) sec.innerHTML = klSecHTML();
   }
 
   // 配息紀錄：公告的加上自己記的，新的在前；一張表，一次一行：除權息日｜發放｜現金｜配股｜合計（都是每股、元）
@@ -283,7 +265,7 @@ const Detail = (() => {
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
 
-      ${maHTML(r.price)}
+      ${klHTML(r.price)}
 
       <h3 class="section-head">我的</h3>
       <div class="card static detail-card">${mineHTML(pos, r.price)}</div>
@@ -296,27 +278,13 @@ const Detail = (() => {
         : '<button type="button" class="wide-btn primary detail-watch" data-act="watch">加入觀察清單</button>'}`;
   }
 
-  MA.bindChart(bodyEl); // K 線圖點哪一根看哪一天
-
-  // K 線資料下載好了：開著的話只重畫月線扣抵那一段（正在打字時不動，免得輸入框不見）
-  Candles.onChange(() => {
-    const sec = dlg.open && bodyEl.querySelector('.ma-sec');
-    if (sec && !sec.contains(document.activeElement)) sec.innerHTML = maSecHTML();
-  });
-
   dlg.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); }); // 點背景關閉
-  bodyEl.addEventListener('input', e => {
-    if (!e.target.matches('[data-ma]')) return;
-    typed = e.target.value;
-    const out = bodyEl.querySelector('.ma-out');
-    if (out) out.innerHTML = maOutHTML(MA.calc(code, U.parseNum(typed)));
-  });
-  bodyEl.addEventListener('focusin', e => { if (e.target.matches('[data-ma]')) e.target.select(); }); // 點了直接打新的價格
-  bodyEl.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-ma]')) e.target.blur(); }); // 收起鍵盤
   bodyEl.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'watch') {
+    if (act === 'kline') {
+      KLine.open(code);
+    } else if (act === 'watch') {
       const rec = Store.add('watch', { code, name: titleEl.textContent.slice(code.length).trim() });
       hooks.onChanged('watch', rec);
       render();
@@ -331,5 +299,5 @@ const Detail = (() => {
     }
   });
 
-  return { init, open, refresh };
+  return { init, open, refresh, refreshKLine };
 })();

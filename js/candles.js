@@ -1,8 +1,8 @@
-// K 線資料（shared/candles.json，由 tools/update-prices.mjs 產生）：詳細頁的月線扣抵和 K 線圖用（見 ma.js）
+// K 線資料（shared/candles.json，由 tools/update-prices.mjs 產生）：行情的 K 線頁、大圖、詳細頁的小圖用（見 ma.js、kline.js）
 //   每一檔最近 20 天的開高低收，再往前 19 天的收盤價（最早那幾根 K 棒的月線要用）
-//   檔案比較大，打開詳細頁才下載（need），總覽、行情列表不用等它；之後用瀏覽器存的，隔 30 分鐘才再檢查有沒有新的
+//   檔案比較大，用到時才下載（need：打開 K 線頁、詳細頁、大圖），總覽、其他行情頁不用等它；之後用瀏覽器存的，隔 30 分鐘才再檢查有沒有新的
 //   和收盤價一樣，GitHub 每個工作天收盤後更新，不用改版本號；沒有網路時用存的上一份
-//   下載好、或下載到不一樣的資料時通知 onChange（detail.js 重畫月線扣抵那一段）
+//   下載好、或下載到不一樣的資料時通知 onChange（app.js 重畫 K 線頁、大圖、詳細頁的小圖）
 const Candles = (() => {
   const FILE = 'shared/candles.json';
   const AGAIN = 30 * 60000;
@@ -54,7 +54,7 @@ const Candles = (() => {
     return pending;
   }
 
-  // 用到時（打開詳細頁）：還沒下載、上次失敗的馬上下載，下載過的隔 30 分鐘才再檢查
+  // 用到時：還沒下載、上次失敗的馬上下載，下載過的隔 30 分鐘才再檢查
   const need = () => (state !== 'ready' || Date.now() - lastTry >= AGAIN ? load() : Promise.resolve(false));
 
   // 這一檔有成交的日子：[{ date, open, high, low, close }]，新的在前；只有收盤價的（K 線前面那 19 天）open、high、low 是 null
@@ -72,5 +72,5 @@ const Candles = (() => {
   // 還沒下載好、下載不了時的說明（下載好了是 ''）
   const waiting = () => (state === 'ready' ? '' : state === 'failed' ? '下載不了 K 線資料（連上網路後會再試）' : 'K 線資料下載中…');
 
-  return { need, get, waiting, ready: () => state === 'ready', onChange: fn => listeners.push(fn) };
+  return { need, get, waiting, ready: () => state === 'ready', date: () => (data ? data.date : ''), onChange: fn => listeners.push(fn) };
 })();

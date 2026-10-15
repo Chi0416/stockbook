@@ -27,6 +27,7 @@
   --trend-value: #c96442; /* 帳戶走勢的兩條線（見 trend.js）：市值、付出成本，淺色、深色都驗過色盲分得出來 */
   --trend-cost: #2a78d6;
   --ma-line: #2a78d6; /* K 線圖的月線（見 ma.js）：藍色，和紅綠的 K 棒分得開 */
+  --ma5-line: #c08414; /* 週線：黃色，和月線、K 棒都分得開 */
   /* 統計長條：已入帳、待入帳（淡一階，對白底還有 2:1 的對比） */
   --bar: #c96442;
   --bar-pend: #df9c83;
@@ -68,6 +69,7 @@
     --trend-value: #d4714f;
     --trend-cost: #3987e5;
     --ma-line: #3987e5;
+    --ma5-line: #e0ac45;
     --bar: #d97757;
     --bar-pend: #8f5a47;
     --shadow: 0 1px 2px rgba(0, 0, 0, .2);
@@ -603,6 +605,8 @@ span.th { cursor: default; }
 .kc-body.flat { fill: var(--muted); }
 .kc-ma { fill: none; stroke: var(--ma-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .kc-ma.dash { stroke-dasharray: 5 4; stroke-linecap: butt; }
+.kc-ma.m5 { stroke: var(--ma5-line); stroke-width: 1.5; }
+.kc-key.m5 { border-top-color: var(--ma5-line); }
 .kc-level { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
 .kc-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
 /* 格線的數字：K 棒會畫到左邊，數字墊一層底色才看得清楚 */
@@ -612,9 +616,33 @@ span.th { cursor: default; }
 .kc-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .kc-axis .first { transform: none; }
 .kc-axis .last { right: 0; transform: none; }
-/* 接下來 5 天的扣抵值：固定五格，和近 5 年的 EPS 一樣小一號 */
-.card-grid.ma-next { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 10px; padding-top: 10px; }
+/* 之後 4 天的扣抵值：固定四格，和近 5 年的 EPS 一樣小一號 */
+.card-grid.ma-next { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 10px; padding-top: 10px; }
 .ma-next .cell > span { font-size: 13px; }
+/* K 線（見 kline.js）：行情 K 線頁每一列的小圖（K 棒、月線，沒有格線），卡片和詳細頁的小圖寬一點 */
+.kl-cell { text-align: left; }
+.kc-mini { display: block; overflow: visible; }
+.kc-mini .kc-ma { stroke-width: 1.5; }
+.kl-cell .kc-mini { width: 84px; height: 40px; }
+.kl-mini { display: block; margin-top: 10px; }
+.kl-mini .kc-mini { width: 100%; height: 56px; }
+.card-primary b.kl-dir { font-size: 18px; }
+.card-primary b.kl-dir.up { color: var(--buy); }
+.card-primary b.kl-dir.down { color: var(--sell); }
+/* 詳細頁的 K 線：整張可以點，打開大圖；最下面一行月線往哪裡彎、扣低幾天，右邊「大圖 ›」 */
+.detail-card.kl-entry { cursor: pointer; }
+.detail-card.kl-entry:active { background: var(--chip-bg); }
+.kl-entry .kl-mini { margin-top: 0; }
+.kl-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-top: 8px; font-size: 13px; color: var(--text-2); }
+.kl-line b { font-weight: 600; }
+.kl-line b.up { color: var(--buy); }
+.kl-line b.down { color: var(--sell); }
+.kl-go { margin-left: auto; color: var(--accent-text); }
+/* 大圖（#kline-sheet）：上一檔、下一檔；圖比詳細頁的高 */
+.kl-nav { display: flex; align-items: center; justify-content: space-between; margin: -6px 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.kl-nav .text-btn:disabled { opacity: .35; }
+#kline-sheet .kc-plot { height: 240px; }
+#kline-sheet .ma-card { margin-bottom: 16px; }
 /* 配息紀錄：一次一行的表（除權息日｜發放｜現金｜配股｜合計），金額靠右對齊、上下對齊好比較；合計用粗體 */
 .ev-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .ev-table th { padding: 0 0 8px; font-size: 11px; font-weight: 400; color: var(--muted); text-align: left; }

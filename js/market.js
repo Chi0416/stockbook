@@ -1,11 +1,11 @@
-// 行情：底部「行情」一格，每個指標一頁（殖利率｜KD｜EPS，之後的其他指標往後加，見 app.js 的 GROUPS）
+// 行情：底部「行情」一格，每個指標一頁（殖利率｜KD｜K 線｜EPS，之後的其他指標往後加，見 app.js 的 GROUPS）
 //   每一頁上面切換「全部｜持有｜觀察｜全市場」（每一頁一起切換）：
 //     全部：持股和觀察清單，同一檔只列一次，標「持有」或「觀察」；持股跟著設定裡勾的成員，觀察清單全家共用一份
 //     持有、觀察：只看其中一邊（你也持有的觀察清單股票，兩邊都有）
 //     全市場：收盤資料裡的每一檔（上市、上櫃約 2,400 檔），照排序先列前 50 檔，下面「再顯示 50 檔」；搜尋時找全部
 //   觀察清單在右上角「新增觀察」裡新增、移除（見 form.js），詳細頁裡也可以加入、移除（見 detail.js）
 //   點卡片打開那一檔的詳細頁（見 detail.js）
-//   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）、EPS_PAGE（eps.js）、STARS_PAGE（stars.js）
+//   每一頁不一樣的地方（排序、卡片、說明）寫在 YIELD_PAGE（yield.js）、KD_PAGE（kd.js）、EPS_PAGE（eps.js）、KLINE_PAGE（kline.js）、STARS_PAGE（stars.js）
 //
 // Market：收盤價和日 KD（shared/prices.json，由 tools/update-prices.mjs 產生）
 //   GitHub 每個工作天收盤後自動更新這個檔案（見 .github/workflows/update-prices.yml），不用改版本號：
@@ -162,11 +162,12 @@ function holdTagsHTML(r) {
 //     sort 是 page.sorts 的值，點表頭等於在排序選單選那一個；給 [小到大, 大到小] 兩個時，再點一次換另一個（KD 的 K 值）
 //   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片；page.introHTML(rows, 全市場, 沒列出幾檔)：列表上面的說明
 //   page.keep(r)（可以沒有）：這一頁只列哪些（EPS 頁不列 ETF）；全部沒列出時用 page.skippedHTML(幾檔, 全市場) 那句話
-//   openStock(代號)：點卡片時打開詳細頁
+//   openStock(代號)：點卡片時打開詳細頁（K 線頁打開大圖，上一檔、下一檔用 view.codes() 目前列出的順序）
 function createMarket(page, { openStock = () => {} } = {}) {
   const RANGES = [['all', '全部'], ['held', '持有'], ['watch', '觀察'], ['market', '全市場']];
   const STEP = 50; // 全市場一次列幾檔
   const state = { keyword: '', sort: page.sorts[0][0], limit: STEP };
+  let listed = []; // 目前列出的代號，照畫面上的順序
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
   const names = () => (typeof STOCK_LIST !== 'undefined' ? STOCK_LIST.names : {});
 
@@ -280,6 +281,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
     const cmp = page.sorts.find(([v]) => v === state.sort)[2];
     all.sort((a, b) => (cmp ? cmp(a, b) : 0) || byCode(a, b));
     const shown = wide ? all.slice(0, state.limit) : all;
+    listed = shown.map(r => r.code);
     countEl.textContent = `${U.fmtNum(all.length)} 檔`;
 
     let empty = '';
@@ -319,6 +321,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
 
   const view = {
     el, refresh: render, reset, changed,
+    codes: () => listed,
     ranged() { state.limit = STEP; render(); },
   };
   MARKET_VIEW.pages.push(view);

@@ -1,4 +1,4 @@
-// 月線扣抵（ma.js）和 K 線資料（candles.js）：node --test tests/
+// 月線扣抵、週線（ma.js）和 K 線資料（candles.js）：node --test tests/
 //   用瀏覽器載入的同一份程式（util.js、candles.js、ma.js 都是全域變數），放進同一個 vm 環境執行
 //   K 線資料用下面這份假的（CANDLE_LIST），格式和 shared/candles.json 一樣
 import { test } from 'node:test';
@@ -60,20 +60,38 @@ test('月線 = 最近 20 天的平均；今天的月線用輸入的價格，扣�
   assert.equal(MA.calc('2330', 99).dir, -1);
 });
 
-test('接下來 5 天的扣抵值：第 19、18…15 筆，先扣的在前', () => {
+test('接下來 5 天的扣抵值：今天扣第 20 筆，之後 4 天扣第 19、18…16 筆，先扣的在前', () => {
   const { MA } = app();
   const r = MA.calc('2330', 110);
-  assert.deepEqual(r.next.map(x => x.close), [118, 117, 116, 115, 114]);
-  assert.deepEqual(r.next.map(x => x.date), ['2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22', '2026-09-23']);
+  assert.deepEqual(r.deducts.map(x => x.close), [119, 118, 117, 116, 115]);
+  assert.deepEqual(r.next.map(x => x.close), [118, 117, 116, 115]);
+  assert.deepEqual(r.next.map(x => x.date), ['2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22']);
 });
 
-test('價格一直不變的月線（虛線）：今天加 1 個價格扣 1 天，第 6 天加 6 個價格、扣掉 6 天', () => {
+test('扣低、扣高：這 5 天的扣抵值有幾天比價格低、高', () => {
+  const { MA } = app();
+  assert.deepEqual([MA.calc('2330', 117).low, MA.calc('2330', 117).high], [2, 2]); // 115、116 低，118、119 高，117 一樣
+  assert.deepEqual([MA.calc('2330', 200).low, MA.calc('2330', 200).high], [5, 0]);
+  assert.deepEqual([MA.calc('2330', 50).low, MA.calc('2330', 50).high], [0, 5]);
+});
+
+test('價格一直不變的月線（虛線）：第 k 天加 k 個價格、扣掉 k 天，畫 5 天', () => {
   const { MA } = app();
   const r = MA.calc('2330', 139);
-  assert.equal(r.proj.length, 6);
+  assert.equal(r.proj.length, 5);
   near(r.proj[0], r.ma, '今天');
   near(r.proj[1], (2 * 139 + 2071 - 118) / 20, '第 2 天：再扣掉 118');
-  near(r.proj[5], (6 * 139 + (100 + 113) * 14 / 2) / 20, '第 6 天：剩下最近 14 天');
+  near(r.proj[4], (5 * 139 + (100 + 114) * 15 / 2) / 20, '第 5 天：剩下最近 15 天');
+});
+
+test('週線：最近 5 天的平均，價格不變的話第 5 天就等於價格', () => {
+  const { MA } = app();
+  const r = MA.calc('2330', 139);
+  near(r.prev5, (100 + 101 + 102 + 103 + 104) / 5, '前一天的週線');
+  near(r.ma5, (139 + 100 + 101 + 102 + 103) / 5, '今天的週線：扣掉 104');
+  assert.equal(r.dir5, 1);
+  assert.equal(r.proj5.length, 5);
+  near(r.proj5[4], 139, '第 5 天');
 });
 
 test('沒有輸入價格：只算前一天的月線和扣抵值，沒有虛線', () => {
@@ -83,6 +101,7 @@ test('沒有輸入價格：只算前一天的月線和扣抵值，沒有虛線',
     assert.equal(r.ma, null);
     assert.equal(r.dir, null);
     assert.equal(r.proj.length, 0);
+    assert.equal(r.low, null);
     assert.equal(r.deduct.close, 119);
   }
 });
