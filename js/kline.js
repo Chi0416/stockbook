@@ -54,7 +54,7 @@ const KLINE_PAGE = (() => {
         <span class="card-grid">
           ${cell('現價', r.price ? U.fmtNum(r.price, 2) : '—')}
           ${cell('月線', k ? ma2(k.ma) : '—')}
-          ${cell('週線', k ? ma2(k.ma5) : '—')}
+          ${cell('5 日線', k ? ma2(k.ma5) : '—')}
           ${cell('扣低', k ? `${k.low}/${MA.DAYS}` : '—')}
         </span>
         <span class="card-note">${U.esc(k ? `今天扣 ${md(k.deduct.date)} 的 ${U.fmtNum(k.deduct.close)}；前一天的月線 ${ma2(k.prev)}` : r.why)}</span>
@@ -79,7 +79,7 @@ const KLINE_PAGE = (() => {
 
 // K 線大圖：行情 K 線頁點一列、詳細頁點小圖，從底部彈出（和詳細頁一樣）
 //   最上面：上一檔、下一檔（從 K 線頁打開時照列表的順序；從詳細頁打開時沒有）
-//   自己輸入今天的價格（一開始帶入現價、點了全選），下面跟著算：扣抵值｜月線｜變化（上彎紅、下彎綠），前一天的月線、週線
+//   自己輸入今天的價格（一開始帶入現價、點了全選），下面跟著算：扣抵值｜月線｜變化（上彎紅、下彎綠），前一天的月線、5 日線
 //   大圖（見 MA.chartHTML）：點 K 棒看那天的收開高低；最下面一排之後 4 天的扣抵值（比輸入的價格低紅、高綠）
 //   打字時只重畫結果（outHTML），輸入框不會失去焦點；輸入的價格換一檔、重新打開時清掉
 const KLine = (() => {
@@ -145,7 +145,7 @@ const KLine = (() => {
     const diff = r.ma === null ? 0 : U.round(r.ma - r.prev, 4);
     const change = r.ma === null ? '—' : `${diff > 0 ? '+' : ''}${U.fmtNum(diff, 2)}<small>${TURN[r.dir]}</small>`;
     const prevDir = r.prevDir === null ? '' : `，${TURN[r.prevDir]}`;
-    const week = r.ma5 === null ? '' : `；週線 ${ma2(r.ma5)}，${TURN[r.dir5]}`;
+    const week = r.ma5 === null ? '' : `；5 日線 ${ma2(r.ma5)}，${TURN[r.dir5]}`;
     // 收盤價照原本的小數位寫（2,385、35.47）：一排四格，補成 2,385.00 會擠成兩行
     const next = r.next.map(x => cell(md(x.date), U.fmtNum(x.close), r.price === null ? '' : tone(r.price - x.close))).join('');
     return `

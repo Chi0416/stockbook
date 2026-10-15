@@ -1,11 +1,11 @@
 // 月線扣抵（20 日均線）和 K 線圖：算法、畫圖（行情的 K 線頁、大圖見 kline.js；詳細頁的小圖見 detail.js）
 //   月線 = 最近 20 個交易日收盤價的平均；每過一個交易日加進當天的價格、扣掉最舊的那一天，扣掉的那天的收盤價就是「扣抵值」
 //     今天的月線 − 前一天的月線 = (今天的價格 − 扣抵值) ÷ 20：價格比扣抵值高，月線往上彎；比較低，往下彎；一樣，持平
-//   週線（5 日均線）同樣的算法，K 線圖上一起畫
+//   5 日線（最近 5 個交易日的平均）同樣的算法，K 線圖上一起畫
 //   收盤價是 shared/candles.json（見 candles.js）；沒有成交的日子不算一天，和 KD 一樣
 //   「今天」是這一檔最後一筆收盤價的下一個交易日：盤中是今天，收盤資料更新以後是下一個交易日
 //   接下來 5 天（今天和之後 4 天）依序要扣的收盤價現在就知道了：比價格低是「扣低」，價格不變的話月線會往上彎
-//   假設價格一直是這個價格：接下來 5 天的月線、週線（proj、proj5），K 線圖上畫成虛線
+//   假設價格一直是這個價格：接下來 5 天的月線、5 日線（proj、proj5），K 線圖上畫成虛線
 //   大圖可以點：和帳戶走勢一樣，圖上面一行讀數平常是最新那一天，手指（滑鼠）點到、滑到哪一根就換成那一天
 //     K 棒：收（比前一天高紅、低綠）、開、高、低；右邊假設的那幾格：那天的月線、扣哪一天的多少
 const MA = (() => {
@@ -28,11 +28,11 @@ const MA = (() => {
   // code 的月線；price 是今天的價格（自己輸入的、或現價），不是正數時只算前一天的月線和扣抵值
   //   算不出來：{ why: 原因 }
   //   算得出來：{ code, list: 有成交的每一天（見 Candles.get）, last: 最後一筆收盤價的日期, prev: 前一天的月線,
-  //     prevDir: 前一天的月線比再前一天 1 高、-1 低、0 一樣（資料不夠是 null）, prev5: 前一天的週線,
+  //     prevDir: 前一天的月線比再前一天 1 高、-1 低、0 一樣（資料不夠是 null）, prev5: 前一天的 5 日線,
   //     deduct: 今天的扣抵值 { date, close }, next: 之後 4 天的扣抵值（先扣的在前）, deducts: 今天和之後 4 天,
-  //     price, ma: 今天的月線, dir: 1 上彎、-1 下彎、0 持平, ma5: 今天的週線, dir5,
+  //     price, ma: 今天的月線, dir: 1 上彎、-1 下彎、0 持平, ma5: 今天的 5 日線, dir5,
   //     low、high: 這 5 天的扣抵值有幾天比價格低（扣低）、高（扣高）,
-  //     proj、proj5: 價格一直是 price 的話，這 5 天的月線、週線 }
+  //     proj、proj5: 價格一直是 price 的話，這 5 天的月線、5 日線 }
   function calc(code, price) {
     const list = Candles.get(code);
     if (!list) return { why: Candles.waiting() };
@@ -117,9 +117,9 @@ const MA = (() => {
       ${barsSVG(fr, 1)}${linesSVG(fr, fr.mas, r.proj, 'm20')}</svg>`;
   }
 
-  // 大圖（calc 的結果）：左邊 20 根 K 棒（收盤比開盤高紅、低綠、一樣灰），月線藍色、週線黃色實線
+  // 大圖（calc 的結果）：左邊 20 根 K 棒（收盤比開盤高紅、低綠、一樣灰），月線藍色、5 日線黃色實線
   //   最左邊那 5 根就是接下來 5 天要扣的，後面畫淺色底、上面寫「扣抵」：和下面那一排扣抵值是同一批，扣低的話虛線往上
-  //   右邊 5 格是假設的：輸入的價格（點）、價格不變（淡淡的點線），月線、週線從最後一根接一段虛線
+  //   右邊 5 格是假設的：輸入的價格（點）、價格不變（淡淡的點線），月線、5 日線從最後一根接一段虛線
   //   和帳戶走勢一樣：座標寬 1000、高 400 照框的大小縮放，線的粗細不變；格線的數字寫在左邊
   function chartHTML(r) {
     const fr = frame(r, W, H, [...r.proj5, ...(r.price ? [r.price] : [])]);
@@ -150,9 +150,9 @@ const MA = (() => {
     const cur = sel !== null && sel < pts.length ? sel : latest; // 打字換價格時，點到的那一格留著
     return `
       <div class="kc-read" aria-live="polite">${pts[cur].html}</div>
-      <div class="kc-legend"><span><i class="kc-key m5"></i>週線</span><span><i class="kc-key"></i>月線</span>${r.price ? `<span><i class="kc-key dash"></i>價格一直是 ${num(r.price)}</span>` : ''}</div>
+      <div class="kc-legend"><span><i class="kc-key m5"></i>5 日線</span><span><i class="kc-key"></i>月線</span>${r.price ? `<span><i class="kc-key dash"></i>價格一直是 ${num(r.price)}</span>` : ''}</div>
       <div class="kc-plot" tabindex="0" data-i="${cur}" role="img"
-        aria-label="K 線圖，${U.esc(U.fmtDate(bars[0].date))} 到 ${U.esc(U.fmtDate(bars[n - 1].date))}，共 ${n} 天，藍線是月線、黃線是週線，右邊的虛線是假設的；左右鍵換日期">
+        aria-label="K 線圖，${U.esc(U.fmtDate(bars[0].date))} 到 ${U.esc(U.fmtDate(bars[n - 1].date))}，共 ${n} 天，藍線是月線、黃線是 5 日線，右邊的虛線是假設的；左右鍵換日期">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
           ${band}
           ${grid.map(v => `<line class="kc-grid" x1="0" x2="${W}" y1="${f(y(v))}" y2="${f(y(v))}" vector-effect="non-scaling-stroke"/>`).join('')}

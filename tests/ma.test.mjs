@@ -1,4 +1,4 @@
-// 月線扣抵、週線（ma.js）和 K 線資料（candles.js）：node --test tests/
+// 月線扣抵、5 日線（ma.js）和 K 線資料（candles.js）：node --test tests/
 //   用瀏覽器載入的同一份程式（util.js、candles.js、ma.js 都是全域變數），放進同一個 vm 環境執行
 //   K 線資料用下面這份假的（CANDLE_LIST），格式和 shared/candles.json 一樣
 import { test } from 'node:test';
@@ -84,11 +84,11 @@ test('價格一直不變的月線（虛線）：第 k 天加 k 個價格、扣�
   near(r.proj[4], (5 * 139 + (100 + 114) * 15 / 2) / 20, '第 5 天：剩下最近 15 天');
 });
 
-test('週線：最近 5 天的平均，價格不變的話第 5 天就等於價格', () => {
+test('5 日線：最近 5 天的平均，價格不變的話第 5 天就等於價格', () => {
   const { MA } = app();
   const r = MA.calc('2330', 139);
-  near(r.prev5, (100 + 101 + 102 + 103 + 104) / 5, '前一天的週線');
-  near(r.ma5, (139 + 100 + 101 + 102 + 103) / 5, '今天的週線：扣掉 104');
+  near(r.prev5, (100 + 101 + 102 + 103 + 104) / 5, '前一天的 5 日線');
+  near(r.ma5, (139 + 100 + 101 + 102 + 103) / 5, '今天的 5 日線：扣掉 104');
   assert.equal(r.dir5, 1);
   assert.equal(r.proj5.length, 5);
   near(r.proj5[4], 139, '第 5 天');
