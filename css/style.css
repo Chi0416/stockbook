@@ -574,7 +574,13 @@ span.th { cursor: default; }
 .detail-stars { font-size: 22px; letter-spacing: 2px; color: var(--star); }
 .detail-stars.none { color: var(--muted); }
 .detail-met { flex-basis: 100%; font-size: 13px; color: var(--muted); }
+/* 加入觀察清單：星星右邊，靠右（樣式和即將除權息的「記下來」一樣，見下面的 .up-add） */
+.detail-add { margin-left: auto; }
+/* 上一檔、下一檔：捲下去也一直在最上面（蓋住 sheet-body 上面的留白） */
+.kl-nav.detail-nav { position: sticky; top: -18px; z-index: 1; margin: -18px -16px 10px; padding: 6px 16px; background: var(--bg); border-bottom: 1px solid var(--border); }
 #stock-sheet .section-head { margin-top: 22px; }
+/* 捲到哪一段由 detail.js 自己顧（K 線資料晚到時往下補），不要讓瀏覽器再補一次 */
+#stock-sheet .sheet-body { overflow-anchor: none; }
 .detail-card { margin: 0; cursor: default; }
 .detail-card:active { background: var(--surface); }
 .detail-card .card-grid:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
@@ -668,6 +674,8 @@ span.th { cursor: default; }
 /* 大圖（#kline-sheet）：上一檔、下一檔；圖比詳細頁的高 */
 .kl-nav { display: flex; align-items: center; justify-content: space-between; margin: -6px 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .kl-nav .text-btn:disabled { opacity: .35; }
+/* K 線大圖最下面的「詳細資料 ›」 */
+.kl-detail { margin-top: 16px; }
 #kline-sheet .kc-plot { height: 240px; }
 #kline-sheet .ma-card { margin-bottom: 16px; }
 /* 配息紀錄：一次一行的表（除權息日｜發放｜現金｜配股｜合計），金額靠右對齊、上下對齊好比較；合計用粗體 */
@@ -679,7 +687,6 @@ span.th { cursor: default; }
 .ev-table .total { font-weight: 600; color: var(--text); }
 .ev-table .ev-pay { font-size: 13px; color: var(--muted); }
 .ev-table small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
-.detail-watch { margin-top: 28px; }
 
 /* 推算頁面上方的合計：大號襯線數字 */
 .summary {
@@ -1038,7 +1045,8 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 .up-meta > span { white-space: nowrap; }
 .up-act { grid-column: 2; grid-row: 3; align-self: center; text-align: right; }
 .up-stock { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.up-add {
+/* 外框的小按鈕：即將除權息的「記下來」、詳細資料的「加入觀察清單」 */
+.up-add, .detail-add {
   min-height: 32px;
   padding: 0 12px;
   border: 1px solid var(--accent);
@@ -1050,7 +1058,7 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   font-weight: 600;
   cursor: pointer;
 }
-.up-add:active { background: var(--accent-soft); }
+.up-add:active, .detail-add:active { background: var(--accent-soft); }
 .up-done { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .up-foot { margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
 

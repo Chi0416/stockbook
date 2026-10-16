@@ -1,24 +1,31 @@
 // 一檔股票的詳細資料：看股票的頁（股利的殖利率、EPS，行情的每一頁）點一檔打開（從底部彈出，和新增表單一樣）
-//   最上面：持有或觀察、星星（達標的條件，見 stars.js）
-//   下面的順序：殖利率 → EPS → 股利預估 → K 線 → KD → 我的 → 配息紀錄（不另外加分區的標題，免得變長）
-//     和分頁的順序一樣（股利：殖利率｜EPS，行情：K 線｜KD），在哪裡看都是同一個順序
-//     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
-//       放在配息紀錄正上面：領到多少和每次配多少上下並排，好對照
+//   最上面：上一檔、下一檔（照點進來那一頁的列表順序，捲下去也一直在最上面；從總覽、除權息點進來的沒有）
+//     持有或觀察、星星（達標的條件，見 stars.js）；還沒在觀察清單的，星星右邊有「加入觀察清單」，一打開就看得到
+//   下面一次滑完，順序：技術面 → 籌碼面 → 基本面（不另外加「技術面」這種分區的標題，免得變長）
+//     K 線 → KD → 殖利率 → EPS → 股利預估 → 我的 → 配息紀錄
+//     從殖利率、EPS 點進來直接捲到那一段，翻上一檔、下一檔也停在那一段；從 K 線、KD、星星點進來停在最上面
+//     K 線：一張小圖（最近 20 天和月線，見 MA.miniHTML）和現價、月線的方向、扣低幾天（用現價算），點了打開大圖（月線扣抵，見 kline.js）
+//       殖利率不在最上面了，現價寫在這一行，一打開就看得到
+//       K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段（app.js 叫 refreshKLine）
+//     殖利率：現在買殖利率多少；下面股利預估的預估殖利率好對照
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
 //     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（新的在上面），算法見 eps.js
-//     殖利率：放最上面，現在買殖利率多少；下面股利預估的預估殖利率好對照
-//     K 線：接在股利預估後面、KD 前面，一張小圖（最近 20 天和月線，見 MA.miniHTML）和月線的方向、扣低幾天（用現價算），點了打開大圖（月線扣抵，見 kline.js）
-//       K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段（app.js 叫 refreshKLine）
-//     配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前；一長串，放最下面才不會把 KD 擠到很下面
+//     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
+//       放在配息紀錄正上面：領到多少和每次配多少上下並排，好對照
+//     配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前；一長串，放最下面
 //   和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
-//   最下面可以加入觀察清單、從觀察清單移除（觀察清單全家共用）
+//   已經在觀察清單的，最下面可以從觀察清單移除（放最下面，免得誤按；觀察清單全家共用）
 const Detail = (() => {
   const dlg = document.getElementById('stock-sheet');
   // 瀏覽器還拿著舊版 index.html（沒有這個 sheet）時什麼都不做
   if (!dlg) return { init() {}, open() {}, refresh() {}, refreshKLine() {} };
   const titleEl = dlg.querySelector('.sheet-title');
   const bodyEl = dlg.querySelector('.sheet-body');
+  // 從哪一頁點進來時捲到哪一段（data-sec）；沒寫的停在最上面
+  const SECTION = { yield: 'yield', eps: 'eps', etfs: 'etf' };
   let code = null;
+  let codes = [];   // 上一檔、下一檔的順序
+  let from = '';    // 從哪一頁點進來（app.js 的頁名）
   let klPrice = null; // K 線那一段用的現價
   let hooks = { toast() {}, onChanged() {} };
 
@@ -34,12 +41,30 @@ const Detail = (() => {
     hooks = h;
   }
 
-  function open(c) {
+  // c：哪一檔；list：上一檔、下一檔的順序（點進來那一頁的列表），沒有就不顯示；at：從哪一頁點進來
+  function open(c, { list = [], at = '' } = {}) {
+    codes = list.map(key);
+    from = at;
     code = key(c);
     Candles.need();
     render();
     if (!dlg.open) dlg.showModal();
+    toSection(); // 要先打開才量得到位置
+  }
+
+  // 翻到上一檔、下一檔
+  function go(c) {
+    code = key(c);
+    render();
+    toSection();
+  }
+
+  // 捲到點進來那一頁的那一段，標題剛好在上一檔、下一檔那一排下面；沒有那一段（例如 ETF 沒有 EPS）就回到最上面
+  function toSection() {
+    const sec = SECTION[from] && bodyEl.querySelector(`[data-sec="${SECTION[from]}"]`);
+    const nav = bodyEl.querySelector('.detail-nav');
     bodyEl.scrollTop = 0;
+    if (sec) bodyEl.scrollTop = sec.getBoundingClientRect().top - bodyEl.getBoundingClientRect().top - (nav ? nav.offsetHeight : 0) - 4;
   }
 
   // 資料變了（同步、隱藏金額、觀察清單）：開著的話重畫
@@ -95,13 +120,13 @@ const Detail = (() => {
     const { e } = r;
     if (!e) {
       const why = Eps.waiting();
-      return why ? `<h3 class="section-head">EPS</h3><p class="note muted">${U.esc(why)}</p>` : '';
+      return why ? `<h3 class="section-head" data-sec="eps">EPS</h3><p class="note muted">${U.esc(why)}</p>` : '';
     }
     const tone = EPS_PAGE.tone(e);
     // 一排五年：上面年份、下面 EPS，新的在左邊；還不到第 4 季的在數字下面寫到第幾季；虧損綠色
     const years = [...e.years].reverse().map(y => cell(`${y.year}`, `${fmt(y.eps)}${y.q < 4 ? `<small>到第 ${y.q} 季</small>` : ''}`, y.eps < 0 ? 'down' : '')).join('');
     return `
-      <h3 class="section-head">EPS</h3>
+      <h3 class="section-head" data-sec="eps">EPS</h3>
       <div class="card static detail-card eps-card">
         <span class="card-grid">
           ${cell(`達成率${Stars.mark(r, 'eps')}`, e.pct === null ? '—' : `${e.pct}%`, `strong ${tone}`)}
@@ -156,7 +181,7 @@ const Detail = (() => {
       </div>`;
   }
 
-  // K 線：小圖和一行月線的方向、扣低幾天（用現價算，和行情的 K 線頁一樣），整張可以點，打開大圖自己打價格
+  // K 線：小圖和一行現價、月線的方向、扣低幾天（用現價算，和行情的 K 線頁一樣），整張可以點，打開大圖自己打價格
   //   包在 .kl-sec 裡：K 線資料下載好時只換這一段（refreshKLine）
   function klHTML(price) {
     klPrice = price;
@@ -174,14 +199,21 @@ const Detail = (() => {
       ${head}
       <button type="button" class="card detail-card kl-entry" data-act="kline" aria-label="看 K 線大圖、月線扣抵">
         <span class="kl-mini">${MA.miniHTML(r)}</span>
-        <span class="kl-line"><span>月線 <b class="${cls}">${text}</b></span><span>扣低 ${r.low}/${MA.DAYS}</span><span class="kl-go">大圖、月線扣抵 ›</span></span>
+        <span class="kl-line"><span>現價 <b>${U.fmtNum(r.price, 2)}</b></span><span>月線 <b class="${cls}">${text}</b></span><span>扣低 ${r.low}/${MA.DAYS}</span><span class="kl-go">大圖 ›</span></span>
       </button>`;
   }
 
   // K 線資料下載好了：開著的話只重畫 K 線那一段
+  //   這一段已經捲到上面看不到（從殖利率、EPS 點進來）時，下面的 KD 標題被推下去多少就往下捲多少，正在看的那一段才不會被擠走
+  //     量 KD 標題實際移動多少（不是這一段變高多少）：電腦版 Chrome 自己也會補，兩邊都補會捲過頭
   function refreshKLine() {
     const sec = dlg.open && bodyEl.querySelector('.kl-sec');
-    if (sec) sec.innerHTML = klSecHTML();
+    if (!sec) return;
+    const next = sec.nextElementSibling;
+    const above = sec.getBoundingClientRect().bottom <= bodyEl.getBoundingClientRect().top + 60;
+    const top = next?.getBoundingClientRect().top;
+    sec.innerHTML = klSecHTML();
+    if (above && next) bodyEl.scrollTop += next.getBoundingClientRect().top - top;
   }
 
   // 配息紀錄：公告的加上自己記的，新的在前；一張表，一次一行：除權息日｜發放｜現金｜配股｜合計（都是每股、元）
@@ -233,14 +265,35 @@ const Detail = (() => {
 
     titleEl.textContent = `${code} ${name}`.trim();
     const tag = holdTagsHTML(r);
-    bodyEl.innerHTML = `
+    // 上一檔、下一檔：和 K 線大圖同一個樣子（見 kline.js）
+    const i = codes.indexOf(code);
+    const nav = codes.length > 1 && i >= 0 ? `
+      <div class="kl-nav detail-nav">
+        <button type="button" class="text-btn" data-act="prev"${i === 0 ? ' disabled' : ''}>‹ 上一檔</button>
+        <span>${i + 1} / ${codes.length}</span>
+        <button type="button" class="text-btn" data-act="next"${i === codes.length - 1 ? ' disabled' : ''}>下一檔 ›</button>
+      </div>` : '';
+    bodyEl.innerHTML = `${nav}
       <div class="detail-top">
         ${tag}
         <span class="detail-stars${r.n ? '' : ' none'}">${'★'.repeat(r.n)}${'☆'.repeat(Math.max(0, total - r.n))}</span>
+        ${watchRec ? '' : '<button type="button" class="detail-add" data-act="watch">＋ 加入觀察清單</button>'}
         <span class="detail-met">${!total ? '星星條件都沒有打勾' : r.n ? `達標：${r.stars.map(x => x.short).join('、')}` : '沒有達標的條件'}</span>
       </div>
 
-      <h3 class="section-head">殖利率</h3>
+      ${klHTML(r.price)}
+
+      <h3 class="section-head">KD（日 KD，9 日）</h3>
+      <div class="card static detail-card kd-card">
+        <span class="card-grid">
+          ${cell(`K 值${Stars.mark(r, 'kdLow')}`, fmt(r.k), kz ? `strong ${kz}` : 'strong')}
+          ${cell('D 值', fmt(m?.d), dz)}
+          ${cell(`交叉${Stars.mark(r, 'golden')}`, cross[1], cross[0])}
+        </span>
+        ${notesHTML([KD_PAGE.note(r, { close: true })])}
+      </div>
+
+      <h3 class="section-head" data-sec="yield">殖利率</h3>
       <div class="card static detail-card yield-card">
         <span class="card-grid">
           ${cell('現價', r.price ? U.fmtNum(r.price, 2) : '—')}
@@ -256,34 +309,25 @@ const Detail = (() => {
       ${epsHTML(r)}
       ${fcHTML(r)}
 
-      ${klHTML(r.price)}
-
-      <h3 class="section-head">KD（日 KD，9 日）</h3>
-      <div class="card static detail-card kd-card">
-        <span class="card-grid">
-          ${cell(`K 值${Stars.mark(r, 'kdLow')}`, fmt(r.k), kz ? `strong ${kz}` : 'strong')}
-          ${cell('D 值', fmt(m?.d), dz)}
-          ${cell(`交叉${Stars.mark(r, 'golden')}`, cross[1], cross[0])}
-        </span>
-        ${notesHTML([KD_PAGE.note(r, { close: true })])}
-      </div>
-
       <h3 class="section-head">我的</h3>
       <div class="card static detail-card">${mineHTML(pos, r.price)}</div>
 
       <h3 class="section-head">配息紀錄（每股，元）</h3>
       ${eventsHTML()}
 
-      ${watchRec
-        ? '<button type="button" class="wide-btn danger" data-act="unwatch">從觀察清單移除</button>'
-        : '<button type="button" class="wide-btn primary detail-watch" data-act="watch">加入觀察清單</button>'}`;
+      ${watchRec ? '<button type="button" class="wide-btn danger" data-act="unwatch">從觀察清單移除</button>' : ''}`;
   }
 
   dlg.querySelector('[data-act="close"]').addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); }); // 點背景關閉
   bodyEl.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'kline') {
+    const i = codes.indexOf(code);
+    if (act === 'prev' && i > 0) {
+      go(codes[i - 1]);
+    } else if (act === 'next' && i >= 0 && i < codes.length - 1) {
+      go(codes[i + 1]);
+    } else if (act === 'kline') {
       KLine.open(code);
     } else if (act === 'watch') {
       const rec = Store.add('watch', { code, name: titleEl.textContent.slice(code.length).trim() });

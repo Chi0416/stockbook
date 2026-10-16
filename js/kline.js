@@ -86,6 +86,7 @@ const KLINE_PAGE = (() => {
 
 // K 線大圖：行情 K 線頁點一列、詳細頁點小圖，從底部彈出（和詳細頁一樣）
 //   最上面：上一檔、下一檔（從 K 線頁打開時照列表的順序；從詳細頁打開時沒有）
+//   最下面「詳細資料 ›」打開這一檔的詳細頁（上一檔、下一檔照樣照 K 線頁的順序）；從詳細頁打開的寫「‹ 回詳細資料」，只是關掉大圖，不會越疊越多層
 //   自己輸入今天的價格（一開始帶入現價、點了全選），下面跟著算：扣抵值｜月線｜變化（上彎紅、下彎綠），前一天的月線、5 日線
 //   大圖（見 MA.chartHTML）：點 K 棒看那天的收開高低；最下面一排之後 4 天的扣抵值（比輸入的價格低紅、高綠）
 //   打字時只重畫結果（outHTML），輸入框不會失去焦點；輸入的價格換一檔、重新打開時清掉
@@ -140,12 +141,17 @@ const KLine = (() => {
       </div>` : '';
     const v = typed ?? (price ? String(price) : '');
     const r = MA.calc(code, U.parseNum(v));
+    const back = fromDetail();
     bodyEl.innerHTML = nav + (r.why ? `<p class="note muted">${U.esc(r.why)}</p>` : `
       <div class="card static detail-card ma-card">
         <label class="ma-price"><span>${MA.dayName(r.last)}的價格</span><input type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${U.esc(v)}" data-ma></label>
         <div class="ma-out">${outHTML(r)}</div>
-      </div>`);
+      </div>`) +
+      `<button type="button" class="wide-btn kl-detail" data-act="detail">${back ? '‹ 回詳細資料' : '詳細資料 ›'}</button>`;
   }
+
+  // 是不是從詳細頁點小圖打開的（詳細頁還開著，在大圖下面）
+  const fromDetail = () => !!document.getElementById('stock-sheet')?.open;
 
   function outHTML(r) {
     const tone = d => (d > 0 ? 'up' : d < 0 ? 'down' : '');
@@ -175,6 +181,11 @@ const KLine = (() => {
       const i = codes.indexOf(code);
       if (act === 'prev' && i > 0) go(codes[i - 1]);
       else if (act === 'next' && i >= 0 && i < codes.length - 1) go(codes[i + 1]);
+      else if (act === 'detail') {
+        const back = fromDetail();
+        dlg.close();
+        if (!back) Detail.open(code, { list: codes, at: 'kline' });
+      }
     });
     bodyEl.addEventListener('input', e => {
       if (!e.target.matches('[data-ma]')) return;

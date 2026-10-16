@@ -36,16 +36,17 @@
   $('panels').appendChild(lists.cash.el);
 
   // 看股票的頁（見 market.js）：股利那一格的殖利率、EPS，行情那一格的 K 線、KD、ETF 持有、★ 星星；點一檔打開詳細頁（見 detail.js）
-  //   K 線頁點一列打開大圖（見 kline.js），上一檔、下一檔照列表的順序
+  //   上一檔、下一檔照那一頁列表的順序；詳細頁捲到點進來那一頁的那一段
+  //   K 線頁點一列打開大圖（見 kline.js），一樣可以上一檔、下一檔
   //   第一個是加了觀察清單、又不在這幾頁時切過去的那一頁
   const MARKET = ['kline', 'kd', 'etfs', 'stars', 'yield', 'eps'];
-  const openStock = code => Detail.open(code);
-  lists.yield = createMarket(YIELD_PAGE, { openStock });
-  lists.kd = createMarket(KD_PAGE, { openStock });
-  lists.eps = createMarket(EPS_PAGE, { openStock });
+  const openStock = page => code => Detail.open(code, { list: lists[page].codes(), at: page });
+  lists.yield = createMarket(YIELD_PAGE, { openStock: openStock('yield') });
+  lists.kd = createMarket(KD_PAGE, { openStock: openStock('kd') });
+  lists.eps = createMarket(EPS_PAGE, { openStock: openStock('eps') });
   lists.kline = createMarket(KLINE_PAGE, { openStock: code => KLine.open(code, lists.kline.codes()) });
-  lists.etfs = createMarket(ETF_PAGE, { openStock }); // 被幾檔 ETF 持有（見 etf.js）
-  lists.stars = createMarket(STARS_PAGE, { openStock });
+  lists.etfs = createMarket(ETF_PAGE, { openStock: openStock('etfs') }); // 被幾檔 ETF 持有（見 etf.js）
+  lists.stars = createMarket(STARS_PAGE, { openStock: openStock('stars') });
   $('panels').append(lists.yield.el, lists.kd.el, lists.eps.el, lists.kline.el, lists.etfs.el, lists.stars.el);
   const refreshMarket = () => MARKET.forEach(k => lists[k].refresh());
 
