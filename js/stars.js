@@ -21,7 +21,7 @@ const Stars = (() => {
     return cfg.crossAt === 'any' || at === 'low' || (cfg.crossAt === 'mid' && at === 'mid');
   };
 
-  // r 是行情頁 enrich 過的一檔：y 殖利率、ya 暴力年化、info（Yield.info）、k、m（Market.get）、e（Eps.info）
+  // r 是選股頁 enrich 過的一檔：y 殖利率、ya 暴力年化、info（Yield.info）、k、m（Market.get）、e（Eps.info）
   const LIST = [
     { key: 'yield', short: '殖利率', label: () => `殖利率至少 ${cfg.yieldMin}%`,
       test: r => typeof r.y === 'number' && r.y * 100 >= cfg.yieldMin - 1e-9 },
@@ -73,7 +73,7 @@ const Stars = (() => {
     get yieldMin() { return cfg.yieldMin; },
     get crossAt() { return cfg.crossAt; },
     get epsAhead() { return cfg.epsAhead; },
-    // 改了條件時通知（app.js 重畫行情）
+    // 改了條件時通知（app.js 重畫選股）
     onChange: fn => listeners.push(fn),
   };
 })();

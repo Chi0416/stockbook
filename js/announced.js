@@ -23,7 +23,7 @@ const Announced = (() => {
   const listeners = [];
 
   let cache = null;
-  let byCode = null; // 代號 → 這一檔的公告（行情的全市場一次算 2,400 檔，不能每一檔都從頭找一遍）
+  let byCode = null; // 代號 → 這一檔的公告（選股的全市場一次算 2,400 檔，不能每一檔都從頭找一遍）
   function rows() {
     if (!cache) {
       cache = (data ? data.rows : []).map(([code, name, exDate, payDate, cash, stock]) => ({ code, name, exDate, payDate, cash, stock }));

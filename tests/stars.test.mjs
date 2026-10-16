@@ -1,6 +1,6 @@
 // 星星條件（js/stars.js 的 Stars）：node --test tests/
 //   用瀏覽器載入的同一份程式（util.js、kd.js、stars.js 都是全域變數），放進同一個 vm 環境執行
-//   r 是行情頁 enrich 過的一檔：y 殖利率、ya 暴力年化、info.trend、k、m（K、D、前一天的 K、D）、e（EPS：ahead 超前進度幾 %）
+//   r 是選股頁 enrich 過的一檔：y 殖利率、ya 暴力年化、info.trend、k、m（K、D、前一天的 K、D）、e（EPS：ahead 超前進度幾 %）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

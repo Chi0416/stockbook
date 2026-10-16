@@ -1,4 +1,4 @@
-// ETF 成分股（etf.js）：一檔股票被哪幾檔 ETF 持有（行情的 ETF 頁用）：node --test tests/
+// ETF 成分股（etf.js）：一檔股票被哪幾檔 ETF 持有（選股的 ETF 頁用）：node --test tests/
 //   用瀏覽器載入的同一份程式（util.js、etf.js 都是全域變數），放進同一個 vm 環境執行
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

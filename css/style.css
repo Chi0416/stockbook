@@ -175,17 +175,19 @@ body:has(dialog[open]) { overflow: hidden; }
   font-size: 14px;
 }
 
-/* ---------- 上方切換：底部一格裡有好幾頁時（記帳、股利、行情），在標題下面左右切換 ---------- */
+/* ---------- 上方切換：底部一格裡有好幾頁時（記帳、股利、選股），在標題下面左右切換 ---------- */
 /* 底線樣式：選中的那一頁深色粗字加橘色底線；和頁面裡「明細｜統計」的膠囊切換看得出是不同層 */
 .subtabs {
   display: flex;
   gap: 28px;
-  overflow-x: auto; /* 股利有 5 頁：很窄的手機放不下時左右滑 */
+  overflow-x: auto; /* 很窄的手機放不下時左右滑 */
   scrollbar-width: none;
   margin: 6px 0 0;
   border-bottom: .5px solid var(--border);
 }
 .subtabs::-webkit-scrollbar { display: none; }
+/* 選股有 6 頁：手機上縮小間距，星星才不會被擠到畫面外；再窄的手機就左右滑 */
+.subtabs:has(> button:nth-child(6)) { gap: clamp(10px, 3.2vw, 28px); }
 .subtabs button {
   position: relative;
   flex-shrink: 0;
@@ -652,7 +654,7 @@ span.th { cursor: default; }
 /* 之後 4 天的扣抵值：固定四格，和近 5 年的 EPS 一樣小一號 */
 .card-grid.ma-next { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 10px; padding-top: 10px; }
 .ma-next .cell > span { font-size: 13px; }
-/* K 線（見 kline.js）：行情 K 線頁每一列的小圖（K 棒、月線，沒有格線），卡片和詳細頁的小圖寬一點 */
+/* K 線（見 kline.js）：選股 K 線頁每一列的小圖（K 棒、月線，沒有格線），卡片和詳細頁的小圖寬一點 */
 .kl-cell { text-align: left; }
 .kc-mini { display: block; overflow: visible; }
 .kc-mini .kc-ma { stroke-width: 1.5; }
@@ -1178,7 +1180,7 @@ dialog.popup::backdrop { background: rgba(20, 20, 19, .4); }
 .pop-body p { margin: 0 0 10px; font-size: 14px; line-height: 1.7; color: var(--text-2); }
 .pop-body p.muted { font-size: 13px; color: var(--muted); }
 dialog.popup .wide-btn { margin-top: 4px; }
-/* 行情每一頁上面的一行：資料是哪一天的；右邊「說明」點了打開小視窗 */
+/* 選股每一頁上面的一行：資料是哪一天的；右邊「說明」點了打開小視窗 */
 .list-intro.one { display: flex; align-items: baseline; gap: 10px; }
 .list-intro.one > span { flex: 1; min-width: 0; }
 .intro-more { flex-shrink: 0; padding: 2px 0 2px 8px; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }

@@ -1,8 +1,8 @@
 // 進入點：分頁、列表、表單、Google 雲端硬碟同步、訊息匣、家庭成員、資料備份
-//   底部 4 格：總覽｜記帳｜股利｜行情；記帳、股利、行情一格裡有好幾頁，在標題下面左右切換（見 GROUPS）
+//   底部 4 格：總覽｜記帳｜股利｜選股；記帳、股利、選股一格裡有好幾頁，在標題下面左右切換（見 GROUPS）
 (() => {
   const TAB_KEY = 'stockbook.tab';
-  const PAGES_KEY = 'stockbook.pages'; // 股利、行情各自上次看的那一頁：{ income: 'cash', market: 'kd' }
+  const PAGES_KEY = 'stockbook.pages'; // 股利、選股各自上次看的那一頁：{ income: 'cash', market: 'kd' }
   const LOGOUT_KEY = 'stockbook.loggedOut'; // 登出後重新載入頁面時顯示「已登出」（sessionStorage，登出清資料時不會被清掉）
   const $ = id => document.getElementById(id);
 
@@ -26,7 +26,7 @@
   lists.overview = createOverview();
   $('panels').appendChild(lists.overview.el);
   Object.entries({ ...SCHEMAS, ...VIEWS }).forEach(([key, page]) => {
-    if (page.noList) return; // 觀察清單畫在行情的每一頁（見 market.js）
+    if (page.noList) return; // 觀察清單畫在選股的每一頁（見 market.js）
     const formKey = page.source || key;
     lists[key] = createList(key, page, { openForm: id => Form.open(formKey, id), onChanged: (k, rec) => onChanged(k, rec), toast });
     $('panels').appendChild(lists[key].el);
@@ -35,7 +35,7 @@
   lists.cash = createCash({ openForm: (id, preset) => Form.open('cashPools', id, preset) });
   $('panels').appendChild(lists.cash.el);
 
-  // 看股票的頁（見 market.js）：股利那一格的殖利率、EPS，行情那一格的 K 線、KD、ETF 持有、★ 星星；點一檔打開詳細頁（見 detail.js）
+  // 看股票的頁（見 market.js）：選股那一格的 K 線、KD、ETF 持有、殖利率、EPS、★ 星星；點一檔打開詳細頁（見 detail.js）
   //   上一檔、下一檔照那一頁列表的順序；詳細頁捲到點進來那一頁的那一段
   //   K 線頁點一列打開大圖（見 kline.js），一樣可以上一檔、下一檔
   //   第一個是加了觀察清單、又不在這幾頁時切過去的那一頁
@@ -52,7 +52,7 @@
 
   // 新增、修改、刪除之後（表單、詳細頁的加入觀察清單）：相關的頁面重畫
   function onChanged(key, rec) {
-    // 觀察清單：切到行情（不在行情時切到第一頁），剛加的那一檔閃一下；總覽和除權息頁的即將除權息也有觀察清單
+    // 觀察清單：切到選股（不在選股時切到第一頁），剛加的那一檔閃一下；總覽和除權息頁的即將除權息也有觀察清單
     if (key === 'watch') {
       if (rec && !MARKET.includes(current)) showTab(MARKET[0]);
       MARKET.forEach(k => (k === current ? lists[k].changed(rec) : lists[k].refresh()));
@@ -68,7 +68,7 @@
     lists[key].changed(rec);
     // 持股變了，除權息頁最上面的即將除權息（持有的、預估領多少）跟著重算
     if (key !== 'dividends') lists.dividends.refresh();
-    // 持股、自己記的除權息變了，行情跟著重算
+    // 持股、自己記的除權息變了，選股跟著重算
     refreshMarket();
     // 推算頁面跟著重算；正在看的那頁順便標亮剛改的那筆
     Object.entries(VIEWS).forEach(([v, view]) => {
@@ -92,15 +92,17 @@
 
   // ---------- 分頁 ----------
   // 底部的每一格（key）和裡面的頁（pages：[頁面, 上方切換的名稱]）；只有一頁的不顯示上方切換
-  //   點底部的另一格時：remember 的格子（股利、行情）回到上次看的那一頁（這台裝置記住，關掉再打開也一樣）
+  //   點底部的另一格時：remember 的格子（股利、選股）回到上次看的那一頁（這台裝置記住，關掉再打開也一樣）
   //     其他的先顯示第一頁（記帳先顯示交易明細，免得把交易記成快照）；點目前這一格只捲回最上面
-  //   順序（2026-10-16 整理）：股利照時間，領到的 → 快除息的 → 現在的殖利率 → 用 EPS 估未來 → 現金單（工具，放最後）
-  //     行情從看圖到打分數：K 線 → KD → ETF 持有 → ★ 星星（把前面各頁的條件加起來，一定最後）
+  //   股利只放自己的錢：領到的 → 快除息的 → 現金單（工具，放最後）
+  //   選股＝上面有「持有｜觀察｜全市場｜成分股」那一排的頁，和詳細頁同一個順序：技術面 → 籌碼面 → 基本面
+  //     K 線 → KD → ETF 持有 → 殖利率 → EPS → ★ 星星（把前面各頁的條件加起來，一定最後）
   const GROUPS = [
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照'], ['history', '帳戶紀錄']] },
-    { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['yield', '殖利率'], ['eps', 'EPS'], ['cash', '現金單']] },
-    { key: 'market', label: '行情', remember: true, pages: [['kline', 'K 線'], ['kd', 'KD'], ['etfs', 'ETF 持有'], ['stars', '★ 星星']] },
+    { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
+    // 選股以前叫「行情」，key 照舊用 market（這台裝置記的上次那一頁不會不見）
+    { key: 'market', label: '選股', remember: true, pages: [['kline', 'K 線'], ['kd', 'KD'], ['etfs', 'ETF 持有'], ['yield', '殖利率'], ['eps', 'EPS'], ['stars', '★ 星星']] },
   ];
   let lastPages = {};
   try { lastPages = JSON.parse(localStorage.getItem(PAGES_KEY)) || {}; } catch (_) {}
@@ -714,7 +716,7 @@
     Trend.refresh();
   }
 
-  // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和行情
+  // 收盤價和 KD（見 market.js）：和公告的除權息一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫總覽和選股
   //   除權息頁最上面的即將除權息也有「約佔現價幾 %」
   Market.onChange(() => {
     lists.overview.refresh();
@@ -730,7 +732,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) Market.refresh(); });
   window.addEventListener('online', () => Market.refresh());
 
-  // EPS（見 eps.js）：和收盤價一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫行情（EPS 頁、星星）
+  // EPS（見 eps.js）：和收盤價一樣，打開時下載，從背景切回來、網路恢復時再檢查；下載到新的就重畫選股（EPS 頁、星星）
   Eps.onChange(() => {
     refreshMarket();
     Detail.refresh();

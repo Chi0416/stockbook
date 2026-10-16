@@ -677,7 +677,7 @@ const Form = (() => {
   }
 
   // ---------- 新增時列出目前的清單（schema 的 manage：觀察清單），每一檔可以移除 ----------
-  //   觀察清單只在這裡管理：行情頁的卡片點了沒有反應；依代號排，和行情頁的「依代號」同一個順序
+  //   觀察清單只在這裡管理：選股頁的卡片點了沒有反應；依代號排，和選股頁的「依代號」同一個順序
   function renderManage() {
     const m = ctx.schema.manage;
     manageEl.hidden = !m || !!ctx.id;
