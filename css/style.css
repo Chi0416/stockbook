@@ -179,8 +179,8 @@ body:has(dialog[open]) { overflow: hidden; }
 /* 底線樣式：選中的那一頁深色粗字加橘色底線；和頁面裡「明細｜統計」的膠囊切換看得出是不同層 */
 .subtabs {
   display: flex;
-  gap: clamp(14px, 5vw, 28px); /* 行情有 6 頁：手機上縮小間距才放得下，再窄就左右滑 */
-  overflow-x: auto;
+  gap: 28px;
+  overflow-x: auto; /* 股利有 5 頁：很窄的手機放不下時左右滑 */
   scrollbar-width: none;
   margin: 6px 0 0;
   border-bottom: .5px solid var(--border);
@@ -477,8 +477,8 @@ span.th { cursor: default; }
 .cash-edit { flex-shrink: 0; color: var(--accent-text); font-size: 13px; font-weight: 600; }
 .cash-start { max-width: 240px; margin: 20px auto 0; }
 
-/* 行情（見 market.js）：列表最上面的「全部｜持有｜觀察｜全市場｜成分股」，五等分 */
-.seg.range { grid-template-columns: repeat(5, 1fr); margin: 0 0 12px; }
+/* 看股票的頁（見 market.js）：列表最上面的「持有｜觀察｜全市場｜成分股」，四等分 */
+.seg.range { grid-template-columns: repeat(4, 1fr); margin: 0 0 12px; }
 /* 成分股：選 ETF 的選單，下面一行寫是哪家投信、哪一天公布的；代號後面的權重 */
 .etf-bar { margin: -4px 0 12px; }
 .etf-pick {
@@ -1148,6 +1148,32 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
   stroke-linecap: round;
 }
 .add-btn:active { opacity: .85; }
+
+/* ---------- 說明的小視窗（見 market.js 的 Note）：置中，不是從底部彈出 ---------- */
+dialog.popup {
+  width: min(360px, calc(100vw - 32px));
+  max-height: 80vh;
+  max-height: 80dvh;
+  margin: auto;
+  padding: 20px 20px 14px;
+  border: .5px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 48px rgba(20, 20, 19, .18);
+  overflow-y: auto;
+}
+dialog.popup[open] { animation: pop-in .16s ease-out; }
+dialog.popup::backdrop { background: rgba(20, 20, 19, .4); }
+@keyframes pop-in { from { transform: scale(.96); opacity: 0; } }
+.pop-title { margin: 0 0 10px; font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.pop-body p { margin: 0 0 10px; font-size: 14px; line-height: 1.7; color: var(--text-2); }
+.pop-body p.muted { font-size: 13px; color: var(--muted); }
+dialog.popup .wide-btn { margin-top: 4px; }
+/* 行情每一頁上面的一行：資料是哪一天的；右邊「說明」點了打開小視窗 */
+.list-intro.one { display: flex; align-items: baseline; gap: 10px; }
+.list-intro.one > span { flex: 1; min-width: 0; }
+.intro-more { flex-shrink: 0; padding: 2px 0 2px 8px; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 
 /* ---------- 底部彈出的 sheet ---------- */
 dialog.sheet {

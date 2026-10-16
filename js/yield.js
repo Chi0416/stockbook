@@ -1,4 +1,4 @@
-// 殖利率：行情的一頁（列表、「全部｜持有｜觀察」、搜尋見 market.js），預設殖利率由高到低
+// 殖利率：股利那一格的一頁（列表、「持有｜觀察｜全市場｜成分股」、搜尋見 market.js），預設殖利率由高到低
 //   排序：依殖利率、依暴力年化（高的在前，算不出來的放最後）或依代號
 //   近一年現金股利：公告的除權息（shared/dividends.json，見 announced.js）加上自己記的除權息，照配息頻率取最近幾次（月配 12、季配 4、半年配 2、年配 1）
 //     公告的除權息是 App 打開時才下載的：還沒下載好、下載不了時，卡片寫出來，下載好之後整頁重畫（app.js）
@@ -133,15 +133,21 @@ const YIELD_PAGE = (() => {
       </div>`;
   }
 
-  // 列表上面的說明：怎麼算、現價和公告資料是什麼時候的
+  // 列表上面的說明（見 market.js 的 intro）：一行寫現價和公告的除權息是什麼時候的，小視窗寫怎麼算
   //   全市場：持股和觀察清單以外都是收盤價，不一檔一檔數
-  function introHTML(all, wide) {
-    const how = '殖利率 = 近一年每股現金股利 ÷ 現價；暴力年化 = 最近一次 × 一年配幾次 ÷ 現價，紅色是最近一次配得比近一年平均多，綠色是比較少。';
-    const price = wide ? `價格是 ${md(Market.date())} 收盤價（持股和觀察清單連結 Google 時用即時價格）`
-      : Market.priceNote(all.map(r => r.code));
+  function intro(all, wide) {
+    const codes = all.map(r => r.code);
     const updated = Announced.updated();
-    const data = [price, updated ? `公告的除權息 ${md(updated)} 更新` : ''].filter(Boolean).join('；');
-    return `<p class="list-intro">${how}${data ? `<br>${U.esc(data)}` : ''}</p>`;
+    const price = wide ? `${md(Market.date())} 收盤價` : Market.priceShort(codes);
+    const priceFull = wide ? `價格是 ${md(Market.date())} 收盤價（持股和觀察清單連結 Google 時用即時價格）` : Market.priceNote(codes);
+    const data = [priceFull, updated ? `公告的除權息 ${md(updated)} 更新` : ''].filter(Boolean).join('；');
+    return {
+      title: '殖利率怎麼算',
+      line: U.esc([price, updated ? `除權息 ${md(updated)} 更新` : ''].filter(Boolean).join('・')),
+      body: '<p>殖利率 = 近一年每股現金股利 ÷ 現價</p>' +
+        '<p>暴力年化 = 最近一次 × 一年配幾次 ÷ 現價：紅色是最近一次配得比近一年平均多，綠色是比較少</p>' +
+        (data ? `<p class="muted">${U.esc(data)}</p>` : ''),
+    };
   }
 
   // 表格：現價／近一年每股｜殖利率｜暴力年化（紅綠同卡片）；最近一次、下次除息看詳細卡片或點進去
@@ -159,7 +165,7 @@ const YIELD_PAGE = (() => {
     title: '殖利率',
     table,
     sorts: [['yield', '依殖利率', high('y')], ['annual', '依暴力年化', high('ya')], ['code', '依代號', null]],
-    enrich, cardHTML, introHTML,
+    enrich, cardHTML, intro,
     notes, // 詳細頁（detail.js）也用
   };
 })();

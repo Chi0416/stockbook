@@ -115,13 +115,16 @@ const STARS_PAGE = (() => {
       </div>`;
   }
 
-  function introHTML() {
+  // 列表上面的說明（見 market.js 的 intro）：一行寫打勾了哪幾個條件，小視窗寫每個條件（可以調整）、怎麼排
+  function intro() {
     const list = Stars.on();
-    const how = list.length
-      ? `每個條件達標就給一顆 ★：${list.map(x => x.label()).join('、')}`
-      : '星星條件都沒有打勾';
-    return `<p class="list-intro">${U.esc(how)}（<button type="button" class="link-btn" data-act="stars-set">調整</button>）。` +
-      '星星一樣多時，殖利率高的在前。點一檔看詳細資料。</p>';
+    const how = list.length ? `每個條件達標就給一顆 ★：${list.map(x => x.label()).join('、')}` : '星星條件都沒有打勾';
+    return {
+      title: '星星怎麼算',
+      line: U.esc(list.length ? `條件：${list.map(x => x.short).join('、')}` : '星星條件都沒有打勾'),
+      body: `<p>${U.esc(how)}（<button type="button" class="link-btn" data-act="stars-set">調整</button>）</p>` +
+        '<p>星星一樣多時，殖利率高的在前。點一檔看詳細資料</p>',
+    };
   }
 
   // 表格：星星｜殖利率／暴力年化｜K 值／EPS 達成率（顏色同各頁）；哪幾項達標看詳細卡片或點進去
@@ -143,6 +146,6 @@ const STARS_PAGE = (() => {
       ['stars', '依星星', (a, b) => b.n - a.n || (b.y ?? -1) - (a.y ?? -1)],
       ['code', '依代號', null],
     ],
-    enrich, cardHTML, introHTML,
+    enrich, cardHTML, intro,
   };
 })();

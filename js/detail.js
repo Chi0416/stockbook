@@ -1,12 +1,13 @@
-// 一檔股票的詳細資料：行情的卡片點了打開（從底部彈出，和新增表單一樣）
+// 一檔股票的詳細資料：看股票的頁（股利的殖利率、EPS，行情的每一頁）點一檔打開（從底部彈出，和新增表單一樣）
 //   最上面：持有或觀察、星星（達標的條件，見 stars.js）
-//   下面的順序：EPS → 股利預估 → 殖利率 → KD → K 線 → 我的 → 配息紀錄（先基本面、再技術面；不另外加分區的標題，免得變長）
+//   下面的順序：殖利率 → EPS → 股利預估 → K 線 → KD → 我的 → 配息紀錄（不另外加分區的標題，免得變長）
+//     和分頁的順序一樣（股利：殖利率｜EPS，行情：K 線｜KD），在哪裡看都是同一個順序
 //     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
 //       放在配息紀錄正上面：領到多少和每次配多少上下並排，好對照
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
 //     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（新的在上面），算法見 eps.js
-//     殖利率：接在股利預估後面，和預估殖利率好比較
-//     K 線：接在 KD 後面，一張小圖（最近 20 天和月線，見 MA.miniHTML）和月線的方向、扣低幾天（用現價算），點了打開大圖（月線扣抵，見 kline.js）
+//     殖利率：放最上面，現在買殖利率多少；下面股利預估的預估殖利率好對照
+//     K 線：接在股利預估後面、KD 前面，一張小圖（最近 20 天和月線，見 MA.miniHTML）和月線的方向、扣低幾天（用現價算），點了打開大圖（月線扣抵，見 kline.js）
 //       K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段（app.js 叫 refreshKLine）
 //     配息紀錄：公告的除權息加上自己記的（Yield.events），新的在前；一長串，放最下面才不會把 KD 擠到很下面
 //   和行情頁同樣的算法（YIELD_PAGE、KD_PAGE、EPS_PAGE），達到星星條件的數字旁邊標 ★
@@ -239,9 +240,6 @@ const Detail = (() => {
         <span class="detail-met">${!total ? '星星條件都沒有打勾' : r.n ? `達標：${r.stars.map(x => x.short).join('、')}` : '沒有達標的條件'}</span>
       </div>
 
-      ${epsHTML(r)}
-      ${fcHTML(r)}
-
       <h3 class="section-head">殖利率</h3>
       <div class="card static detail-card yield-card">
         <span class="card-grid">
@@ -255,6 +253,11 @@ const Detail = (() => {
         ${notesHTML(YIELD_PAGE.notes(r))}
       </div>
 
+      ${epsHTML(r)}
+      ${fcHTML(r)}
+
+      ${klHTML(r.price)}
+
       <h3 class="section-head">KD（日 KD，9 日）</h3>
       <div class="card static detail-card kd-card">
         <span class="card-grid">
@@ -264,8 +267,6 @@ const Detail = (() => {
         </span>
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
-
-      ${klHTML(r.price)}
 
       <h3 class="section-head">我的</h3>
       <div class="card static detail-card">${mineHTML(pos, r.price)}</div>

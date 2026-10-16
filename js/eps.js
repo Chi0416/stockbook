@@ -1,4 +1,4 @@
-// EPS：行情的一頁（列表、「全部｜持有｜觀察｜全市場」、搜尋見 market.js），每一家公司今年的 EPS 跟去年全年比
+// EPS：股利那一格的一頁（列表、「持有｜觀察｜全市場｜成分股」、搜尋見 market.js），每一家公司今年的 EPS 跟去年全年比
 //   資料：shared/eps.json（公開資訊觀測站的財報，由 tools/update-eps.mjs 產生），GitHub 每個工作天晚上自動更新，不用改版本號
 //     App 打開時下載（load），從背景切回來、網路恢復時，距離上次超過 30 分鐘再檢查一次（refresh），和收盤價一樣（見 market.js）
 //   達成率 = 今年累計 EPS ÷ 去年全年 EPS；進度 = 每過一季 25%（財報公布到第 2 季就是 50%）
@@ -282,23 +282,37 @@ const EPS_PAGE = (() => {
       </div>`;
   }
 
-  // 列表上面的說明：怎麼算、財報公布到哪一季、沒列出的有幾檔
+  // 列表上面的說明（見 market.js 的 intro）：一行寫財報公布到哪一季、什麼時候更新、沒列出的有幾檔，小視窗寫怎麼算
   //   skipped：持股和觀察清單裡沒有 EPS 的（ETF、興櫃）；全市場不一檔一檔數
-  function introHTML(all, wide, skipped = 0) {
-    const how = '達成率 = 今年累計 EPS ÷ 去年全年 EPS，超過進度（每季 25%，長條上的刻度）紅色、落後綠色。' +
-      '預估每股配 = 預估全年 EPS × 近 3 年配息率，點一檔看怎麼算的。';
-    const parts = [];
+  function intro(all, wide, skipped = 0) {
     const l = Eps.latest();
-    if (!Eps.ready()) parts.push(Eps.waiting());
-    else if (l) {
+    const line = [];
+    const data = [];
+    if (!Eps.ready()) {
+      line.push(Eps.waiting());
+      data.push(Eps.waiting());
+    } else if (l) {
       // 下一季什麼時候公布（一般公司的期限，金融業有些晚一點）；已經有公司公布了寫「陸續」
       const next = l.q === 4 ? `${l.year + 1} 年第 1 季 5/15` : l.q === 3 ? `全年 ${l.year + 1}/3/31` : `第 ${l.q + 1} 季 ${['', '8/14', '11/14'][l.q]}`;
-      parts.push(`財報公布到 ${l.year} 年第 ${l.q} 季，${next} 前${l.more ? '陸續' : ''}公布`);
-      if (Eps.updated()) parts.push(`${md(Eps.updated())} 更新`);
+      line.push(`財報到 ${l.year} 年第 ${l.q} 季`);
+      data.push(`財報公布到 ${l.year} 年第 ${l.q} 季，${next} 前${l.more ? '陸續' : ''}公布`);
+      if (Eps.updated()) {
+        line.push(`${md(Eps.updated())} 更新`);
+        data.push(`${md(Eps.updated())} 更新`);
+      }
     }
-    if (wide) parts.push('全市場只列有 EPS 的公司');
-    else if (skipped) parts.push(`另有 ${skipped} 檔沒有 EPS（ETF、興櫃），沒有列出`);
-    return `<p class="list-intro">${how}${parts.length ? `<br>${U.esc(parts.join('；'))}` : ''}</p>`;
+    if (wide) data.push('全市場只列有 EPS 的公司');
+    else if (skipped) {
+      line.push(`${skipped} 檔沒有 EPS`);
+      data.push(`另有 ${skipped} 檔沒有 EPS（ETF、興櫃），沒有列出`);
+    }
+    return {
+      title: 'EPS 怎麼看',
+      line: U.esc(line.join('・')),
+      body: '<p>達成率 = 今年累計 EPS ÷ 去年全年 EPS；超過進度（每季 25%，長條上的刻度）紅色、落後綠色</p>' +
+        '<p>預估每股配 = 預估全年 EPS × 近 3 年配息率，點一檔看怎麼算的</p>' +
+        (data.length ? `<p class="muted">${U.esc(data.join('；'))}</p>` : ''),
+    };
   }
 
   // 列出來的都沒有 EPS 時（持股和觀察清單都是 ETF、搜尋到的都是 ETF），列表上的那句話
@@ -324,7 +338,7 @@ const EPS_PAGE = (() => {
       ['fyield', '依預估殖利率', desc(r => r.fy)],
       ['code', '依代號', null],
     ],
-    enrich, keep, cardHTML, introHTML, skippedHTML,
+    enrich, keep, cardHTML, intro, skippedHTML,
     barHTML, notes, cellsHTML, tone, fcText, fcWarn, money, pct, yearName, // 詳細頁（detail.js）也用
   };
 })();

@@ -35,9 +35,10 @@
   lists.cash = createCash({ openForm: (id, preset) => Form.open('cashPools', id, preset) });
   $('panels').appendChild(lists.cash.el);
 
-  // 行情：每個指標一頁，加上把星星加起來的★ 星星；點卡片打開那一檔的詳細頁（見 market.js、detail.js）
+  // 看股票的頁（見 market.js）：股利那一格的殖利率、EPS，行情那一格的 K 線、KD、ETF 持有、★ 星星；點一檔打開詳細頁（見 detail.js）
   //   K 線頁點一列打開大圖（見 kline.js），上一檔、下一檔照列表的順序
-  const MARKET = ['yield', 'kd', 'eps', 'kline', 'etfs', 'stars'];
+  //   第一個是加了觀察清單、又不在這幾頁時切過去的那一頁
+  const MARKET = ['kline', 'kd', 'etfs', 'stars', 'yield', 'eps'];
   const openStock = code => Detail.open(code);
   lists.yield = createMarket(YIELD_PAGE, { openStock });
   lists.kd = createMarket(KD_PAGE, { openStock });
@@ -92,11 +93,13 @@
   // 底部的每一格（key）和裡面的頁（pages：[頁面, 上方切換的名稱]）；只有一頁的不顯示上方切換
   //   點底部的另一格時：remember 的格子（股利、行情）回到上次看的那一頁（這台裝置記住，關掉再打開也一樣）
   //     其他的先顯示第一頁（記帳先顯示交易明細，免得把交易記成快照）；點目前這一格只捲回最上面
+  //   順序（2026-10-16 整理）：股利照時間，領到的 → 快除息的 → 現在的殖利率 → 用 EPS 估未來 → 現金單（工具，放最後）
+  //     行情從看圖到打分數：K 線 → KD → ETF 持有 → ★ 星星（把前面各頁的條件加起來，一定最後）
   const GROUPS = [
     { key: 'overview', label: '總覽', pages: [['overview', '總覽']] },
     { key: 'book', label: '記帳', pages: [['trades', '交易明細'], ['snapshots', '庫存快照'], ['history', '帳戶紀錄']] },
-    { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['cash', '現金單']] },
-    { key: 'market', label: '行情', remember: true, pages: [['yield', '殖利率'], ['kd', 'KD'], ['kline', 'K 線'], ['eps', 'EPS'], ['etfs', 'ETF'], ['stars', '★ 星星']] },
+    { key: 'income', label: '股利', remember: true, pages: [['cashDividends', '股利'], ['dividends', '除權息'], ['yield', '殖利率'], ['eps', 'EPS'], ['cash', '現金單']] },
+    { key: 'market', label: '行情', remember: true, pages: [['kline', 'K 線'], ['kd', 'KD'], ['etfs', 'ETF 持有'], ['stars', '★ 星星']] },
   ];
   let lastPages = {};
   try { lastPages = JSON.parse(localStorage.getItem(PAGES_KEY)) || {}; } catch (_) {}
@@ -376,6 +379,13 @@
     toast(on.length ? `星星條件：${on.map(x => x.short).join('、')}` : '星星條件都沒有打勾');
   });
   $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="stars-set"]')) openMenu('stars'); });
+  // 說明的小視窗（見 market.js 的 Note）裡的「調整」：先關掉小視窗再打開設定
+  Note.el?.addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act !== 'kd-marks' && act !== 'stars-set') return;
+    Note.close();
+    openMenu(act === 'kd-marks' ? 'kd' : 'stars');
+  });
 
   // ---------- 隱藏金額（見 privacy.js）：設定選單的開關；總覽的眼睛在 overview.js ----------
   const hideSwitch = $('hide-amounts');

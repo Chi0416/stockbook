@@ -1,4 +1,4 @@
-// KD：行情的一頁（列表、「全部｜持有｜觀察」、搜尋見 market.js），每一檔最近一個交易日的日 KD（9、3、3）
+// KD：行情的一頁（列表、「持有｜觀察｜全市場｜成分股」、搜尋見 market.js），每一檔最近一個交易日的日 KD（9、3、3）
 //   K、D 是 GitHub 每個工作天收盤後算好的（資料見 market.js，算法見 tools/kd.mjs），盤中不會跟著變
 //   K 值低於下限：綠色、標「低檔」；高於上限：紅色、標「高檔」；D 值也照同樣的上下限上色
 //     上下限在設定裡選（預設 25、75），只記在這台裝置
@@ -117,21 +117,24 @@ const KD_PAGE = (() => {
       </div>`;
   }
 
-  // 列表上面的說明：顏色的意思（上下限可以調整）、資料是哪一天的
-  function introHTML() {
+  // 列表上面的說明（見 market.js 的 intro）：一行寫哪一天收盤、顏色的上下限，小視窗寫顏色和交叉的意思（上下限可以調整）
+  function intro() {
     const day = Market.date();
-    const data = Market.waiting() || `依 ${md(day)} 收盤計算，每個交易日收盤後更新`;
-    return `<p class="list-intro">日 KD（9 日）：K 值低於 ${KD.low} 是綠色、高於 ${KD.high} 是紅色` +
-      '（<button type="button" class="link-btn" data-act="kd-marks">調整</button>）。' +
-      '黃金交叉（紅）是 K 由下往上穿過 D，死亡交叉（綠）是由上往下，旁邊的小字是在低檔、中間還是高檔交叉。' +
-      `<br>${U.esc(data)}</p>`;
+    return {
+      title: 'KD 怎麼看',
+      line: U.esc(Market.waiting() || `${md(day)} 收盤・K 低於 ${KD.low} 綠、高於 ${KD.high} 紅`),
+      body: `<p>日 KD（9 日）：K 值低於 ${KD.low} 是綠色、高於 ${KD.high} 是紅色` +
+        '（<button type="button" class="link-btn" data-act="kd-marks">調整</button>）</p>' +
+        '<p>黃金交叉（紅）是 K 由下往上穿過 D，死亡交叉（綠）是由上往下，旁邊的小字是在低檔、中間還是高檔交叉</p>' +
+        `<p class="muted">${U.esc(Market.waiting() || `依 ${md(day)} 收盤計算，每個交易日收盤後更新，盤中不會變`)}</p>`,
+    };
   }
 
   return {
     title: 'KD',
     table,
     sorts: [['low', 'K 值低到高', byK(1)], ['high', 'K 值高到低', byK(-1)], ['code', '依代號', null]],
-    enrich, cardHTML, introHTML,
+    enrich, cardHTML, intro,
     note, crossCell, // 詳細頁（detail.js）也用
   };
 })();

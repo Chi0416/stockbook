@@ -80,7 +80,7 @@ const Etf = (() => {
   return { need, list, holders, current, select, waiting, ready: () => state === 'ready', onChange: fn => listeners.push(fn) };
 })();
 
-// ETF：行情的一頁（列表、「全部｜持有｜觀察｜全市場｜成分股」、搜尋見 market.js），每一檔股票被幾檔 ETF 持有
+// ETF 持有：行情的一頁（列表、「持有｜觀察｜全市場｜成分股」、搜尋見 market.js），每一檔股票被幾檔 ETF 持有
 //   只算 shared/etf.json 裡有的 ETF（從投信網站抄的，見上面），所以「幾檔」最多就是收了幾檔；說明裡寫收了哪幾檔、哪一天公布的
 //   排序：ETF 多的在前（預設，一樣多的照權重加總）、權重加總高的在前、依代號
 //     權重加總：這一檔佔每一檔持有它的 ETF 的權重加起來，越高代表 ETF 買得越多
@@ -125,15 +125,20 @@ const ETF_PAGE = (() => {
       </div>`;
   }
 
-  // 列表上面的說明：收了哪幾檔 ETF、各是哪一天公布的（不是每天更新，免得誤會）
-  function introHTML() {
-    if (!ready()) return `<p class="list-intro">${U.esc(Etf.waiting())}</p>`;
+  // 列表上面的說明（見 market.js 的 intro）：一行寫收了幾檔、哪一天公布的（不是每天更新，免得誤會），小視窗寫怎麼算、收了哪幾檔
+  function intro() {
+    if (!ready()) return { title: 'ETF 持有怎麼看', line: U.esc(Etf.waiting()), body: `<p>${U.esc(Etf.waiting())}</p>` };
     const all = Etf.list();
-    const dates = [...new Set(all.map(e => e.date))];
-    const when = dates.length === 1 ? `都是 ${U.fmtDate(dates[0])} 公布的` : all.map(e => `${e.code} ${md(e.date)}`).join('、');
-    return `<p class="list-intro">被幾檔 ETF 持有，越多排越前面；權重加總是在這幾檔 ETF 裡佔的權重加起來。` +
-      `<br>只算收了的 ${all.length} 檔：${U.esc(all.map(e => `${e.code} ${e.name}`).join('、'))}。` +
-      `成分股從投信網站抄的，${U.esc(when)}，ETF 調整成分股時才更新</p>`;
+    const dates = [...new Set(all.map(e => e.date))].sort();
+    const when = dates.length === 1 ? `${md(dates[0])} 公布` : `最舊的 ${md(dates[0])} 公布`;
+    const each = dates.length === 1 ? `都是 ${U.fmtDate(dates[0])} 公布的` : all.map(e => `${e.code} ${md(e.date)}`).join('、');
+    return {
+      title: 'ETF 持有怎麼看',
+      line: U.esc(`收 ${all.length} 檔 ETF・${when}`),
+      body: '<p>被幾檔 ETF 持有，越多排越前面；權重加總是這一檔在每一檔持有它的 ETF 裡佔的權重加起來，越高代表 ETF 買得越多</p>' +
+        `<p>只算收了的 ${all.length} 檔：${U.esc(all.map(e => `${e.code} ${e.name}`).join('、'))}</p>` +
+        `<p class="muted">成分股從投信網站抄的，${U.esc(each)}，ETF 調整成分股時才更新</p>`,
+    };
   }
 
   // 全市場只列至少一檔 ETF 持有的
@@ -142,9 +147,9 @@ const ETF_PAGE = (() => {
 
   const byCount = (a, b) => (b.n ?? -1) - (a.n ?? -1) || b.wsum - a.wsum;
   return {
-    title: 'ETF',
+    title: 'ETF 持有',
     table,
     sorts: [['count', 'ETF 多的在前', byCount], ['weight', '權重加總高的在前', (a, b) => b.wsum - a.wsum], ['code', '依代號', null]],
-    enrich, cardHTML, introHTML, keep, skippedHTML,
+    enrich, cardHTML, intro, keep, skippedHTML,
   };
 })();

@@ -1,4 +1,4 @@
-// K 線：行情的一頁（列表、「全部｜持有｜觀察｜全市場」、搜尋見 market.js），每一列一張小 K 線圖（最近 20 天和月線，見 MA.miniHTML）
+// K 線：行情的一頁（列表、「持有｜觀察｜全市場｜成分股」、搜尋見 market.js），每一列一張小 K 線圖（最近 20 天和月線，見 MA.miniHTML）
 //   月線往哪裡彎、扣低幾天，用現價算（和殖利率頁的現價一樣，見 market.js 的 quote）：
 //     月線：價格是現價的話，今天的月線比前一天高（上彎）、低（下彎）
 //     扣低：接下來 5 天要扣的收盤價有幾天比現價低；扣低越多，價格不變的話月線越會往上彎
@@ -61,19 +61,26 @@ const KLINE_PAGE = (() => {
       </div>`;
   }
 
-  // 列表上面的說明：怎麼看、資料是哪一天的、現價
-  function introHTML(all, wide) {
-    const how = `小圖是最近 20 天的 K 棒和月線，虛線是價格不變時月線怎麼走。扣低：接下來 ${MA.DAYS} 天要扣的收盤價有幾天比現價低，越多月線越會往上彎。點一檔看大圖。`;
-    const price = wide ? `價格是 ${md(Market.date())} 收盤價（持股和觀察清單連結 Google 時用即時價格）` : Market.priceNote(all.map(r => r.code));
-    const data = Candles.waiting() || [`K 線到 ${md(Candles.date())}`, price].filter(Boolean).join('；');
-    return `<p class="list-intro">${how}<br>${U.esc(data)}</p>`;
+  // 列表上面的說明（見 market.js 的 intro）：一行寫 K 線到哪一天、現價，小視窗寫怎麼看
+  function intro(all, wide) {
+    const codes = all.map(r => r.code);
+    const price = wide ? `${md(Market.date())} 收盤價` : Market.priceShort(codes);
+    const priceFull = wide ? `價格是 ${md(Market.date())} 收盤價（持股和觀察清單連結 Google 時用即時價格）` : Market.priceNote(codes);
+    return {
+      title: 'K 線怎麼看',
+      line: U.esc(Candles.waiting() || `K 線到 ${md(Candles.date())}・${price}`),
+      body: '<p>小圖是最近 20 天的 K 棒和月線（20 日均線），右邊的虛線是價格不變時月線怎麼走</p>' +
+        `<p>扣低：接下來 ${MA.DAYS} 天要扣的收盤價有幾天比現價低，越多月線越會往上彎；月線的上彎、下彎也用現價算</p>` +
+        '<p>點一檔打開大圖，可以自己打價格看月線怎麼走</p>' +
+        `<p class="muted">${U.esc(Candles.waiting() || [`K 線到 ${md(Candles.date())}`, priceFull].filter(Boolean).join('；'))}</p>`,
+    };
   }
 
   return {
     title: 'K 線',
     table,
     sorts: [['low', '扣低多的在前', most('low', 1)], ['high', '扣高多的在前', most('high', -1)], ['code', '依代號', null]],
-    enrich, cardHTML, introHTML,
+    enrich, cardHTML, intro,
   };
 })();
 
