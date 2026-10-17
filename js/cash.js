@@ -220,8 +220,10 @@ function createCash(hooks) {
     const text = p => `${p.code} ${p.name} ${Store.memberName(p.member)}`.toLowerCase();
     const rows = pools.filter(p => !kw || text(p).includes(kw)).sort((a, b) => order(a.member) - order(b.member));
     countEl.textContent = rows.length === pools.length ? `${pools.length} 檔` : `${rows.length}／${pools.length} 檔`;
-    listEl.innerHTML = (rows.length ? rows.map(p => cardHTML(p, many)).join('') : '<p class="empty">沒有符合條件的現金單</p>') +
-      `<p class="list-intro">${note ? `${U.esc(note)}。` : ''}零股的成交價可能和現價差一點；手續費、證交稅元以下捨去，和券商可能差 1 元。</p>` +
+    // 上面一行和選股一樣寫價格是什麼時候的，右邊「說明」點了用小泡泡打開（見 market.js 的 Note）
+    listEl.innerHTML = Note.line(U.esc(Market.priceShort(codes)), '現金單', (note ? `<p class="muted">${U.esc(note)}</p>` : '') +
+      '<p>零股的成交價可能和現價差一點</p><p>手續費、證交稅元以下捨去，和券商可能差 1 元</p>') +
+      (rows.length ? rows.map(p => cardHTML(p, many)).join('') : '<p class="empty">沒有符合條件的現金單</p>') +
       (lacking.length ? `<button type="button" class="text-btn" data-add="${lacking.length === 1 ? U.esc(lacking[0]) : ''}">` +
         `＋ 幫${U.esc(lacking.map(id => Store.memberName(id)).join('、'))}設定現金單</button>` : '');
   }

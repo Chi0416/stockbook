@@ -1159,28 +1159,39 @@ button.bar-row:active, .rank-row:active { background: var(--chip-bg); }
 }
 .add-btn:active { opacity: .85; }
 
-/* ---------- 說明的小視窗（見 market.js 的 Note）：置中，不是從底部彈出 ---------- */
-dialog.popup {
-  width: min(360px, calc(100vw - 32px));
-  max-height: 80vh;
-  max-height: 80dvh;
-  margin: auto;
-  padding: 20px 20px 14px;
+/* ---------- 「說明」的小泡泡（見 market.js 的 Note）：在「說明」下面，小箭頭指著它；背景不變暗 ---------- */
+.tip {
+  position: absolute;
+  z-index: 15;
+  width: min(320px, calc(100vw - 24px));
+  padding: 10px 14px 2px;
   border: .5px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 16px 48px rgba(20, 20, 19, .18);
-  overflow-y: auto;
+  color: var(--text-2);
+  box-shadow: 0 8px 28px rgba(20, 20, 19, .16);
+  animation: tip-in .12s ease-out;
 }
-dialog.popup[open] { animation: pop-in .16s ease-out; }
-dialog.popup::backdrop { background: rgba(20, 20, 19, .4); }
-@keyframes pop-in { from { transform: scale(.96); opacity: 0; } }
-.pop-title { margin: 0 0 10px; font-family: var(--serif); font-size: 18px; font-weight: 600; }
-.pop-body p { margin: 0 0 10px; font-size: 14px; line-height: 1.7; color: var(--text-2); }
-.pop-body p.muted { font-size: 13px; color: var(--muted); }
-dialog.popup .wide-btn { margin-top: 4px; }
-/* 選股每一頁上面的一行：資料是哪一天的；右邊「說明」點了打開小視窗 */
+.tip[hidden] { display: none; }
+.tip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: calc(var(--arrow, 50%) - 6px);
+  width: 11px;
+  height: 11px;
+  border-left: .5px solid var(--border);
+  border-top: .5px solid var(--border);
+  background: var(--surface);
+  transform: rotate(45deg);
+}
+.tip.above::before { top: auto; bottom: -6px; transform: rotate(225deg); }
+@keyframes tip-in { from { opacity: 0; transform: translateY(-4px); } }
+.tip.above { animation-name: tip-in-above; }
+@keyframes tip-in-above { from { opacity: 0; transform: translateY(4px); } }
+.tip p { margin: 0 0 8px; font-size: 13px; line-height: 1.6; }
+.tip p.muted { font-size: 12px; color: var(--muted); }
+/* 列表上面的一行：資料是哪一天的；右邊「說明」點了打開小泡泡 */
 .list-intro.one { display: flex; align-items: baseline; gap: 10px; }
 .list-intro.one > span { flex: 1; min-width: 0; }
 .intro-more { flex-shrink: 0; padding: 2px 0 2px 8px; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }

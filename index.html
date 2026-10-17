@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="記錄簿">
   <!-- 加到主畫面時的名稱與圖示 -->
-  <link rel="manifest" href="manifest.json?v=2026.10.16.6">
+  <link rel="manifest" href="manifest.json?v=2026.10.17.1">
   <link rel="icon" type="image/png" href="icons/book-192.png">
   <link rel="apple-touch-icon" href="icons/book-180.png">
   <title>股票記錄簿</title>
@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/style.css?v=2026.10.16.6">
+  <link rel="stylesheet" href="css/style.css?v=2026.10.17.1">
 </head>
 <body>
   <div class="app">
@@ -122,7 +122,7 @@
       <button id="btn-add-member" type="button" class="wide-btn">新增成員</button>
       <p class="note muted">交易明細和庫存快照分開記在每位成員名下；除權息和觀察清單全家共用一份，股利依各人持股計算。名字最多 5 個字。</p>
 
-      <!-- KD 標記（見 kd.js）：選股的 KD 頁，K 值低於下限綠色、高於上限紅色；KD 頁說明裡的「調整」打開這一段 -->
+      <!-- KD 標記（見 kd.js）：選股的 KD 頁，K 值低於下限綠色、高於上限紅色；KD 頁「說明」泡泡裡的「調整」打開這一段 -->
       <h3 id="kd-head" class="section-head">KD 標記</h3>
       <ul class="member-list kd-marks">
         <li>
@@ -136,7 +136,7 @@
       </ul>
       <p class="note muted">選股「KD」頁用的，D 值也照同樣的數字上色。只記在這台裝置。</p>
 
-      <!-- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁說明裡的「調整」打開這一段 -->
+      <!-- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁「說明」泡泡裡的「調整」打開這一段 -->
       <h3 id="stars-head" class="section-head">星星條件</h3>
       <ul class="member-list stars-set">
         <li>
@@ -181,7 +181,7 @@
 
       <!-- 每次更新網站時改這裡，用來確認手機上開的是不是新版
            css、js 網址後面的 ?v= 也要一起改成同一個版本號，瀏覽器才會重新下載（tests/version.test.mjs 會檢查） -->
-      <p class="note muted">版本 2026.10.16.6</p>
+      <p class="note muted">版本 2026.10.17.1</p>
     </div>
   </dialog>
 
@@ -193,13 +193,6 @@
       <button type="button" class="text-btn" data-act="close">關閉</button>
     </div>
     <div class="sheet-body"></div>
-  </dialog>
-
-  <!-- 說明的小視窗（見 market.js 的 Note）：選股每一頁上面的「說明」點了打開 -->
-  <dialog id="note-pop" class="popup">
-    <h2 class="pop-title"></h2>
-    <div class="pop-body"></div>
-    <button type="button" class="wide-btn" data-act="close">知道了</button>
   </dialog>
 
   <!-- K 線大圖、月線扣抵（見 kline.js）：選股的 K 線頁、詳細頁的 K 線點了打開 -->
@@ -240,40 +233,40 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/util.js?v=2026.10.16.6"></script>
-  <script src="js/privacy.js?v=2026.10.16.6"></script>
-  <script src="js/stocklist.js?v=2026.10.16.6"></script>
-  <script src="js/stocksearch.js?v=2026.10.16.6"></script>
-  <script src="js/announced.js?v=2026.10.16.6"></script>
-  <script src="js/market.js?v=2026.10.16.6"></script>
-  <script src="js/candles.js?v=2026.10.16.6"></script>
-  <script src="js/etf.js?v=2026.10.16.6"></script>
-  <script src="js/schema.js?v=2026.10.16.6"></script>
-  <script src="js/storage.js?v=2026.10.16.6"></script>
-  <script src="js/holdings.js?v=2026.10.16.6"></script>
-  <script src="js/history.js?v=2026.10.16.6"></script>
-  <script src="js/trend.js?v=2026.10.16.6"></script>
-  <script src="js/views.js?v=2026.10.16.6"></script>
-  <script src="js/stats.js?v=2026.10.16.6"></script>
-  <script src="js/table.js?v=2026.10.16.6"></script>
-  <script src="js/list.js?v=2026.10.16.6"></script>
-  <script src="js/overview.js?v=2026.10.16.6"></script>
-  <script src="js/cash.js?v=2026.10.16.6"></script>
-  <script src="js/yield.js?v=2026.10.16.6"></script>
-  <script src="js/kd.js?v=2026.10.16.6"></script>
-  <script src="js/ma.js?v=2026.10.16.6"></script>
-  <script src="js/kline.js?v=2026.10.16.6"></script>
-  <script src="js/eps.js?v=2026.10.16.6"></script>
-  <script src="js/stars.js?v=2026.10.16.6"></script>
-  <script src="js/upcoming.js?v=2026.10.16.6"></script>
-  <script src="js/form.js?v=2026.10.16.6"></script>
-  <script src="js/detail.js?v=2026.10.16.6"></script>
-  <script src="js/config.js?v=2026.10.16.6"></script>
-  <script src="js/google.js?v=2026.10.16.6"></script>
-  <script src="js/sheet.js?v=2026.10.16.6"></script>
-  <script src="js/sync.js?v=2026.10.16.6"></script>
-  <script src="js/inbox.js?v=2026.10.16.6"></script>
-  <script src="js/app.js?v=2026.10.16.6"></script>
+  <script src="js/util.js?v=2026.10.17.1"></script>
+  <script src="js/privacy.js?v=2026.10.17.1"></script>
+  <script src="js/stocklist.js?v=2026.10.17.1"></script>
+  <script src="js/stocksearch.js?v=2026.10.17.1"></script>
+  <script src="js/announced.js?v=2026.10.17.1"></script>
+  <script src="js/market.js?v=2026.10.17.1"></script>
+  <script src="js/candles.js?v=2026.10.17.1"></script>
+  <script src="js/etf.js?v=2026.10.17.1"></script>
+  <script src="js/schema.js?v=2026.10.17.1"></script>
+  <script src="js/storage.js?v=2026.10.17.1"></script>
+  <script src="js/holdings.js?v=2026.10.17.1"></script>
+  <script src="js/history.js?v=2026.10.17.1"></script>
+  <script src="js/trend.js?v=2026.10.17.1"></script>
+  <script src="js/views.js?v=2026.10.17.1"></script>
+  <script src="js/stats.js?v=2026.10.17.1"></script>
+  <script src="js/table.js?v=2026.10.17.1"></script>
+  <script src="js/list.js?v=2026.10.17.1"></script>
+  <script src="js/overview.js?v=2026.10.17.1"></script>
+  <script src="js/cash.js?v=2026.10.17.1"></script>
+  <script src="js/yield.js?v=2026.10.17.1"></script>
+  <script src="js/kd.js?v=2026.10.17.1"></script>
+  <script src="js/ma.js?v=2026.10.17.1"></script>
+  <script src="js/kline.js?v=2026.10.17.1"></script>
+  <script src="js/eps.js?v=2026.10.17.1"></script>
+  <script src="js/stars.js?v=2026.10.17.1"></script>
+  <script src="js/upcoming.js?v=2026.10.17.1"></script>
+  <script src="js/form.js?v=2026.10.17.1"></script>
+  <script src="js/detail.js?v=2026.10.17.1"></script>
+  <script src="js/config.js?v=2026.10.17.1"></script>
+  <script src="js/google.js?v=2026.10.17.1"></script>
+  <script src="js/sheet.js?v=2026.10.17.1"></script>
+  <script src="js/sync.js?v=2026.10.17.1"></script>
+  <script src="js/inbox.js?v=2026.10.17.1"></script>
+  <script src="js/app.js?v=2026.10.17.1"></script>
   <!-- Google 登入元件（連結 Google 帳號時才用到，不擋住畫面載入） -->
   <script src="https://accounts.google.com/gsi/client" async></script>
 </body>

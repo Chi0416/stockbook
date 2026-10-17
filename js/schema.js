@@ -29,7 +29,7 @@
 //   search:      搜尋框的提示字（沒有時是「搜尋代號或證券」）
 //   status:      沒有標籤欄位時，卡片左上角的狀態標籤：回傳 { label, cls, pending } 或 null
 //                cls 是標籤樣式（pending 為虛線）；pending 為 true 時金額變淡、合計另外列出
-//   intro:       列表最上面的一段說明（有資料時才顯示）
+//   intro:       列表最上面的一行 { line, body }（有資料時才顯示）：line 一定看得到，右邊「說明」點了用小泡泡打開 body（HTML，見 market.js 的 Note）
 //   empty:       還沒有資料時列表顯示的文字
 //   annotate:    列表的補充說明：annotate(rows) 回傳 { groups: { 分組值: { text, warn, lines } }, cards: { 記錄 id: { text, warn } } }
 //                groups 顯示在分組標題下方，cards 顯示在卡片最下方
@@ -228,7 +228,10 @@ const SCHEMAS = {
     title: '庫存快照',
     period: { key: 'date', unit: 'day', label: '快照日期' },
     defaultLatest: true,
-    intro: '這裡是照券商 App「綜合損益」抄的庫存，不會跟著交易明細改變。加上之後的買賣、除息算出來的目前持股，請看「總覽」。',
+    intro: {
+      line: '照券商 App「綜合損益」抄的庫存',
+      body: '<p>不會跟著交易明細改變</p><p>加上之後的買賣、除息算出來的目前持股，請看「總覽」</p>',
+    },
     empty: '還沒有庫存快照<br>點右上角「＋ 新增」，照券商 App 的「綜合損益」一檔填一筆<br>不填也可以，總覽會直接加總交易明細',
     // 詳細卡片：欄位下面再一排快照那天的現值、損益、報酬率
     card: { code: 'code', title: 'name', badge: 'type', primary: 'totalCost', calc: [
@@ -430,7 +433,11 @@ const SCHEMAS = {
   history: {
     title: '帳戶紀錄',
     period: { key: 'date', unit: 'month', label: '年月' },
-    intro: '收盤資料更新後打開記錄簿，會用收盤價自動記下每位成員那天的付出成本和市值，走勢圖在「總覽」。今天還沒收盤也可以先記，收盤後會自動換成收盤價；以前的可以點右上角自己補，付出成本不知道可以空白。',
+    intro: {
+      line: '收盤後自動記下付出成本和市值',
+      body: '<p>收盤資料更新後打開記錄簿，會用收盤價自動記下每位成員那天的付出成本和市值，走勢圖在「總覽」</p>' +
+        '<p>今天還沒收盤也可以先記，收盤後會自動換成收盤價</p><p>以前的可以點右上角自己補，付出成本不知道可以空白</p>',
+    },
     empty: '還沒有帳戶紀錄<br>有持股的話，收盤資料更新後打開記錄簿就會自動記一筆<br>以前的可以點右上角「＋ 新增紀錄」自己補',
     search: '搜尋成員',
     name: {

@@ -160,24 +160,80 @@ const Market = (() => {
   };
 })();
 
-// 說明的小視窗：選股每一頁上面那一行的「說明」點了打開（置中的小視窗，不是從底部彈出）；點背景、「知道了」關閉
-//   說明裡的「調整」（KD 標記、星星條件）照樣能點：app.js 先關掉這個視窗再打開設定
+// 說明的小泡泡：「說明」點了在那一行下面跳出來（像 tooltip，背景不變暗、不蓋住整頁）；點哪裡都會關，再點一次「說明」也是關
+//   Note.line(那一行, 標題, 內容)：一行字＋右邊「說明」，內容放在「說明」後面的 <template>，每一頁不用自己接點擊
+//   Note.btn(標題, 內容)：只有「說明」（例如接在除權息「即將除權息」的標題後面）
+//   點旁邊只是關掉，不會順便點到後面的股票；底下的分頁、上面的子分頁照常切換
+//   泡泡裡的「調整」（KD 標記、星星條件）照樣能點：app.js 先關掉泡泡再打開設定
 const Note = (() => {
-  // 瀏覽器還拿著舊版 index.html（沒有這個視窗）、測試（沒有畫面）時什麼都不做
-  const dlg = typeof document === 'undefined' ? null : document.getElementById('note-pop');
-  if (!dlg) return { open() {}, close() {}, el: null };
-  const titleEl = dlg.querySelector('.pop-title');
-  const bodyEl = dlg.querySelector('.pop-body');
-  dlg.addEventListener('click', e => { if (e.target === dlg || e.target.closest('[data-act="close"]')) dlg.close(); });
-  return {
-    open(title, body) {
-      titleEl.textContent = title;
-      bodyEl.innerHTML = body;
-      if (!dlg.open) dlg.showModal();
-    },
-    close() { if (dlg.open) dlg.close(); },
-    el: dlg,
+  const btn = (title, body) => `<button type="button" class="intro-more" data-act="note" aria-expanded="false" aria-label="說明：${U.esc(title)}">說明</button>` +
+    `<template class="note-body">${body}</template>`;
+  const html = {
+    btn,
+    line: (line, title, body) => `<div class="list-intro one"><span>${line}</span>${btn(title, body)}</div>`,
   };
+  // 測試（沒有畫面，或只有假的 document）時只產生 HTML
+  if (typeof document === 'undefined' || !document.body) return { ...html, close() {}, el: null };
+
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.hidden = true;
+  document.body.append(tip);
+  let anchor = null; // 目前打開的是哪一個「說明」
+  let openY = 0;
+
+  function close() {
+    if (!anchor) return;
+    tip.hidden = true;
+    anchor.setAttribute('aria-expanded', 'false');
+    anchor = null;
+  }
+
+  // 放在「說明」下面、右邊對齊，小箭頭指著「說明」；下面放不下（例如現金單最下面那一行）改放上面
+  function open(b) {
+    tip.innerHTML = b.nextElementSibling?.innerHTML || '';
+    tip.hidden = false;
+    anchor = b;
+    b.setAttribute('aria-expanded', 'true');
+    const r = b.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    const left = Math.max(12, Math.min(r.right + 4 - w, vw - w - 12));
+    const bottom = innerHeight - (document.querySelector('.tabbar')?.offsetHeight || 0);
+    const below = r.bottom + 8 + h <= bottom || r.top - 8 - h < 0;
+    tip.classList.toggle('above', !below);
+    tip.style.left = `${left + scrollX}px`;
+    tip.style.top = `${(below ? r.bottom + 8 : r.top - 8 - h) + scrollY}px`;
+    tip.style.setProperty('--arrow', `${r.left + r.width / 2 - left}px`);
+    openY = scrollY;
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-act="note"]');
+    if (b) {
+      e.stopPropagation();
+      const same = b === anchor;
+      close();
+      if (!same) open(b);
+      return;
+    }
+    if (!anchor) return;
+    if (tip.contains(e.target)) {
+      if (!e.target.closest('button, a')) close(); // 泡泡裡的「調整」交給 app.js
+      return;
+    }
+    close();
+    if (!e.target.closest('.tabbar, .subtabs')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  // 往下滑、轉橫向、列表重畫（「說明」不見了）時關掉
+  addEventListener('scroll', () => { if (anchor && (Math.abs(scrollY - openY) > 40 || !anchor.isConnected)) close(); }, { passive: true });
+  addEventListener('resize', close);
+
+  return { ...html, close, el: tip };
 })();
 
 // 看股票的頁共用的「持有｜觀察｜全市場｜成分股」：切換時每一頁一起重畫，換到別頁還是同一個範圍
@@ -197,7 +253,7 @@ function holdTagsHTML(r) {
 //     sort 是 page.sorts 的值，點表頭等於在排序選單選那一個；給 [小到大, 大到小] 兩個時，再點一次換另一個（KD 的 K 值）
 //   page.enrich(r)：加上這一頁要顯示的數字；page.cardHTML(r)：一張卡片
 //   page.intro(rows, 全市場, 沒列出幾檔)：列表上面的說明 { title, line, body }（都是 HTML）
-//     line 是收起來的那一行，寫資料是哪一天的（一定看得到，免得誤會）；右邊「說明」點了用小視窗（Note）打開 title、body
+//     line 是收起來的那一行，寫資料是哪一天的（一定看得到，免得誤會）；右邊「說明」點了用小泡泡（Note）打開 body，title 給讀螢幕的
 //   page.keep(r)（可以沒有）：這一頁只列哪些（EPS 頁不列 ETF）；全部沒列出時用 page.skippedHTML(幾檔, 全市場) 那句話
 //   openStock(代號)：點卡片時打開詳細頁（K 線頁打開大圖，上一檔、下一檔用 view.codes() 目前列出的順序）
 function createMarket(page, { openStock = () => {} } = {}) {
@@ -205,7 +261,6 @@ function createMarket(page, { openStock = () => {} } = {}) {
   const STEP = 50; // 全市場一次列幾檔
   const state = { keyword: '', sort: page.sorts[0][0], limit: STEP };
   let listed = []; // 目前列出的代號，照畫面上的順序
-  let note = null;  // 目前這一頁的說明 { title, body }，點「說明」時打開
   const key = c => U.toHalf(c ?? '').trim().toUpperCase();
   const names = () => (typeof STOCK_LIST !== 'undefined' ? STOCK_LIST.names : {});
 
@@ -247,10 +302,6 @@ function createMarket(page, { openStock = () => {} } = {}) {
       sortSel.value = state.sort;
       state.limit = STEP;
       render();
-      return;
-    }
-    if (btn?.dataset.act === 'note') {
-      if (note) Note.open(note.title, note.body);
       return;
     }
     if (btn?.dataset.act === 'more') {
@@ -312,8 +363,7 @@ function createMarket(page, { openStock = () => {} } = {}) {
     const it = page.intro(all, wide, skipped);
     const etfNote = etf ? `<p>成分股和權重是從${U.esc(etf.source)}網站抄下來的（${U.esc(U.fmtDate(etf.date))} 公布），` +
       '不是每天更新，ETF 調整成分股時才更新，所以權重和今天可能差一點。</p>' : '';
-    note = { title: it.title, body: it.body + etfNote };
-    return `<p class="list-intro one"><span>${it.line}</span><button type="button" class="intro-more" data-act="note" aria-label="說明：${U.esc(it.title)}">說明</button></p>`;
+    return Note.line(it.line, it.title, it.body + etfNote);
   }
 
   // 表格：第一欄是證券／代號（依代號排序；看成分股時是依權重），其他欄照 page.table.cols；持有、觀察接在代號後面

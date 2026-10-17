@@ -67,7 +67,7 @@ function createList(tableKey, schema, { openForm, onChanged = () => {}, toast = 
       `${n.sum ? `<span class="group-sum">${U.esc(n.sum)}</span>` : ''}</p>`
     : '');
   const cardNoteHTML = n => (n ? `<span class="card-note${n.warn ? ' warn' : ''}">${U.esc(Privacy.text(n.text))}</span>` : '');
-  const introHTML = schema.intro ? `<p class="list-intro">${U.esc(schema.intro)}</p>` : '';
+  const introHTML = schema.intro ? Note.line(U.esc(schema.intro.line), schema.title, schema.intro.body) : '';
   // 統計用的欄位：金額是合計的欄位、日期是分組的欄位，代號和名稱同卡片
   const stats = schema.stats && { ...schema.stats, amount: schema.total.key, date: periodKey, code, name: title };
   const modeHTML = () => `

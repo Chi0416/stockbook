@@ -140,7 +140,10 @@ const Upcoming = (() => {
     const rows = list([...held.keys(), ...watched.keys()], { today, days: null });
     const recorded = Store.list('dividends', 'all');
     const several = Store.shown().length > 1;
-    const head = `<div class="up-panel-head"><b>即將除權息</b><small>持股和觀察清單${rows.length ? `，${rows.length} 筆` : ''}</small></div>`;
+    // 標題右邊「說明」點了用小泡泡打開（見 market.js 的 Note）：% 怎麼算、最晚哪天買、記下來
+    const note = Note.btn('即將除權息', '<p>右邊的 % 是每股現金 ÷ 現價：除權息日當天參考價大約少這麼多</p>' +
+      '<p>想領這次股利，最晚前一個交易日買進</p><p>持有的照目前的股數算，點「記下來」加到下面的除權息</p>');
+    const head = `<div class="up-panel-head"><b>即將除權息</b><small>持股和觀察清單${rows.length ? `，${rows.length} 筆` : ''}${rows.length ? note : ''}</small></div>`;
     if (!rows.length) {
       const why = !Announced.ready()
         ? (Announced.state() === 'failed' ? '下載不了公告的除權息（連上網路後會再試）' : '公告的除權息還在下載')
@@ -194,7 +197,6 @@ const Upcoming = (() => {
         ${head}
         ${html}
         ${more}
-        <p class="up-foot">右邊的 % 是每股現金 ÷ 現價：除權息日當天參考價大約少這麼多。想領這次股利，最晚前一個交易日買進。持有的照目前的股數算，點「記下來」加到下面的除權息</p>
       </div>`;
   }
 

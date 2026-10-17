@@ -328,7 +328,7 @@
   menu.querySelector('[data-act="close"]').addEventListener('click', () => menu.close());
   menu.addEventListener('click', e => { if (e.target === menu) menu.close(); }); // 點背景關閉
 
-  // ---------- KD 標記（見 kd.js）：K 值低於下限綠色、高於上限紅色；KD 頁說明裡的「調整」打開這一段 ----------
+  // ---------- KD 標記（見 kd.js）：K 值低於下限綠色、高於上限紅色；KD 頁「說明」泡泡裡的「調整」打開這一段 ----------
   const kdLow = $('kd-low');
   const kdHigh = $('kd-high');
   function renderKdMarks() {
@@ -355,7 +355,7 @@
   // 帳戶走勢（總覽的庫存總市值卡片點了打開）最下面：切到記帳 → 帳戶紀錄
   Trend.init({ showHistory: () => { showTab('history'); window.scrollTo(0, 0); } });
 
-  // ---------- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁說明裡的「調整」打開這一段 ----------
+  // ---------- 星星條件（見 stars.js）：打勾的條件達標就給一顆 ★；★ 星星頁「說明」泡泡裡的「調整」打開這一段 ----------
   const starsSet = document.querySelector('.stars-set');
   const starYield = $('star-yield');
   const starCross = $('star-cross');
@@ -382,7 +382,7 @@
     toast(on.length ? `星星條件：${on.map(x => x.short).join('、')}` : '星星條件都沒有打勾');
   });
   $('panels').addEventListener('click', e => { if (e.target.closest('[data-act="stars-set"]')) openMenu('stars'); });
-  // 說明的小視窗（見 market.js 的 Note）裡的「調整」：先關掉小視窗再打開設定
+  // 「說明」泡泡（見 market.js 的 Note）裡的「調整」：先關掉泡泡再打開設定
   Note.el?.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act !== 'kd-marks' && act !== 'stars-set') return;

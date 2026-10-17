@@ -244,10 +244,12 @@ function createOverview() {
     return Market.quote(code).price;
   }
 
-  // 「現價 14:05 更新，可能延遲 20 分鐘；1 檔抓不到，用 10/07 收盤價」（見 market.js）
+  // 持股上面一行：「現價 14:05」或「10/16 收盤價」，右邊「說明」點了寫完整的（見 market.js 的 priceNote、Note）
+  //   「現價 14:05 更新，可能延遲 20 分鐘；1 檔抓不到，用 10/07 收盤價」
   function priceNote(positions) {
-    const note = Market.priceNote(positions.filter(p => p.shares > 0).map(p => p.code));
-    return note ? `<p class="list-intro">${U.esc(note)}</p>` : '';
+    const codes = positions.filter(p => p.shares > 0).map(p => p.code);
+    const note = Market.priceNote(codes);
+    return note ? Note.line(U.esc(Market.priceShort(codes)), '價格', `<p>${U.esc(note)}</p>`) : '';
   }
 
   // 右上角是市值（股數 × 現價；抓不到現價時是「—」），付出成本放在下面一排，和券商 App 對帳用
