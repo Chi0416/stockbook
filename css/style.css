@@ -581,6 +581,9 @@ span.th { cursor: default; }
 /* 上一檔、下一檔：捲下去也一直在最上面（蓋住 sheet-body 上面的留白） */
 .kl-nav.detail-nav { position: sticky; top: -18px; z-index: 1; margin: -18px -16px 10px; padding: 6px 16px; background: var(--bg); border-bottom: 1px solid var(--border); }
 #stock-sheet .section-head { margin-top: 22px; }
+/* 詳細頁殖利率標題前面的「基本面」：同一行、深色粗字，後面一條細直線隔開；不另外加一行標題，標題一樣高 */
+#stock-sheet .sec-group { color: var(--text); font-weight: 700; }
+#stock-sheet .sec-group::after { content: ''; display: inline-block; width: 1px; height: 11px; margin: 0 8px; background: var(--border-strong); vertical-align: -1px; }
 /* 捲到哪一段由 detail.js 自己顧（K 線資料晚到時往下補），不要讓瀏覽器再補一次 */
 #stock-sheet .sheet-body { overflow-anchor: none; }
 .detail-card { margin: 0; cursor: default; }

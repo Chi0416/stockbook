@@ -1,13 +1,14 @@
 // 一檔股票的詳細資料：選股的每一頁點一檔打開（從底部彈出，和新增表單一樣）
 //   最上面：上一檔、下一檔（照點進來那一頁的列表順序，捲下去也一直在最上面；從總覽、除權息點進來的沒有）
 //     持有或觀察、星星（達標的條件，見 stars.js）；還沒在觀察清單的，星星右邊有「加入觀察清單」，一打開就看得到
-//   下面一次滑完，順序：技術面 → 籌碼面 → 基本面（不另外加「技術面」這種分區的標題，免得變長）
+//   下面一次滑完，順序：技術面 → 籌碼面 → 基本面（不另外加一行分區的標題，免得變長；只在殖利率的標題前面寫「基本面」，同一行，不多佔高度）
 //     K 線 → KD → 殖利率 → EPS → 股利預估 → 我的 → 配息紀錄
 //     從殖利率、EPS 點進來直接捲到那一段，翻上一檔、下一檔也停在那一段；從 K 線、KD、星星點進來停在最上面
 //     K 線：一張小圖（最近 20 天和月線，見 MA.miniHTML）和現價、月線的方向、扣低幾天（用現價算），點了打開大圖（月線扣抵，見 kline.js）
 //       殖利率不在最上面了，現價寫在這一行，一打開就看得到
 //       K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段（app.js 叫 refreshKLine）
-//     殖利率：現在買殖利率多少；下面股利預估的預估殖利率好對照
+//     殖利率：現在買殖利率多少，一排四格（殖利率、暴力年化、近一年每股、配息）；現價不另外一格（K 線那一行有），
+//       寫在下面第一行說明「現價 2,420.00：10/16 收盤價」（盤中是即時價格）；下面股利預估的預估殖利率好對照
 //     EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
 //     股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（新的在上面），算法見 eps.js
 //     我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
@@ -165,8 +166,9 @@ const Detail = (() => {
       if (f.decided !== null) notes.push(`已經決議 ${P.money(f.decided)} 元（${f.decidedQ === 2 ? '上半年' : `到第 ${f.decidedQ} 季`}），預估的是全年`);
       if (P.fcWarn(r)) notes.push(P.fcWarn(r));
     }
-    if (f.years.length) notes.push(`配息率 = 近 ${f.years.length} 年配的現金股利加起來 ÷ EPS 加起來（虧損、還沒決議的年不算，配股不算）`);
-    notes.push(`${name}賺的錢，年配的通常隔年夏天除息；只是照過去的配息習慣推算，公司不一定照這樣配`);
+    // 兩句固定的說明各縮成一行（哪幾年不算、配股不算，使用說明裡有）
+    if (f.years.length) notes.push(`配息率 = 近 ${f.years.length} 年現金股利加起來 ÷ EPS 加起來`);
+    notes.push('只是推算，不一定照這樣配；年配的通常隔年夏天除息');
     return `
       ${head}
       <div class="card static detail-card eps-card">
@@ -260,7 +262,9 @@ const Detail = (() => {
     const dz = KD.zone(m?.d);
     const cross = KD_PAGE.crossCell(m);
     const q = Market.quote(code);
-    const priceFrom = !q.price ? '' : q.close ? `${md(q.close)} 收盤價` : '即時價格，可能延遲 20 分鐘';
+    // 殖利率卡片下面第一行說明：殖利率是用哪個價格算的（現價不另外一格，K 線那一行也有；K 線還在下載時這裡照樣看得到現價）
+    const priceLine = !r.price ? (Market.waiting() || '沒有現價，算不出殖利率')
+      : `現價 ${U.fmtNum(r.price, 2)}：${q.close ? `${md(q.close)} 收盤價` : '即時價格，可能延遲 20 分鐘'}`;
     const total = Stars.on().length;
 
     titleEl.textContent = `${code} ${name}`.trim();
@@ -293,16 +297,15 @@ const Detail = (() => {
         ${notesHTML([KD_PAGE.note(r, { close: true })])}
       </div>
 
-      <h3 class="section-head" data-sec="yield">殖利率</h3>
+      <h3 class="section-head" data-sec="yield"><b class="sec-group">基本面</b>殖利率</h3>
       <div class="card static detail-card yield-card">
         <span class="card-grid">
-          ${cell('現價', r.price ? U.fmtNum(r.price, 2) : '—')}
           ${cell(`殖利率${Stars.mark(r, 'yield')}`, pct(r.y), 'strong')}
           ${cell(`暴力年化${Stars.mark(r, 'trend')}`, pct(r.ya), `strong${r.ya === null ? '' : info.trend > 0 ? ' up' : info.trend < 0 ? ' down' : ''}`)}
           ${cell('近一年每股', info?.count ? `${U.fmtNum(U.round(info.sum, 3))} 元` : '—')}
           ${cell('配息', info ? info.freq : '—')}
         </span>
-        ${priceFrom ? `<span class="card-note">現價：${U.esc(priceFrom)}</span>` : ''}
+        <span class="card-note">${U.esc(priceLine)}</span>
         ${notesHTML(YIELD_PAGE.notes(r))}
       </div>
 
