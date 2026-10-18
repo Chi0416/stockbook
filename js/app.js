@@ -35,16 +35,15 @@
   lists.cash = createCash({ openForm: (id, preset) => Form.open('cashPools', id, preset) });
   $('panels').appendChild(lists.cash.el);
 
-  // 看股票的頁（見 market.js）：選股那一格的 K 線、KD、ETF 持有、殖利率、EPS、★ 星星；點一檔打開詳細頁（見 detail.js）
-  //   上一檔、下一檔照那一頁列表的順序；詳細頁捲到點進來那一頁的那一段
-  //   K 線頁點一列打開大圖（見 kline.js），一樣可以上一檔、下一檔
+  // 看股票的頁（見 market.js）：選股那一格的 K 線、KD、ETF 持有、殖利率、EPS、★ 星星；每一頁點一檔都打開詳細頁（見 detail.js）
+  //   上一檔、下一檔照那一頁列表的順序；詳細頁停在點進來那一頁的那一段（從 K 線頁點進來的，K 線那一段直接展開成大圖）
   //   第一個是加了觀察清單、又不在這幾頁時切過去的那一頁
   const MARKET = ['kline', 'kd', 'etfs', 'stars', 'yield', 'eps'];
   const openStock = page => code => Detail.open(code, { list: lists[page].codes(), at: page });
   lists.yield = createMarket(YIELD_PAGE, { openStock: openStock('yield') });
   lists.kd = createMarket(KD_PAGE, { openStock: openStock('kd') });
   lists.eps = createMarket(EPS_PAGE, { openStock: openStock('eps') });
-  lists.kline = createMarket(KLINE_PAGE, { openStock: code => KLine.open(code, lists.kline.codes()) });
+  lists.kline = createMarket(KLINE_PAGE, { openStock: openStock('kline') });
   lists.etfs = createMarket(ETF_PAGE, { openStock: openStock('etfs') }); // 被幾檔 ETF 持有（見 etf.js）
   lists.stars = createMarket(STARS_PAGE, { openStock: openStock('stars') });
   $('panels').append(lists.yield.el, lists.kd.el, lists.eps.el, lists.kline.el, lists.etfs.el, lists.stars.el);
@@ -80,14 +79,12 @@
   }
   Form.init({ toast, onChanged });
   Detail.init({ toast, onChanged });
-  KLine.init();
   // ETF 成分股（見 etf.js）：第一次切到行情的「成分股」、ETF 頁才下載，下載好了行情每一頁重畫
   Etf.onChange(refreshMarket);
-  // K 線資料（見 candles.js）：打開 K 線頁、詳細頁、大圖時才下載，下載好了重畫用到的地方
+  // K 線資料（見 candles.js）：打開 K 線頁、詳細頁時才下載，下載好了重畫用到的地方
   Candles.onChange(() => {
     lists.kline.refresh();
     Detail.refreshKLine();
-    KLine.refresh();
   });
 
   // ---------- 分頁 ----------
@@ -180,7 +177,6 @@
   const refreshAll = () => {
     Object.values(lists).forEach(l => l.refresh());
     Detail.refresh();
-    KLine.refresh();
     Trend.refresh();
   };
 
@@ -724,7 +720,6 @@
     lists.cash.refresh();
     refreshMarket();
     Detail.refresh();
-    KLine.refresh();
     fillPrices();
     recordHistory();
   });
@@ -762,7 +757,7 @@
       Inbox.syncStatus(st);
     },
     // 讀回新的股價：持股總覽、殖利率、EPS（預估殖利率）、K 線（月線往哪裡彎、扣低）、星星（殖利率的星星）、除權息頁的即將除權息（約幾 %）、現金單重畫
-    //   KD 頁只用收盤價，不用重畫；K 線大圖自己打的價格留著（見 kline.js 的 refresh）
+    //   KD 頁只用收盤價，不用重畫；詳細頁 K 線大圖正在打價格時不重畫（見 detail.js 的 refresh）
     onPrices() {
       lists.overview.refresh();
       lists.cash.refresh();
@@ -772,7 +767,6 @@
       lists.stars.refresh();
       lists.dividends.refresh();
       Detail.refresh();
-      KLine.refresh();
     },
     // 登出：這台裝置的資料已經清掉，重新載入頁面，畫面和記在記憶體裡的東西全部從空白開始
     onLogout() {

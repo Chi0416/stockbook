@@ -1,8 +1,8 @@
-// K 線資料（shared/candles.json，由 tools/update-prices.mjs 產生）：選股的 K 線頁、大圖、詳細頁的小圖用（見 ma.js、kline.js）
+// K 線資料（shared/candles.json，由 tools/update-prices.mjs 產生）：選股的 K 線頁、詳細頁的小圖和大圖用（見 ma.js、kline.js、detail.js）
 //   每一檔最近 20 天的開高低收，再往前 19 天的收盤價（最早那幾根 K 棒的月線要用）
-//   檔案比較大，用到時才下載（need：打開 K 線頁、詳細頁、大圖），總覽、其他選股頁不用等它；之後用瀏覽器存的，隔 30 分鐘才再檢查有沒有新的
+//   檔案比較大，用到時才下載（need：打開 K 線頁、詳細頁），總覽、其他選股頁不用等它；之後用瀏覽器存的，隔 30 分鐘才再檢查有沒有新的
 //   和收盤價一樣，GitHub 每個工作天收盤後更新，不用改版本號；沒有網路時用存的上一份
-//   下載好、或下載到不一樣的資料時通知 onChange（app.js 重畫 K 線頁、大圖、詳細頁的小圖）
+//   下載好、或下載到不一樣的資料時通知 onChange（app.js 重畫 K 線頁、詳細頁的 K 線那一段）
 const Candles = (() => {
   const FILE = 'shared/candles.json';
   const AGAIN = 30 * 60000;

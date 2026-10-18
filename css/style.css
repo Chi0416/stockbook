@@ -580,7 +580,11 @@ span.th { cursor: default; }
 .detail-add { margin-left: auto; }
 /* 上一檔、下一檔：捲下去也一直在最上面（蓋住 sheet-body 上面的留白） */
 .kl-nav.detail-nav { position: sticky; top: -18px; z-index: 1; margin: -18px -16px 10px; padding: 6px 16px; background: var(--bg); border-bottom: 1px solid var(--border); }
-#stock-sheet .section-head { margin-top: 22px; }
+#stock-sheet .section-head { display: flex; align-items: baseline; margin-top: 22px; }
+/* 每一段標題右邊：「說明」（點了跳出小泡泡，見 market.js 的 Note）；K 線展開時左邊多一個「收起」 */
+#stock-sheet .section-head .sec-name { flex: 1; min-width: 0; }
+#stock-sheet .section-head .intro-more { padding: 2px 2px 2px 12px; }
+.sec-btn { flex-shrink: 0; padding: 2px 4px 2px 12px; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 /* 詳細頁殖利率標題前面的「基本面」：同一行、深色粗字，後面一條細直線隔開；不另外加一行標題，標題一樣高 */
 #stock-sheet .sec-group { color: var(--text); font-weight: 700; }
 #stock-sheet .sec-group::after { content: ''; display: inline-block; width: 1px; height: 11px; margin: 0 8px; background: var(--border-strong); vertical-align: -1px; }
@@ -667,7 +671,7 @@ span.th { cursor: default; }
 .card-primary b.kl-dir { font-size: 18px; }
 .card-primary b.kl-dir.up { color: var(--buy); }
 .card-primary b.kl-dir.down { color: var(--sell); }
-/* 詳細頁的 K 線：整張可以點，打開大圖；最下面一行月線往哪裡彎、扣低幾天，右邊「大圖 ›」 */
+/* 詳細頁的 K 線：整張可以點，在原地展開大圖；最下面一行月線往哪裡彎、扣低幾天，右邊「大圖 ⌄」 */
 .detail-card.kl-entry { cursor: pointer; }
 .detail-card.kl-entry:active { background: var(--chip-bg); }
 .kl-entry .kl-mini { margin-top: 0; }
@@ -676,13 +680,11 @@ span.th { cursor: default; }
 .kl-line b.up { color: var(--buy); }
 .kl-line b.down { color: var(--sell); }
 .kl-go { margin-left: auto; color: var(--accent-text); }
-/* 大圖（#kline-sheet）：上一檔、下一檔；圖比詳細頁的高 */
+/* 詳細頁的上一檔、下一檔 */
 .kl-nav { display: flex; align-items: center; justify-content: space-between; margin: -6px 0 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .kl-nav .text-btn:disabled { opacity: .35; }
-/* K 線大圖最下面的「詳細資料 ›」 */
-.kl-detail { margin-top: 16px; }
-#kline-sheet .kc-plot { height: 240px; }
-#kline-sheet .ma-card { margin-bottom: 16px; }
+/* 展開的大圖：圖比列表的高 */
+#stock-sheet .ma-card .kc-plot { height: 240px; }
 /* 配息紀錄：一次一行的表（除權息日｜發放｜現金｜配股｜合計），金額靠右對齊、上下對齊好比較；合計用粗體 */
 .ev-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .ev-table th { padding: 0 0 8px; font-size: 11px; font-weight: 400; color: var(--muted); text-align: left; }

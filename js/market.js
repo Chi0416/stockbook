@@ -181,6 +181,8 @@ const Note = (() => {
   document.body.append(tip);
   let anchor = null; // 目前打開的是哪一個「說明」
   let openY = 0;
+  let scroller = null; // 在 sheet 裡打開的：sheet 捲動的那一層
+  let openTop = 0;
 
   function close() {
     if (!anchor) return;
@@ -190,7 +192,10 @@ const Note = (() => {
   }
 
   // 放在「說明」下面、右邊對齊，小箭頭指著「說明」；下面放不下（例如現金單最下面那一行）改放上面
+  //   詳細頁（sheet）裡的「說明」：泡泡放進那個 sheet，才會蓋在 sheet 上面；位置照 sheet 算，sheet 裡面往下滑也會關
   function open(b) {
+    const host = b.closest('dialog[open]');
+    (host || document.body).append(tip);
     tip.innerHTML = b.nextElementSibling?.innerHTML || '';
     tip.hidden = false;
     anchor = b;
@@ -199,13 +204,17 @@ const Note = (() => {
     const vw = document.documentElement.clientWidth;
     const w = tip.offsetWidth, h = tip.offsetHeight;
     const left = Math.max(12, Math.min(r.right + 4 - w, vw - w - 12));
-    const bottom = innerHeight - (document.querySelector('.tabbar')?.offsetHeight || 0);
-    const below = r.bottom + 8 + h <= bottom || r.top - 8 - h < 0;
+    const box = host?.getBoundingClientRect();
+    const bottom = box ? box.bottom : innerHeight - (document.querySelector('.tabbar')?.offsetHeight || 0);
+    const below = r.bottom + 8 + h <= bottom || r.top - 8 - h < (box ? box.top : 0);
+    const at = { x: box ? -box.left : scrollX, y: box ? -box.top : scrollY };
     tip.classList.toggle('above', !below);
-    tip.style.left = `${left + scrollX}px`;
-    tip.style.top = `${(below ? r.bottom + 8 : r.top - 8 - h) + scrollY}px`;
+    tip.style.left = `${left + at.x}px`;
+    tip.style.top = `${(below ? r.bottom + 8 : r.top - 8 - h) + at.y}px`;
     tip.style.setProperty('--arrow', `${r.left + r.width / 2 - left}px`);
     openY = scrollY;
+    scroller = host?.querySelector('.sheet-body') || null;
+    openTop = scroller?.scrollTop ?? 0;
   }
 
   document.addEventListener('click', e => {
@@ -223,14 +232,24 @@ const Note = (() => {
       return;
     }
     close();
-    if (!e.target.closest('.tabbar, .subtabs')) {
+    // 底下的分頁、上面的子分頁、sheet 最上面的「關閉」、上一檔／下一檔照常點得到
+    if (!e.target.closest('.tabbar, .subtabs, .sheet-head, .kl-nav')) {
       e.preventDefault();
       e.stopPropagation();
     }
   }, true);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-  // 往下滑、轉橫向、列表重畫（「說明」不見了）時關掉
+  // Esc 先只關泡泡（不連 sheet 一起關）
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !anchor) return;
+    e.preventDefault();
+    close();
+  });
+  // 往下滑（頁面或 sheet 裡面）、轉橫向、列表重畫（「說明」不見了）、sheet 關掉時關掉
   addEventListener('scroll', () => { if (anchor && (Math.abs(scrollY - openY) > 40 || !anchor.isConnected)) close(); }, { passive: true });
+  document.addEventListener('scroll', e => {
+    if (anchor && scroller && e.target === scroller && (Math.abs(scroller.scrollTop - openTop) > 40 || !anchor.isConnected)) close();
+  }, { capture: true, passive: true });
+  document.addEventListener('close', e => { if (anchor && e.target.contains?.(anchor)) close(); }, true);
   addEventListener('resize', close);
 
   return { ...html, close, el: tip };
@@ -255,7 +274,7 @@ function holdTagsHTML(r) {
 //   page.intro(rows, 全市場, 沒列出幾檔)：列表上面的說明 { title, line, body }（都是 HTML）
 //     line 是收起來的那一行，寫資料是哪一天的（一定看得到，免得誤會）；右邊「說明」點了用小泡泡（Note）打開 body，title 給讀螢幕的
 //   page.keep(r)（可以沒有）：這一頁只列哪些（EPS 頁不列 ETF）；全部沒列出時用 page.skippedHTML(幾檔, 全市場) 那句話
-//   openStock(代號)：點卡片時打開詳細頁（K 線頁打開大圖，上一檔、下一檔用 view.codes() 目前列出的順序）
+//   openStock(代號)：點卡片時打開詳細頁（每一頁都是；上一檔、下一檔用 view.codes() 目前列出的順序）
 function createMarket(page, { openStock = () => {} } = {}) {
   const RANGES = [['held', '持有'], ['watch', '觀察'], ['market', '全市場'], ['etf', '成分股']];
   const STEP = 50; // 全市場一次列幾檔
