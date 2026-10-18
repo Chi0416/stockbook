@@ -3,7 +3,7 @@
 //     持有或觀察、星星（達標的條件，見 stars.js）；沒有持有、也還沒在觀察清單的，星星右邊有「加入觀察清單」，一打開就看得到
 //       持有的不顯示：選股的「觀察」本來就包含持股，不用再加
 //   下面一次滑完，順序：技術面 → 籌碼面 → 基本面（不另外加一行分區的標題，免得變長；只在殖利率的標題前面寫「基本面」，同一行，不多佔高度）
-//     K 線 → KD →（ETF 持有）→ 殖利率 → EPS → 股利預估 → 我的 → 配息紀錄
+//     K 線 → KD → ETF 持有 → 殖利率 → EPS → 股利預估 → 我的 → 配息紀錄
 //   從哪一頁點進來就停在那一段（SECTION），翻上一檔、下一檔也停在那一段
 //     K 線是第一段，停在最上面（星星、持有標籤看得到）；★ 星星本來就在最上面
 //   每一段同一個樣子：標題只寫名稱，右邊「說明」點了跳出小泡泡（head，見 market.js 的 Note）
@@ -17,6 +17,8 @@
 //     K 線資料比較大，打開詳細頁才下載（見 candles.js），下載好了只重畫這一段（app.js 叫 refreshKLine）
 //   殖利率：一排四格（殖利率、暴力年化、近一年每股、配息）；現價不另外一格（K 線那一行有），
 //     寫在下面那行「現價 2,420.00：10/16 收盤價」（盤中是即時價格）；下面股利預估的預估殖利率好對照
+//   ETF 持有：收了的 ETF 裡有幾檔持有、權重加總、最多的那一檔，下面每一檔一個小框（代號和權重，權重大的在前）；ETF 本身不顯示
+//     ETF 成分股打開詳細頁才下載（見 etf.js），下載好了 app.js 重畫
 //   EPS 下面多一排近 5 年每一年的 EPS（今年還不到第 4 季的寫到第幾季）；ETF、興櫃沒有 EPS，EPS 和股利預估都不顯示
 //   股利預估：用 EPS 算的，接在 EPS 後面；預估配、預估殖利率、配息率、用哪個 EPS 估，下面列出算配息率的那幾年（新的在上面），算法見 eps.js
 //   我的：目前持股（跟著設定裡勾的成員，好幾位時寫出每人的股數）、市值、損益試算、領到的股利；隱藏金額時顯示 ***
@@ -84,6 +86,7 @@ const Detail = (() => {
     typed = null;
     MA.resetChart();
     Candles.need();
+    Etf.need();
     render();
   }
 
@@ -315,6 +318,30 @@ const Detail = (() => {
       </div>`;
   }
 
+  // ETF 持有：幾檔持有（粗字）、權重加總、權重最大的那一檔，下面每一檔一個小框；名稱、資料日期收進「說明」
+  //   ETF 本身（代號 00 開頭）、ETF 成分股還沒下載好的不顯示
+  function etfHTML() {
+    if (/^00/.test(code) || !Etf.ready()) return '';
+    const all = Etf.list();
+    const by = Etf.holders(code);
+    const dates = [...new Set(all.map(e => e.date))].sort();
+    const tip = '<p>只算收了的 ETF（受益人數最多的指數型）：' + U.esc(all.map(e => `${e.code} ${e.name}`).join('、')) + '</p>' +
+      '<p>權重是這一檔佔那一檔 ETF 的比例；權重加總是把每一檔加起來，越高代表 ETF 買得越多</p>' +
+      `<p>成分股從投信網站抄的，${dates.length === 1 ? `都是 ${U.fmtDate(dates[0])}` : `最舊的 ${U.fmtDate(dates[0])}`} 公布，ETF 調整成分股時才更新</p>`;
+    const sec = head('etf', 'ETF 持有', tip);
+    if (!by.length) return `${sec}<p class="note muted">收的 ${all.length} 檔 ETF 都沒有持有這一檔</p>`;
+    const w = v => `${U.fmtNum(U.round(v, 2), 2)}%`;
+    return `${sec}
+      <div class="card static detail-card etf-card">
+        <span class="card-grid">
+          ${cell('ETF 持有', `${by.length} 檔<small>/ ${all.length}</small>`, 'strong')}
+          ${cell('權重加總', w(by.reduce((s, x) => s + x.weight, 0)))}
+          ${cell('權重最大', `${U.esc(by[0].code)}<small>${w(by[0].weight)}</small>`)}
+        </span>
+        <span class="etf-by full">${by.map(x => `<span>${U.esc(x.code)}<small>${w(x.weight)}</small></span>`).join('')}</span>
+      </div>`;
+  }
+
   function render() {
     const today = U.today();
     const h = Holdings.all(today);
@@ -366,6 +393,8 @@ const Detail = (() => {
         </span>
         ${lineHTML([KD_PAGE.note(r, { close: true })])}
       </div>
+
+      ${etfHTML()}
 
       ${head('yield', '殖利率', moreHTML(yLines) +
         '<p>殖利率 = 近一年每股現金股利 ÷ 現價</p>' +

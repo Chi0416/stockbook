@@ -84,7 +84,8 @@ const Etf = (() => {
 //   只算 shared/etf.json 裡有的 ETF（從投信網站抄的，見上面），所以「幾檔」最多就是收了幾檔；說明裡寫收了哪幾檔、哪一天公布的
 //   排序：ETF 多的在前（預設，一樣多的照權重加總）、權重加總高的在前、依代號
 //     權重加總：這一檔佔每一檔持有它的 ETF 的權重加起來，越高代表 ETF 買得越多
-//   全市場只列至少一檔 ETF 持有的；全部、持有、觀察照樣列出來（沒有 ETF 持有的是 0 檔，排最後）
+//   全市場只列至少一檔 ETF 持有的；持有、觀察照樣列出來（沒有 ETF 持有的是 0 檔，排最後）
+//   表格的「哪幾檔」只列權重最大的 3 檔，全部的在詳細頁（detail.js 的 etfHTML）
 //   ETF 資料打開這一頁才下載（app.js 切到這一頁時叫 Etf.need），下載好之後整頁重畫
 const ETF_PAGE = (() => {
   const md = d => (d.startsWith(U.today().slice(0, 4)) ? U.fmtDate(d).slice(5) : U.fmtDate(d));
@@ -96,8 +97,10 @@ const ETF_PAGE = (() => {
     return { ...r, by, n: ready() ? by.length : null, wsum: by.reduce((s, x) => s + x.weight, 0) };
   }
 
-  // 哪幾檔：ETF 代號，權重大的在前，一個一個小框
-  const tagsHTML = by => `<span class="etf-by">${by.map(x => `<span>${U.esc(x.code)}</span>`).join('')}</span>`;
+  // 哪幾檔：ETF 代號，權重大的在前，一個一個小框；表格只列前 3 檔，其他的寫「+9」（全部的看詳細頁、詳細卡片）
+  const MAX = 3;
+  const tagsHTML = by => `<span class="etf-by">${by.slice(0, MAX).map(x => `<span>${U.esc(x.code)}</span>`).join('')}` +
+    `${by.length > MAX ? `<span class="more">+${by.length - MAX}</span>` : ''}</span>`;
 
   // 表格：幾檔（下面是權重加總）｜哪幾檔
   const table = {
